@@ -1,0 +1,58 @@
+{
+  "script": "57_p37_classifier_feature_analysis",
+  "timestamp": "2026-05-06T16:21:08",
+  "input_dir": "outputs/explorations/20260506_1557_p37_pipeline_framework",
+  "out_dir": "outputs/explorations/20260506_1619_p37_classifier_feature_analysis",
+  "features": [
+    "score",
+    "D_min_ratio",
+    "h_min",
+    "h_min_over_S",
+    "P_<0",
+    "P_0",
+    "P_4",
+    "P_8",
+    "P_16",
+    "P_thetaS_001",
+    "P_thetaS_005",
+    "P_thetaS_010",
+    "kappa_max",
+    "kappa_q90",
+    "kappa_q95",
+    "kappa_q99",
+    "low_q_high_kappa_overlap",
+    "Q_ratio",
+    "Q_tot",
+    "InitHardness",
+    "E_total",
+    "AP_total",
+    "E_excess_total",
+    "AP_excess_total",
+    "improving_swap_count",
+    "near_improving_count_h_le_4",
+    "near_improving_count_h_le_8",
+    "near_improving_count_h_le_16",
+    "moment_zero_count_3",
+    "moment_zero_count_6",
+    "higher_moment_norm"
+  ],
+  "pair_comparisons": [
+    [
+      "exact_derived",
+      "search_derived_false_basin"
+    ],
+    [
+      "exact_derived",
+      "hard_basin"
+    ],
+    [
+      "search_derived_false_basin",
+      "unknown"
+    ],
+    [
+      "exact_derived",
+      "unknown"
+    ]
+  ],
+  "note": "Existing pipeline rows only; no search was run."
+}
