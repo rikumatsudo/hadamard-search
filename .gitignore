@@ -10,7 +10,10 @@ __pycache__/
 
 # Generated logs and bulk search artifacts.
 outputs/logs/
-outputs/candidates/
+outputs/candidates/**
+!outputs/candidates/
+!outputs/candidates/small_p/
+!outputs/candidates/small_p/exact_*.json
 outputs/fourier/
 outputs/pair_profiles/
 
