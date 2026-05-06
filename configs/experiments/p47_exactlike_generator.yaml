@@ -1,0 +1,55 @@
+experiment:
+  name: p47_exactlike_generator_scaffold
+  description: exactlike-guided generator scaffold for p=47
+  output_root: outputs/explorations
+  random_seed_base: 20260506
+target:
+  p: 47
+  n: 188
+  ks: [17, 22, 22, 23]
+  lambda: 37
+  row_sums: [13, 3, 3, 1]
+  exact_json: null
+  has_known_exact: false
+  role: small_p_extension
+run:
+  modes: [score_only, exactlike_guided, threshold_exactlike]
+  seeds: 10
+  steps: 5000
+  snapshot_interval: 200
+  max_diagnostics_per_run: 50
+  stop_on_score0: true
+initialization:
+  families: [pure_random, score_biased_random, mixed_diversity]
+  candidates_per_family: 30
+  selected_per_family: 5
+diagnostics:
+  moment_orders: [2, 4, 6, 8, 10, 12]
+  p_tau_thresholds_absolute: [0, 4, 8, 16]
+  p_tau_thresholds_relative: [0.01, 0.05, 0.10]
+exactlike_score:
+  enabled: true
+  features:
+    D_min_ratio: {weight: -1.0, transform: zscore}
+    P_4: {weight: 1.0, transform: zscore}
+    P_8: {weight: 1.0, transform: zscore}
+    kappa_max: {weight: 1.0, transform: zscore}
+    Q_ratio: {weight: -0.25, transform: zscore}
+frontier:
+  max_size: 200
+  buckets: {best_score: 40, best_exactlike_score: 40, best_D_min_ratio: 30, best_P_tau: 30, best_kappa: 30, diversity: 30}
+  archive_false_like: true
+repair:
+  enabled: true
+  route_only_if: {score_lte: 24, exactlike_score_percentile_gte: 70}
+  modes: [sparse_vector_cancellation_beam, pair_level_partial_defect_repair]
+validation:
+  run_known_sds_regression: true
+  validate_score0_candidates: true
+  build_gs_for_score0: true
+  save_candidate_json: true
+  score0_is_only_success: true
+report:
+  write_markdown_summary: true
+  write_jsonl: true
+  write_csv: true

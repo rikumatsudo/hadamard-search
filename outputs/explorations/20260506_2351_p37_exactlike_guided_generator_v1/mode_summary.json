@@ -1,0 +1,48 @@
+{
+  "rows": [
+    {
+      "mode": "exactlike_guided",
+      "run_count": 5,
+      "score0_count": 1,
+      "best_score": 0,
+      "median_final_score": 8,
+      "median_best_score": 8,
+      "final_false_like_count": 2,
+      "final_exact_like_count": 1,
+      "distinct_final_hashes": 5
+    },
+    {
+      "mode": "exactlike_guided_with_repair",
+      "run_count": 5,
+      "score0_count": 1,
+      "best_score": 0,
+      "median_final_score": 8,
+      "median_best_score": 8,
+      "final_false_like_count": 2,
+      "final_exact_like_count": 1,
+      "distinct_final_hashes": 5
+    },
+    {
+      "mode": "score_only",
+      "run_count": 5,
+      "score0_count": 1,
+      "best_score": 0,
+      "median_final_score": 12,
+      "median_best_score": 12,
+      "final_false_like_count": 1,
+      "final_exact_like_count": 1,
+      "distinct_final_hashes": 5
+    },
+    {
+      "mode": "threshold_exactlike",
+      "run_count": 5,
+      "score0_count": 1,
+      "best_score": 0,
+      "median_final_score": 8,
+      "median_best_score": 8,
+      "final_false_like_count": 3,
+      "final_exact_like_count": 1,
+      "distinct_final_hashes": 5
+    }
+  ]
+}

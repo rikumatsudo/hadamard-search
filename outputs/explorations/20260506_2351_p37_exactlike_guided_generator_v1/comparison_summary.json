@@ -1,0 +1,123 @@
+{
+  "config_driven_runner_ok": true,
+  "exact_validation": {
+    "has_known_exact": true,
+    "exact_json": "outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+    "p": 37,
+    "n": 148,
+    "ks": [
+      13,
+      16,
+      18,
+      18
+    ],
+    "lambda": 28,
+    "score": 0,
+    "l1": 0,
+    "max_abs": 0,
+    "nonzero": 0,
+    "sds_ok": true,
+    "bad_shift_count": 0,
+    "entries_pm1_ok": true,
+    "hh_t_ok": true,
+    "hh_t_expected": "148I",
+    "external_validation_commands": [
+      "sage sage/08_analyze_sds_candidate.sage outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+      "sage sage/05_validate_candidate_json.sage outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+      "sage sage/04_build_gs_from_sds.sage outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json"
+    ]
+  },
+  "initial_candidate_count": 40,
+  "trajectory_run_count": 20,
+  "diagnostic_candidate_count": 108,
+  "frontier_count": 55,
+  "archived_false_like_count": 16,
+  "repair_routed_count": 2,
+  "repair_attempt_count": 8,
+  "score0_candidate_paths": [
+    "outputs/explorations/20260506_2351_p37_exactlike_guided_generator_v1/score0_candidate_score_only_5f50c5e7835e.json",
+    "outputs/explorations/20260506_2351_p37_exactlike_guided_generator_v1/score0_candidate_sparse_vector_cancellation_beam_5f50c5e7835e.json",
+    "outputs/explorations/20260506_2351_p37_exactlike_guided_generator_v1/score0_candidate_pair_level_partial_defect_repair_5f50c5e7835e.json",
+    "outputs/explorations/20260506_2351_p37_exactlike_guided_generator_v1/score0_candidate_moment_late_repair_5f50c5e7835e.json"
+  ],
+  "mode_summary": [
+    {
+      "mode": "exactlike_guided",
+      "run_count": 5,
+      "score0_count": 1,
+      "best_score": 0,
+      "median_final_score": 8,
+      "median_best_score": 8,
+      "final_false_like_count": 2,
+      "final_exact_like_count": 1,
+      "distinct_final_hashes": 5
+    },
+    {
+      "mode": "exactlike_guided_with_repair",
+      "run_count": 5,
+      "score0_count": 1,
+      "best_score": 0,
+      "median_final_score": 8,
+      "median_best_score": 8,
+      "final_false_like_count": 2,
+      "final_exact_like_count": 1,
+      "distinct_final_hashes": 5
+    },
+    {
+      "mode": "score_only",
+      "run_count": 5,
+      "score0_count": 1,
+      "best_score": 0,
+      "median_final_score": 12,
+      "median_best_score": 12,
+      "final_false_like_count": 1,
+      "final_exact_like_count": 1,
+      "distinct_final_hashes": 5
+    },
+    {
+      "mode": "threshold_exactlike",
+      "run_count": 5,
+      "score0_count": 1,
+      "best_score": 0,
+      "median_final_score": 8,
+      "median_best_score": 8,
+      "final_false_like_count": 3,
+      "final_exact_like_count": 1,
+      "distinct_final_hashes": 5
+    }
+  ],
+  "repair_summary": [
+    {
+      "repair_mode": "exact_joint_rswap_lns",
+      "attempt_count": 2,
+      "score_improvement_count": 2,
+      "score_improvement_rate": 1.0,
+      "score0_count": 0,
+      "best_score_after": 12
+    },
+    {
+      "repair_mode": "moment_late_repair",
+      "attempt_count": 2,
+      "score_improvement_count": 2,
+      "score_improvement_rate": 1.0,
+      "score0_count": 2,
+      "best_score_after": 0
+    },
+    {
+      "repair_mode": "pair_level_partial_defect_repair",
+      "attempt_count": 2,
+      "score_improvement_count": 2,
+      "score_improvement_rate": 1.0,
+      "score0_count": 2,
+      "best_score_after": 0
+    },
+    {
+      "repair_mode": "sparse_vector_cancellation_beam",
+      "attempt_count": 2,
+      "score_improvement_count": 2,
+      "score_improvement_rate": 1.0,
+      "score0_count": 2,
+      "best_score_after": 0
+    }
+  ]
+}

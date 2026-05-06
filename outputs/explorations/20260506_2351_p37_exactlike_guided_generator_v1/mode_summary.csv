@@ -1,0 +1,5 @@
+mode,run_count,score0_count,best_score,median_final_score,median_best_score,final_false_like_count,final_exact_like_count,distinct_final_hashes
+exactlike_guided,5,1,0,8,8,2,1,5
+exactlike_guided_with_repair,5,1,0,8,8,2,1,5
+score_only,5,1,0,12,12,1,1,5
+threshold_exactlike,5,1,0,8,8,3,1,5

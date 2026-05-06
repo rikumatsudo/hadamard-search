@@ -1,0 +1,95 @@
+experiment:
+  name: p167_tuple_A_exactlike_smoke
+  description: exactlike-guided smoke on Hadamard 668 tuple A
+  output_root: outputs/explorations
+  random_seed_base: 20260506
+target:
+  p: 167
+  n: 668
+  ks: [73, 78, 79, 81]
+  lambda: 144
+  row_sums: [21, 11, 9, 5]
+  exact_json: null
+  has_known_exact: false
+  role: target_668
+  tuple_name: A_73_78_79_81
+run:
+  modes:
+    - score_only
+    - exactlike_guided
+    - threshold_exactlike
+  seeds: 10
+  steps: 10000
+  snapshot_interval: 500
+  max_diagnostics_per_run: 50
+  stop_on_score0: true
+initialization:
+  families:
+    - pure_random
+    - score_biased_random
+    - mixed_diversity
+    - near_hit_perturbation
+  candidates_per_family: 20
+  selected_per_family: 5
+diagnostics:
+  full_1swap: true
+  compute_dmin1: true
+  compute_p_tau: true
+  compute_kappa: true
+  compute_q_ratio: true
+  compute_init_hardness: true
+  compute_moments: true
+  moment_orders: [2, 4, 6, 8, 10, 12]
+  p_tau_thresholds_absolute: [0, 4, 8, 16, 32]
+  p_tau_thresholds_relative: [0.01, 0.05, 0.10]
+  low_score_thresholds:
+    absolute: [400, 300, 240, 200, 180, 164]
+exactlike_score:
+  enabled: true
+  use_rank_normalization: true
+  features:
+    D_min_ratio:
+      weight: -1.0
+      transform: rank
+    P_8:
+      weight: 1.0
+      transform: rank
+    P_16:
+      weight: 1.0
+      transform: rank
+    kappa_max:
+      weight: 1.0
+      transform: rank
+    Q_ratio:
+      weight: -0.25
+      transform: rank
+frontier:
+  max_size: 200
+  buckets:
+    best_score: 40
+    best_exactlike_score: 40
+    best_D_min_ratio: 30
+    best_P_tau: 30
+    best_kappa: 30
+    diversity: 30
+  archive_false_like: true
+  archive_score_low_false_like: true
+repair:
+  enabled: true
+  route_only_if:
+    score_lte: 240
+    exactlike_score_percentile_gte: 75
+  modes:
+    - sparse_vector_cancellation_beam
+    - pair_level_partial_defect_repair
+    - exact_joint_rswap_lns
+validation:
+  run_known_sds_regression: false
+  validate_score0_candidates: true
+  build_gs_for_score0: true
+  save_candidate_json: true
+  score0_is_only_success: true
+report:
+  write_markdown_summary: true
+  write_jsonl: true
+  write_csv: true

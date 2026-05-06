@@ -1,0 +1,36 @@
+{
+  "rows": [
+    {
+      "repair_mode": "exact_joint_rswap_lns",
+      "attempt_count": 2,
+      "score_improvement_count": 2,
+      "score_improvement_rate": 1.0,
+      "score0_count": 0,
+      "best_score_after": 12
+    },
+    {
+      "repair_mode": "moment_late_repair",
+      "attempt_count": 2,
+      "score_improvement_count": 2,
+      "score_improvement_rate": 1.0,
+      "score0_count": 2,
+      "best_score_after": 0
+    },
+    {
+      "repair_mode": "pair_level_partial_defect_repair",
+      "attempt_count": 2,
+      "score_improvement_count": 2,
+      "score_improvement_rate": 1.0,
+      "score0_count": 2,
+      "best_score_after": 0
+    },
+    {
+      "repair_mode": "sparse_vector_cancellation_beam",
+      "attempt_count": 2,
+      "score_improvement_count": 2,
+      "score_improvement_rate": 1.0,
+      "score0_count": 2,
+      "best_score_after": 0
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "has_known_exact": true,
+  "exact_json": "outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+  "p": 37,
+  "n": 148,
+  "ks": [
+    13,
+    16,
+    18,
+    18
+  ],
+  "lambda": 28,
+  "score": 0,
+  "l1": 0,
+  "max_abs": 0,
+  "nonzero": 0,
+  "sds_ok": true,
+  "bad_shift_count": 0,
+  "entries_pm1_ok": true,
+  "hh_t_ok": true,
+  "hh_t_expected": "148I",
+  "external_validation_commands": [
+    "sage sage/08_analyze_sds_candidate.sage outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+    "sage sage/05_validate_candidate_json.sage outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+    "sage sage/04_build_gs_from_sds.sage outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json"
+  ]
+}
