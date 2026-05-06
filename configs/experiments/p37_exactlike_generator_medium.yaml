@@ -1,0 +1,128 @@
+experiment:
+  name: p37_exactlike_guided_generator_medium
+  description: medium comparison of exactlike-guided generator modes on p=37
+  output_root: outputs/explorations
+  random_seed_base: 20260507
+target:
+  p: 37
+  n: 148
+  ks: [13, 16, 18, 18]
+  lambda: 28
+  row_sums: [11, 5, 1, 1]
+  exact_json: outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json
+  has_known_exact: true
+  role: small_p_validation
+run:
+  modes:
+    - score_only
+    - exactlike_guided
+    - threshold_exactlike
+    - exactlike_guided_with_repair
+  seeds: 50
+  steps: 5000
+  snapshot_interval: 100
+  max_diagnostics_per_run: 100
+  stop_on_score0: true
+initialization:
+  families:
+    - pure_random
+    - score_biased_random
+    - mixed_diversity
+    - exact_perturbation
+  candidates_per_family: 100
+  selected_per_family: 15
+  exact_perturbation:
+    radii: [1, 2, 3, 4, 5]
+    samples_per_radius: 300
+diagnostics:
+  full_1swap: true
+  compute_dmin1: true
+  compute_p_tau: true
+  compute_kappa: true
+  compute_q_ratio: true
+  compute_init_hardness: true
+  compute_moments: true
+  moment_orders: [2, 4, 6, 8, 10, 12]
+  p_tau_thresholds_absolute: [0, 4, 8, 16]
+  p_tau_thresholds_relative: [0.01, 0.05, 0.10]
+  low_score_thresholds:
+    absolute: [4, 8, 12, 16, 24, 32]
+exactlike_score:
+  enabled: true
+  features:
+    D_min_ratio:
+      weight: -1.0
+      transform: zscore
+    P_4:
+      weight: 1.0
+      transform: zscore
+    P_8:
+      weight: 1.0
+      transform: zscore
+    kappa_max:
+      weight: 1.0
+      transform: zscore
+    Q_ratio:
+      weight: -0.25
+      transform: zscore
+  missing_policy: neutral
+frontier:
+  max_size: 300
+  buckets:
+    best_score: 60
+    best_exactlike_score: 60
+    best_D_min_ratio: 40
+    best_P_tau: 40
+    best_kappa: 40
+    diversity: 60
+  archive_false_like: true
+  archive_score_low_false_like: true
+false_basin_rules:
+  false_like:
+    require:
+      score_gt: 0
+      D_min_ratio_gt: 1.0
+      P_below0_eq: 0
+      kappa_max_lt: 1.0
+  exact_like:
+    any:
+      D_min_ratio_lt: 1.0
+      h_min_lt: 0
+      kappa_max_gt: 1.0
+  ambiguous_margin: 0.1
+repair:
+  enabled: true
+  route_only_if:
+    score_lte: 16
+    exactlike_score_percentile_gte: 60
+  modes:
+    - sparse_vector_cancellation_beam
+    - pair_level_partial_defect_repair
+    - exact_joint_rswap_lns
+    - moment_late_repair
+  sparse_vector_cancellation_beam:
+    top_k_per_category: 50
+    beam_width: 300
+    max_depth: 5
+  exact_joint_rswap_lns:
+    r_values: [2, 3, 4, 5]
+    samples_per_r: 300
+  pair_level_partial_defect_repair:
+    splits:
+      - [[0, 1], [2, 3]]
+      - [[0, 2], [1, 3]]
+      - [[0, 3], [1, 2]]
+  moment_late_repair:
+    enabled: true
+    eta_values: [0.01, 0.05, 0.1]
+    only_if_score_lte: 16
+validation:
+  run_known_sds_regression: true
+  validate_score0_candidates: true
+  build_gs_for_score0: true
+  save_candidate_json: true
+  score0_is_only_success: true
+report:
+  write_markdown_summary: true
+  write_jsonl: true
+  write_csv: true

@@ -1,0 +1,5 @@
+repair_mode,attempt_count,score_improvement_count,score_improvement_rate,score0_count,best_score_after
+exact_joint_rswap_lns,5,2,0.4,0,8
+moment_late_repair,5,5,1.0,5,0
+pair_level_partial_defect_repair,5,5,1.0,5,0
+sparse_vector_cancellation_beam,5,5,1.0,5,0

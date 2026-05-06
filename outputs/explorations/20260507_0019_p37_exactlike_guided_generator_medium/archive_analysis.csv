@@ -1,0 +1,6 @@
+count,label_distribution,low_score_archived_count,median_D_min_ratio,median_P_8,median_Q_ratio,median_kappa_max,median_score,mode,score_lte_16_archived_count
+192,"{""false_like"": 192}",192,1.5,0.015765765765765764,38.64583333333333,0.75,8.0,ALL,192
+54,"{""false_like"": 54}",54,1.5,0.016516516516516516,38.56944444444444,0.75,8.0,exactlike_guided,54
+54,"{""false_like"": 54}",54,1.5,0.016516516516516516,38.56944444444444,0.75,8.0,exactlike_guided_with_repair,54
+14,"{""false_like"": 14}",14,1.5,0.02177177177177177,38.451388888888886,0.8333333333333334,8.0,score_only,14
+70,"{""false_like"": 70}",70,2.0,0.010510510510510511,75.97222222222223,0.6666666666666666,4.0,threshold_exactlike,70

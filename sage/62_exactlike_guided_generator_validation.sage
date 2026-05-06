@@ -986,8 +986,19 @@ def build_frontier(rows, cfg):
     add(sorted(rows, key=lambda r: (-float(r.get("kappa_max") if r.get("kappa_max") is not None else -10**9), int(r.get("score") or 10**9))), buckets.get("best_kappa", 30), "best_kappa")
     diverse = unique_by_hash(sorted(rows, key=lambda r: (r["canonical_hash"], int(r.get("score") or 10**9))))
     add(diverse, buckets.get("diversity", 30), "diversity")
+    merged = {}
+    order = []
+    for row in selected:
+        h = row["canonical_hash"]
+        bucket = row.get("frontier_bucket")
+        if h not in merged:
+            merged[h] = dict(row)
+            merged[h]["frontier_buckets"] = []
+            order.append(h)
+        if bucket and bucket not in merged[h]["frontier_buckets"]:
+            merged[h]["frontier_buckets"].append(bucket)
     max_size = int(frontier_cfg.get("max_size", 200))
-    return unique_by_hash(selected)[:max_size]
+    return [merged[h] for h in order[:max_size]]
 
 
 def false_archive(rows):
@@ -1239,23 +1250,171 @@ def summarize_groups(rows, group_field, feature_fields):
     return out
 
 
-def mode_summary(run_rows):
+def median_or_none(values):
+    values = [float(value) for value in values if value is not None]
+    if not values:
+        return None
+    return statistics.median(values)
+
+
+def count_by(rows, field):
+    out = {}
+    for row in rows:
+        key = row.get(field)
+        key = "missing" if key is None else str(key)
+        out[key] = out.get(key, 0) + 1
+    return {key: int(out[key]) for key in sorted(out)}
+
+
+def histogram_int(rows, field):
+    out = {}
+    for row in rows:
+        value = row.get(field)
+        if value is None:
+            key = "missing"
+        else:
+            key = str(int(value))
+        out[key] = out.get(key, 0) + 1
+    return {key: int(out[key]) for key in sorted(out, key=lambda x: (x == "missing", int(x) if x != "missing" else 0))}
+
+
+def mode_summary(run_rows, frontier_rows=None, repair_rows=None):
+    frontier_rows = frontier_rows or []
+    repair_rows = repair_rows or []
     groups = {}
     for row in run_rows:
         groups.setdefault(row["mode"], []).append(row)
     out = []
     for mode, rows in sorted(groups.items()):
+        frontier_group = [row for row in frontier_rows if row.get("mode") == mode]
+        repair_group = [row for row in repair_rows if row.get("parent_mode") == mode]
+        score0_count = int(sum(1 for row in rows if row.get("score_final") == 0))
+        final_false = int(sum(1 for row in rows if row.get("final_label") == "false_like"))
+        final_exact = int(sum(1 for row in rows if row.get("final_label") in ("exact", "exact_like")))
+        final_ambiguous = int(sum(1 for row in rows if row.get("final_label") == "ambiguous"))
+        final_unknown = int(sum(1 for row in rows if row.get("final_label") not in ("exact", "exact_like", "false_like", "ambiguous")))
         out.append(
             {
                 "mode": mode,
                 "run_count": int(len(rows)),
-                "score0_count": int(sum(1 for row in rows if row.get("score_final") == 0)),
+                "score0_count": score0_count,
+                "score0_rate": float(score0_count) / float(len(rows)) if rows else None,
+                "best_score_overall": min(int(row.get("score_best", 10**9)) for row in rows),
                 "best_score": min(int(row.get("score_best", 10**9)) for row in rows),
                 "median_final_score": statistics.median([int(row["score_final"]) for row in rows]),
                 "median_best_score": statistics.median([int(row["score_best"]) for row in rows]),
-                "final_false_like_count": int(sum(1 for row in rows if row.get("final_label") == "false_like")),
-                "final_exact_like_count": int(sum(1 for row in rows if row.get("final_label") in ("exact", "exact_like"))),
+                "final_false_like_count": final_false,
+                "final_exact_like_count": final_exact,
+                "final_ambiguous_count": final_ambiguous,
+                "final_unknown_count": final_unknown,
+                "false_like_final_rate": float(final_false) / float(len(rows)) if rows else None,
+                "exact_like_final_rate": float(final_exact) / float(len(rows)) if rows else None,
+                "frontier_exact_like_count": int(sum(1 for row in frontier_group if row.get("label") in ("exact", "exact_like"))),
+                "frontier_false_like_count": int(sum(1 for row in frontier_group if row.get("label") == "false_like")),
+                "archived_false_like_count": 0,
+                "median_D_min_ratio_final": median_or_none([row.get("final_D_min_ratio") for row in rows]),
+                "median_P_4_final": median_or_none([row.get("final_P_4") for row in rows]),
+                "median_P_8_final": median_or_none([row.get("final_P_8") for row in rows]),
+                "median_P_16_final": median_or_none([row.get("final_P_16") for row in rows]),
+                "median_kappa_max_final": median_or_none([row.get("final_kappa_max") for row in rows]),
+                "median_Q_ratio_final": median_or_none([row.get("final_Q_ratio") for row in rows]),
+                "median_ExactLikeScore_final": median_or_none([row.get("final_ExactLikeScore") for row in rows]),
+                "repair_routed_count": int(len(set(row.get("parent_hash") for row in repair_group))),
+                "repair_attempt_count": int(len(repair_group)),
+                "repair_score0_count": int(sum(1 for row in repair_group if row.get("score0_seen"))),
+                "repair_score_improvement_count": int(sum(1 for row in repair_group if row.get("score_improvement_seen"))),
+                "repair_success_rate": float(sum(1 for row in repair_group if row.get("score_improvement_seen"))) / float(len(repair_group)) if repair_group else None,
                 "distinct_final_hashes": int(len(set(row.get("final_hash") for row in rows))),
+                "distinct_frontier_hashes": int(len(set(row.get("canonical_hash") for row in frontier_group))),
+            }
+        )
+    return out
+
+
+def add_archive_counts_to_mode_summary(mode_rows, archived_rows):
+    archive_counts = {}
+    for row in archived_rows:
+        mode = row.get("mode") or "missing"
+        archive_counts[mode] = archive_counts.get(mode, 0) + 1
+    for row in mode_rows:
+        row["archived_false_like_count"] = int(archive_counts.get(row["mode"], 0))
+    return mode_rows
+
+
+def frontier_analysis(frontier_rows):
+    fields = ["score", "ExactLikeScore", "D_min_ratio", "P_4", "P_8", "P_16", "kappa_max", "Q_ratio"]
+    groups = {}
+    for row in frontier_rows:
+        groups.setdefault(row.get("mode") or "missing", []).append(row)
+    out = []
+    for mode, rows in sorted(groups.items()):
+        item = {
+            "mode": mode,
+            "frontier_count": int(len(rows)),
+            "best_score_frontier_count": int(sum(1 for row in rows if "best_score" in (row.get("frontier_buckets") or [row.get("frontier_bucket")]))),
+            "best_exactlike_score_frontier_count": int(sum(1 for row in rows if "best_exactlike_score" in (row.get("frontier_buckets") or [row.get("frontier_bucket")]))),
+            "best_D_min_ratio_frontier_count": int(sum(1 for row in rows if "best_D_min_ratio" in (row.get("frontier_buckets") or [row.get("frontier_bucket")]))),
+            "best_P_tau_frontier_count": int(sum(1 for row in rows if "best_P_tau" in (row.get("frontier_buckets") or [row.get("frontier_bucket")]))),
+            "best_kappa_frontier_count": int(sum(1 for row in rows if "best_kappa" in (row.get("frontier_buckets") or [row.get("frontier_bucket")]))),
+            "diversity_frontier_count": int(sum(1 for row in rows if "diversity" in (row.get("frontier_buckets") or [row.get("frontier_bucket")]))),
+            "label_distribution": count_by(rows, "label"),
+            "score_distribution": histogram_int(rows, "score"),
+            "distinct_frontier_hashes": int(len(set(row.get("canonical_hash") for row in rows))),
+        }
+        for field in fields:
+            item["median_{}".format(field)] = median_or_none([row.get(field) for row in rows])
+            item["mean_{}".format(field)] = statistics.mean([float(row[field]) for row in rows if row.get(field) is not None]) if any(row.get(field) is not None for row in rows) else None
+        out.append(item)
+    return out
+
+
+def archive_analysis(archived_rows):
+    groups = {"ALL": list(archived_rows)}
+    for row in archived_rows:
+        groups.setdefault(row.get("mode") or "missing", []).append(row)
+    out = []
+    for mode, rows in sorted(groups.items()):
+        out.append(
+            {
+                "mode": mode,
+                "count": int(len(rows)),
+                "median_score": median_or_none([row.get("score") for row in rows]),
+                "median_D_min_ratio": median_or_none([row.get("D_min_ratio") for row in rows]),
+                "median_P_8": median_or_none([row.get("P_8") for row in rows]),
+                "median_kappa_max": median_or_none([row.get("kappa_max") for row in rows]),
+                "median_Q_ratio": median_or_none([row.get("Q_ratio") for row in rows]),
+                "low_score_archived_count": int(sum(1 for row in rows if row.get("score") is not None and int(row.get("score")) <= 32)),
+                "score_lte_16_archived_count": int(sum(1 for row in rows if row.get("score") is not None and int(row.get("score")) <= 16)),
+                "label_distribution": count_by(rows, "label"),
+            }
+        )
+    return out
+
+
+def repair_routing_analysis(repair_rows):
+    groups = {"ALL": list(repair_rows)}
+    for row in repair_rows:
+        groups.setdefault("mode:{}".format(row.get("parent_mode") or "missing"), []).append(row)
+        groups.setdefault("repair:{}".format(row.get("repair_mode") or "missing"), []).append(row)
+    out = []
+    for group_name, rows in sorted(groups.items()):
+        parent_hashes = set(row.get("parent_hash") for row in rows)
+        out.append(
+            {
+                "group": group_name,
+                "repair_attempt_count": int(len(rows)),
+                "repair_routed_candidates_count": int(len(parent_hashes)),
+                "parent_label_distribution": count_by(rows, "parent_label"),
+                "parent_mode_distribution": count_by(rows, "parent_mode"),
+                "repair_mode_distribution": count_by(rows, "repair_mode"),
+                "parent_score_distribution": histogram_int(rows, "parent_score"),
+                "median_parent_score": median_or_none([row.get("parent_score") for row in rows]),
+                "median_parent_ExactLikeScore": median_or_none([row.get("parent_ExactLikeScore") for row in rows]),
+                "score_improvement_count": int(sum(1 for row in rows if row.get("score_improvement_seen"))),
+                "score_improvement_rate": float(sum(1 for row in rows if row.get("score_improvement_seen"))) / float(len(rows)) if rows else None,
+                "score0_count": int(sum(1 for row in rows if row.get("score0_seen"))),
+                "score0_rate": float(sum(1 for row in rows if row.get("score0_seen"))) / float(len(rows)) if rows else None,
+                "best_score_after": min(int(row.get("score_after", 10**9)) for row in rows) if rows else None,
             }
         )
     return out
@@ -1291,8 +1450,38 @@ def make_summary(path, context):
     false_reduced = None
     exact_frontier_increased = None
     if score_only and exactlike:
-        false_reduced = int(exactlike.get("final_false_like_count", 0)) < int(score_only.get("final_false_like_count", 0))
-        exact_frontier_increased = int(exactlike.get("final_exact_like_count", 0)) > int(score_only.get("final_exact_like_count", 0))
+        false_reduced = float(exactlike.get("false_like_final_rate") or 0.0) < float(score_only.get("false_like_final_rate") or 0.0)
+        exact_frontier_increased = int(exactlike.get("frontier_exact_like_count", 0)) > int(score_only.get("frontier_exact_like_count", 0))
+    archive_all = None
+    for row in context.get("archive_analysis", []):
+        if row.get("mode") == "ALL":
+            archive_all = row
+            break
+    repair_all = None
+    for row in context.get("repair_routing_analysis", []):
+        if row.get("group") == "ALL":
+            repair_all = row
+            break
+    score0_rates = {
+        mode: mode_map.get(mode, {}).get("score0_rate")
+        for mode in ("score_only", "exactlike_guided", "threshold_exactlike", "exactlike_guided_with_repair")
+    }
+    repair_helped = None
+    if with_repair:
+        repair_helped = bool(
+            (with_repair.get("repair_score0_count") or 0) > 0
+            or (with_repair.get("repair_score_improvement_count") or 0) > 0
+        )
+    exactlike_judgement = "inconclusive"
+    next_step = "p37 policy tuning before p43/p47"
+    if score_only and exactlike:
+        exactlike_score0 = float(exactlike.get("score0_rate") or 0.0)
+        score_only_score0 = float(score_only.get("score0_rate") or 0.0)
+        if (exactlike_score0 > score_only_score0) or false_reduced or exact_frontier_increased:
+            exactlike_judgement = "promising"
+            next_step = "p43/p47 smoke after one more p37 sanity run"
+        else:
+            exactlike_judgement = "not_supported_current_policy"
     lines = [
         "# Exact-Like Guided Generator Validation",
         "",
@@ -1320,22 +1509,43 @@ def make_summary(path, context):
         "",
         "## Required Answers",
         "",
-        "1. config-driven runner は動いたか: `True`.",
-        "2. p=37 exact validation は通ったか: `{}`.".format(bool(context["exact_validation"].get("score") == 0 and context["exact_validation"].get("sds_ok") and context["exact_validation"].get("hh_t_ok"))),
-        "3. score_only / exactlike_guided / threshold_exactlike / exactlike_guided_with_repair の比較はできたか: `{}`.".format(all(mode in mode_map for mode in ("score_only", "exactlike_guided", "threshold_exactlike", "exactlike_guided_with_repair"))),
-        "4. exactlike_guided は score_only より false-like candidate を減らしたか: `{}`.".format(false_reduced),
-        "5. exactlike_guided は score_only より exact-like frontier を増やしたか: `{}`.".format(exact_frontier_increased),
-        "6. threshold_exactlike は shallow barrier を越えて escapable candidate を増やしたか: final_exact_like_count `{}` vs score_only `{}`.".format(threshold.get("final_exact_like_count"), score_only.get("final_exact_like_count")),
-        "7. repair routing は全候補ではなく exact-like low-score にだけ適用されたか: `{}` routed candidates, `{}` attempts.".format(context["repair_routed_count"], context["repair_attempt_count"]),
-        "8. score=0 は出たか。出た場合、08/05/04 検証を通ったか: score0_seen `{}`; external validation is recorded in run_log after command execution.".format(score0_seen),
-        "9. p=167 に config だけ変えて拡張できる状態か: `True`; scaffold config uses rank features and no exact perturbation.",
-        "10. 次に p=43/47/167 のどれで検証すべきか: p=43 or p=47 smoke first, then p=167 rank-based smoke.",
+        "1. medium run は完走したか: `True`.",
+        "2. config-driven runner は今回も問題なく動作したか: `True`.",
+        "3. p37 exact validation は通ったか: `{}`.".format(bool(context["exact_validation"].get("score") == 0 and context["exact_validation"].get("sds_ok") and context["exact_validation"].get("hh_t_ok"))),
+        "4. score_only / exactlike_guided / threshold_exactlike / exactlike_guided_with_repair の score0_rate はどう違ったか: `{}`.".format(json.dumps(json_safe(score0_rates), sort_keys=True)),
+        "5. exactlike_guided は score_only より false-like final を減らしたか: `{}`.".format(false_reduced),
+        "6. exactlike_guided は score_only より exact-like frontier を増やしたか: `{}`.".format(exact_frontier_increased),
+        "7. threshold_exactlike は shallow barrier を越えて escapable / exact-like candidates を増やしたか: final_exact_like_count `{}` vs score_only `{}`; frontier_exact_like_count `{}` vs score_only `{}`.".format(
+            threshold.get("final_exact_like_count"),
+            score_only.get("final_exact_like_count"),
+            threshold.get("frontier_exact_like_count"),
+            score_only.get("frontier_exact_like_count"),
+        ),
+        "8. exactlike_guided_with_repair は repair routing により score0_rate または score improvement を上げたか: `{}`; repair_score0_count `{}`, repair_score_improvement_count `{}`.".format(
+            repair_helped,
+            with_repair.get("repair_score0_count"),
+            with_repair.get("repair_score_improvement_count"),
+        ),
+        "9. archived false-like candidates は本当に false-like 指標を持っていたか: median D_min_ratio `{}`, median kappa_max `{}`, score<=16 archived `{}`.".format(
+            None if archive_all is None else archive_all.get("median_D_min_ratio"),
+            None if archive_all is None else archive_all.get("median_kappa_max"),
+            None if archive_all is None else archive_all.get("score_lte_16_archived_count"),
+        ),
+        "10. repair は exact-like low-score candidates に限定されていたか: parent labels `{}`; parent modes `{}`.".format(
+            None if repair_all is None else repair_all.get("parent_label_distribution"),
+            None if repair_all is None else repair_all.get("parent_mode_distribution"),
+        ),
+        "11. score=0 candidate は出たか。出た場合、08/05/04 検証を通ったか: score0_seen `{}`; external validation is recorded in run_log after command execution.".format(score0_seen),
+        "12. p37 の結果から、exactlike-guided generator は score-only より有望か: `{}`.".format(exactlike_judgement),
+        "13. 次に p43/p47 に進むべきか、それとも p37 で重み・accept rule を調整すべきか: `{}`.".format(next_step),
+        "14. p167 へ戻すなら、どの設定を変えるべきか: use rank normalization, larger relative thresholds, fewer full diagnostics, and stricter repair routing percentiles.",
         "",
         "## Interpretation",
         "",
         "- score=0 only is success.",
         "- p=37 thresholds should not be copied directly to p=167; use ranks, trajectory response, and repair response there.",
         "- Repair is routed to low-score exact-like candidates, not applied as a blanket pass.",
+        "- Exact perturbation is a controlled positive-control family and should not be read as unguided search success.",
     ]
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
@@ -1422,12 +1632,23 @@ def main():
 
         apply_exactlike_scores(diagnostic_rows, cfg)
         for result in run_summaries:
-            final_matches = [row for row in diagnostic_rows if row["canonical_hash"] == result["final_hash"] and row.get("mode") == result["mode"]]
+            final_matches = [
+                row
+                for row in diagnostic_rows
+                if row["canonical_hash"] == result["final_hash"]
+                and row.get("mode") == result["mode"]
+                and row.get("final")
+            ]
+            if not final_matches:
+                final_matches = [row for row in diagnostic_rows if row["canonical_hash"] == result["final_hash"] and row.get("mode") == result["mode"]]
             best_matches = [row for row in diagnostic_rows if row["canonical_hash"] == result["best_hash"] and row.get("mode") == result["mode"]]
-            result["final_label"] = final_matches[-1].get("label") if final_matches else None
-            result["best_label"] = best_matches[-1].get("label") if best_matches else None
-            result["final_ExactLikeScore"] = final_matches[-1].get("ExactLikeScore") if final_matches else None
-            result["best_ExactLikeScore"] = best_matches[-1].get("ExactLikeScore") if best_matches else None
+            final_row = final_matches[-1] if final_matches else {}
+            best_row = best_matches[-1] if best_matches else {}
+            result["final_label"] = final_row.get("label")
+            result["best_label"] = best_row.get("label")
+            for field in ("D_min_ratio", "P_4", "P_8", "P_16", "kappa_max", "Q_ratio", "ExactLikeScore"):
+                result["final_{}".format(field)] = final_row.get(field)
+                result["best_{}".format(field)] = best_row.get(field)
 
         frontier = build_frontier(diagnostic_rows, cfg)
         archived = false_archive(diagnostic_rows)
@@ -1479,16 +1700,61 @@ def main():
         write_jsonl(os.path.join(out_dir, "repair_attempts.jsonl"), repair_rows)
         write_jsonl(os.path.join(out_dir, "score0_candidates.jsonl"), score0_rows)
 
-        mode_rows = mode_summary(run_summaries)
+        mode_rows = mode_summary(run_summaries, frontier, repair_rows)
+        mode_rows = add_archive_counts_to_mode_summary(mode_rows, archived)
         label_rows = summarize_groups(diagnostic_rows, "label", ["score", "D_min_ratio", "P_8", "kappa_max", "Q_ratio", "ExactLikeScore"])
         feature_rows = summarize_groups(diagnostic_rows, "mode", ["score", "D_min_ratio", "P_8", "kappa_max", "Q_ratio", "ExactLikeScore"])
         repair_sum = repair_summary(repair_rows)
-        write_csv(os.path.join(out_dir, "mode_summary.csv"), mode_rows, ["mode", "run_count", "score0_count", "best_score", "median_final_score", "median_best_score", "final_false_like_count", "final_exact_like_count", "distinct_final_hashes"])
+        frontier_rows = frontier_analysis(frontier)
+        archive_rows = archive_analysis(archived)
+        repair_routing_rows = repair_routing_analysis(repair_rows)
+        mode_fields = [
+            "mode",
+            "run_count",
+            "score0_count",
+            "score0_rate",
+            "median_best_score",
+            "median_final_score",
+            "best_score_overall",
+            "final_exact_like_count",
+            "final_false_like_count",
+            "final_ambiguous_count",
+            "final_unknown_count",
+            "false_like_final_rate",
+            "exact_like_final_rate",
+            "frontier_exact_like_count",
+            "frontier_false_like_count",
+            "archived_false_like_count",
+            "median_D_min_ratio_final",
+            "median_P_4_final",
+            "median_P_8_final",
+            "median_P_16_final",
+            "median_kappa_max_final",
+            "median_Q_ratio_final",
+            "median_ExactLikeScore_final",
+            "repair_routed_count",
+            "repair_attempt_count",
+            "repair_score0_count",
+            "repair_score_improvement_count",
+            "repair_success_rate",
+            "distinct_final_hashes",
+            "distinct_frontier_hashes",
+        ]
+        write_csv(os.path.join(out_dir, "mode_summary.csv"), mode_rows, mode_fields)
         write_json_safe(os.path.join(out_dir, "mode_summary.json"), {"rows": mode_rows})
         write_csv(os.path.join(out_dir, "label_summary.csv"), label_rows, sorted(set().union(*(row.keys() for row in label_rows))) if label_rows else ["label", "count"])
         write_csv(os.path.join(out_dir, "feature_summary.csv"), feature_rows, sorted(set().union(*(row.keys() for row in feature_rows))) if feature_rows else ["mode", "count"])
         write_csv(os.path.join(out_dir, "repair_summary.csv"), repair_sum, ["repair_mode", "attempt_count", "score_improvement_count", "score_improvement_rate", "score0_count", "best_score_after"])
         write_json_safe(os.path.join(out_dir, "repair_summary.json"), {"rows": repair_sum})
+        frontier_fields = sorted(set().union(*(row.keys() for row in frontier_rows))) if frontier_rows else ["mode", "frontier_count"]
+        archive_fields = sorted(set().union(*(row.keys() for row in archive_rows))) if archive_rows else ["mode", "count"]
+        repair_routing_fields = sorted(set().union(*(row.keys() for row in repair_routing_rows))) if repair_routing_rows else ["group", "repair_attempt_count"]
+        write_csv(os.path.join(out_dir, "frontier_analysis.csv"), frontier_rows, frontier_fields)
+        write_json_safe(os.path.join(out_dir, "frontier_analysis.json"), {"rows": frontier_rows})
+        write_csv(os.path.join(out_dir, "archive_analysis.csv"), archive_rows, archive_fields)
+        write_json_safe(os.path.join(out_dir, "archive_analysis.json"), {"rows": archive_rows})
+        write_csv(os.path.join(out_dir, "repair_routing_analysis.csv"), repair_routing_rows, repair_routing_fields)
+        write_json_safe(os.path.join(out_dir, "repair_routing_analysis.json"), {"rows": repair_routing_rows})
 
         comparison = {
             "config_driven_runner_ok": True,
@@ -1502,6 +1768,9 @@ def main():
             "repair_attempt_count": len(repair_rows),
             "score0_candidate_paths": score0_paths,
             "mode_summary": mode_rows,
+            "frontier_analysis": frontier_rows,
+            "archive_analysis": archive_rows,
+            "repair_routing_analysis": repair_routing_rows,
             "repair_summary": repair_sum,
         }
         write_json_safe(os.path.join(out_dir, "comparison_summary.json"), comparison)
@@ -1515,6 +1784,9 @@ def main():
                 "out_dir": out_dir,
                 "mode_summary": mode_rows,
                 "repair_summary": repair_sum,
+                "frontier_analysis": frontier_rows,
+                "archive_analysis": archive_rows,
+                "repair_routing_analysis": repair_routing_rows,
                 "exact_validation": exact_validation,
                 "repair_routed_count": len(repair_candidates),
                 "repair_attempt_count": len(repair_rows),

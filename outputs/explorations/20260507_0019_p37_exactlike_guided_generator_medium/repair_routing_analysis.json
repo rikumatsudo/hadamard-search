@@ -1,0 +1,154 @@
+{
+  "rows": [
+    {
+      "group": "ALL",
+      "repair_attempt_count": 20,
+      "repair_routed_candidates_count": 5,
+      "parent_label_distribution": {
+        "exact_like": 20
+      },
+      "parent_mode_distribution": {
+        "initialization": 20
+      },
+      "repair_mode_distribution": {
+        "exact_joint_rswap_lns": 5,
+        "moment_late_repair": 5,
+        "pair_level_partial_defect_repair": 5,
+        "sparse_vector_cancellation_beam": 5
+      },
+      "parent_score_distribution": {
+        "16": 20
+      },
+      "median_parent_score": 16.0,
+      "median_parent_ExactLikeScore": 0.6004330990142938,
+      "score_improvement_count": 17,
+      "score_improvement_rate": 0.85,
+      "score0_count": 15,
+      "score0_rate": 0.75,
+      "best_score_after": 0
+    },
+    {
+      "group": "mode:initialization",
+      "repair_attempt_count": 20,
+      "repair_routed_candidates_count": 5,
+      "parent_label_distribution": {
+        "exact_like": 20
+      },
+      "parent_mode_distribution": {
+        "initialization": 20
+      },
+      "repair_mode_distribution": {
+        "exact_joint_rswap_lns": 5,
+        "moment_late_repair": 5,
+        "pair_level_partial_defect_repair": 5,
+        "sparse_vector_cancellation_beam": 5
+      },
+      "parent_score_distribution": {
+        "16": 20
+      },
+      "median_parent_score": 16.0,
+      "median_parent_ExactLikeScore": 0.6004330990142938,
+      "score_improvement_count": 17,
+      "score_improvement_rate": 0.85,
+      "score0_count": 15,
+      "score0_rate": 0.75,
+      "best_score_after": 0
+    },
+    {
+      "group": "repair:exact_joint_rswap_lns",
+      "repair_attempt_count": 5,
+      "repair_routed_candidates_count": 5,
+      "parent_label_distribution": {
+        "exact_like": 5
+      },
+      "parent_mode_distribution": {
+        "initialization": 5
+      },
+      "repair_mode_distribution": {
+        "exact_joint_rswap_lns": 5
+      },
+      "parent_score_distribution": {
+        "16": 5
+      },
+      "median_parent_score": 16.0,
+      "median_parent_ExactLikeScore": 0.6004330990142938,
+      "score_improvement_count": 2,
+      "score_improvement_rate": 0.4,
+      "score0_count": 0,
+      "score0_rate": 0.0,
+      "best_score_after": 8
+    },
+    {
+      "group": "repair:moment_late_repair",
+      "repair_attempt_count": 5,
+      "repair_routed_candidates_count": 5,
+      "parent_label_distribution": {
+        "exact_like": 5
+      },
+      "parent_mode_distribution": {
+        "initialization": 5
+      },
+      "repair_mode_distribution": {
+        "moment_late_repair": 5
+      },
+      "parent_score_distribution": {
+        "16": 5
+      },
+      "median_parent_score": 16.0,
+      "median_parent_ExactLikeScore": 0.6004330990142938,
+      "score_improvement_count": 5,
+      "score_improvement_rate": 1.0,
+      "score0_count": 5,
+      "score0_rate": 1.0,
+      "best_score_after": 0
+    },
+    {
+      "group": "repair:pair_level_partial_defect_repair",
+      "repair_attempt_count": 5,
+      "repair_routed_candidates_count": 5,
+      "parent_label_distribution": {
+        "exact_like": 5
+      },
+      "parent_mode_distribution": {
+        "initialization": 5
+      },
+      "repair_mode_distribution": {
+        "pair_level_partial_defect_repair": 5
+      },
+      "parent_score_distribution": {
+        "16": 5
+      },
+      "median_parent_score": 16.0,
+      "median_parent_ExactLikeScore": 0.6004330990142938,
+      "score_improvement_count": 5,
+      "score_improvement_rate": 1.0,
+      "score0_count": 5,
+      "score0_rate": 1.0,
+      "best_score_after": 0
+    },
+    {
+      "group": "repair:sparse_vector_cancellation_beam",
+      "repair_attempt_count": 5,
+      "repair_routed_candidates_count": 5,
+      "parent_label_distribution": {
+        "exact_like": 5
+      },
+      "parent_mode_distribution": {
+        "initialization": 5
+      },
+      "repair_mode_distribution": {
+        "sparse_vector_cancellation_beam": 5
+      },
+      "parent_score_distribution": {
+        "16": 5
+      },
+      "median_parent_score": 16.0,
+      "median_parent_ExactLikeScore": 0.6004330990142938,
+      "score_improvement_count": 5,
+      "score_improvement_rate": 1.0,
+      "score0_count": 5,
+      "score0_rate": 1.0,
+      "best_score_after": 0
+    }
+  ]
+}
