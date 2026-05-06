@@ -1,0 +1,78 @@
+{
+  "script": "59_p37_initialization_family_comparison",
+  "timestamp": "2026-05-06T16:57:31",
+  "p": 37,
+  "ks": [
+    13,
+    16,
+    18,
+    18
+  ],
+  "lambda": 28,
+  "exact_json": "outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+  "families": [
+    "pure_random",
+    "low_energy_random",
+    "score_biased_random",
+    "energy_regularized",
+    "AP_regularized",
+    "mixed_diversity",
+    "exact_perturbation",
+    "near_hit_perturbation"
+  ],
+  "candidates_per_family": 50,
+  "seeds_per_family": 20,
+  "steps": 1500,
+  "snapshot_interval": 150,
+  "diagnostic_max_per_run": 20,
+  "candidate_samples": 16,
+  "init_pool": 24,
+  "random_baseline": {
+    "p": 37,
+    "ks": [
+      13,
+      16,
+      18,
+      18
+    ],
+    "E_score": 314.4571428571422,
+    "blocks": [
+      {
+        "E_energy": 913.3428571428572,
+        "E_AP": 62.02857142857143,
+        "E_Q": 9841.371428571429,
+        "Var_n_d": 1.8984126984127023
+      },
+      {
+        "E_energy": 1936.0,
+        "E_AP": 112.0,
+        "E_Q": 11520.0,
+        "Var_n_d": 2.2222222222222143
+      },
+      {
+        "E_energy": 3008.0571428571425,
+        "E_AP": 157.88571428571427,
+        "E_Q": 11960.228571428568,
+        "Var_n_d": 2.30714285714285
+      },
+      {
+        "E_energy": 3008.0571428571425,
+        "E_AP": 157.88571428571427,
+        "E_Q": 11960.228571428568,
+        "Var_n_d": 2.30714285714285
+      }
+    ],
+    "E_Q_total": 45281.82857142857,
+    "E_energy_total": 8865.457142857142,
+    "E_AP_total": 489.79999999999995
+  },
+  "ap_coefficients": [
+    22,
+    10,
+    2,
+    2
+  ],
+  "near_hit_count": 30,
+  "out_dir": "outputs/explorations/20260506_1657_p37_initialization_family_comparison",
+  "note": "score=0 only is success; p=37 initialization-family comparison only."
+}
