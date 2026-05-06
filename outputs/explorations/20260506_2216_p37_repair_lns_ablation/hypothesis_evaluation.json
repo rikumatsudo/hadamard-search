@@ -1,0 +1,69 @@
+{
+  "H18_exact_joint_more_reliable_than_linearized": {
+    "linearized_improvement_but_true_not_count": 1,
+    "mismatch_count": 69,
+    "verdict": "supported"
+  },
+  "H19_defect_targeted_mid_score_but_weak_final_closure": {
+    "score4_to_score0_seen": false,
+    "score_8_12_16_improvement_seen": true,
+    "verdict": "supported"
+  },
+  "H20_negative_cross_pair_search_weak_alone": {
+    "negative_cross_summary": {
+      "attempt_count": 50,
+      "best_score_after": 4,
+      "escaped_false_basin_count": 4,
+      "escaped_false_basin_rate": 0.08,
+      "median_D_min_ratio_after": 1.0,
+      "median_P_8_after": 0.022897897897897895,
+      "median_kappa_max_after": 1.0,
+      "median_score_after": 8.0,
+      "median_score_delta": -4.0,
+      "mode": "negative_cross_pair_search",
+      "score0_count": 0,
+      "score_improvement_count": 28,
+      "score_improvement_rate": 0.56
+    },
+    "verdict": "not_supported"
+  },
+  "H21_pair_level_better_than_block_level": {
+    "block_level_summary": {
+      "attempt_count": 50,
+      "best_score_after": 12,
+      "escaped_false_basin_count": 22,
+      "escaped_false_basin_rate": 0.44,
+      "median_D_min_ratio_after": 0.45454545454545453,
+      "median_P_8_after": 0.1794294294294294,
+      "median_kappa_max_after": 2.0,
+      "median_score_after": 42.0,
+      "median_score_delta": 30.0,
+      "mode": "exact_joint_rswap_lns",
+      "score0_count": 0,
+      "score_improvement_count": 0,
+      "score_improvement_rate": 0.0
+    },
+    "pair_level_summary": {
+      "attempt_count": 50,
+      "best_score_after": 0,
+      "escaped_false_basin_count": 10,
+      "escaped_false_basin_rate": 0.2,
+      "median_D_min_ratio_after": 1.0,
+      "median_P_8_after": 0.015765765765765764,
+      "median_kappa_max_after": 0.75,
+      "median_score_after": 8.0,
+      "median_score_delta": -8.0,
+      "mode": "pair_level_partial_defect_repair",
+      "score0_count": 19,
+      "score_improvement_count": 34,
+      "score_improvement_rate": 0.68
+    },
+    "verdict": "supported"
+  },
+  "score0_candidate_paths": [
+    "outputs/explorations/20260506_2216_p37_repair_lns_ablation/score0_candidate_threshold_accepting_repair_5f50c5e7835e.json",
+    "outputs/explorations/20260506_2216_p37_repair_lns_ablation/score0_candidate_sparse_vector_cancellation_beam_5f50c5e7835e.json",
+    "outputs/explorations/20260506_2216_p37_repair_lns_ablation/score0_candidate_pair_level_partial_defect_repair_5f50c5e7835e.json",
+    "outputs/explorations/20260506_2216_p37_repair_lns_ablation/score0_candidate_moment_late_repair_5f50c5e7835e.json"
+  ]
+}
