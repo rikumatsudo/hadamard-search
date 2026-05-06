@@ -1,0 +1,5 @@
+mode,run_count,success_count,success_rate,median_success_step,best_score,false_basin_event_count,final_hard_basin_count,best_low_score_escapable,median_Q_ratio,median_InitHardness
+score_only,10,0,0.0,,8,18,8,,38.55034722222222,-871.8285714285666
+escapability_aware,10,0,0.0,,4,6,6,16,38.42534722222222,-1045.8285714285666
+energy_regularized_init,10,0,0.0,,8,5,5,,38.48784722222222,-907.8285714285666
+mixed_diversity,10,0,0.0,,4,4,4,,38.435763888888886,-1003.8285714285666

@@ -1,0 +1,23 @@
+{
+  "script": "50_coherent_multiswap_escape",
+  "out_dir": "outputs/explorations/20260506_0650_hadamard668_coherent_multiswap_escape_target_delta",
+  "score164_path": "outputs/candidates/near_hits/near_hit_v167_score164_steepest_swap_descent_round1.json",
+  "score176_path": "outputs/candidates/near_hits/near_hit_v167_score176_seed101_step8576.json",
+  "move_pool_sizes": [
+    1000
+  ],
+  "beam_pool_size": 1000,
+  "beam_depths": [
+    3,
+    4
+  ],
+  "beam_width": 2000,
+  "expand_per_state": 200,
+  "beam_true_eval": 2000,
+  "beam_modes": [
+    "target_delta"
+  ],
+  "skip_pair": true,
+  "target_delta": false,
+  "seed": 50
+}

@@ -1,0 +1,33 @@
+.DS_Store
+Thumbs.db
+
+# Python/Sage cache and local runtime noise.
+__pycache__/
+*.py[cod]
+*.so
+.ipynb_checkpoints/
+.sage/
+
+# Generated logs and bulk search artifacts.
+outputs/logs/
+outputs/candidates/
+outputs/fourier/
+outputs/pair_profiles/
+
+# Exploration directories are mostly generated data. Keep lightweight summaries
+# and run configs so the research trail remains reviewable in git.
+outputs/explorations/**
+!outputs/explorations/
+!outputs/explorations/*/
+!outputs/explorations/*/*.md
+!outputs/explorations/*/run_config.json
+!outputs/explorations/*/comparison_summary.json
+!outputs/explorations/*/comparison_summary.csv
+
+# Turyn outputs are generated; keep top-level markdown notes and exact control data.
+outputs/turyn/**
+!outputs/turyn/
+!outputs/turyn/*.md
+!outputs/turyn/exact_428_kharaghani_tayfeh_rezaie.json
+!outputs/turyn/verify_exact_428_kharaghani_tayfeh_rezaie.json
+!outputs/turyn/verify_exact_428_ktr_rerun_smoke.json

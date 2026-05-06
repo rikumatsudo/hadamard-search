@@ -1,0 +1,22 @@
+{
+  "script": "53_small_p_escapability_validation",
+  "timestamp": "2026-05-06T09:49:23",
+  "p": 37,
+  "ks": [
+    13,
+    16,
+    18,
+    18
+  ],
+  "lambda": 28,
+  "seeds": 10,
+  "steps": 3000,
+  "modes": [
+    "score_only",
+    "escapability_aware",
+    "energy_regularized_init",
+    "mixed_diversity"
+  ],
+  "candidate_samples": 32,
+  "out_dir": "outputs/explorations/20260506_0925_small_p_escapability_validation_all_modes_smoke"
+}

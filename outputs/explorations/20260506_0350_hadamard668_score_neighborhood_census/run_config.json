@@ -1,0 +1,15 @@
+{
+  "script": "48_near_hit_swap_neighborhood_census",
+  "out_dir": "outputs/explorations/20260506_0350_hadamard668_score_neighborhood_census",
+  "score164_path": "outputs/candidates/near_hits/near_hit_v167_score164_steepest_swap_descent_round1.json",
+  "score176_path": "outputs/candidates/near_hits/near_hit_v167_score176_seed101_step8576.json",
+  "move_pool_sizes": [
+    500,
+    1000
+  ],
+  "triple_screen_top": 200000,
+  "triple_true_eval": 50000,
+  "triple_extend_limit": 60,
+  "skip_three_swap": false,
+  "seed": 48
+}

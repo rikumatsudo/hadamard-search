@@ -1,0 +1,22 @@
+{
+  "classification": "published_exact_turyn_type_sequence_order_428",
+  "source": {
+    "title": "A Hadamard matrix of order 428",
+    "authors": ["H. Kharaghani", "B. Tayfeh-Rezaie"],
+    "journal": "Journal of Combinatorial Designs 13(6), 435-440",
+    "year": 2005,
+    "doi": "10.1002/jcd.20043",
+    "url": "https://www.yumpu.com/en/document/view/18762025/a-hadamard-matrix-of-order-428-1-introduction-math-ipm",
+    "notes": [
+      "The source states that Turyn type sequences of lengths 36, 36, 36, 35 give base sequences of lengths 71, 71, 36, 36 and a Hadamard matrix of order 428.",
+      "This JSON stores the published X, Y, Z, W sequences as +/-1 integer arrays for exact local verification."
+    ]
+  },
+  "n": 36,
+  "target_order": 428,
+  "tuple": [0, 6, 8, 5],
+  "X": [1, 1, 1, -1, -1, -1, -1, 1, 1, -1, 1, -1, 1, -1, -1, -1, -1, -1, 1, 1, 1, 1, -1, 1, 1, -1, 1, 1, 1, 1, -1, -1, -1, -1, 1, -1],
+  "Y": [1, -1, 1, 1, 1, 1, 1, -1, -1, 1, -1, 1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, 1, 1, 1, -1, 1, 1, 1, 1, -1, -1, -1, 1, 1, -1],
+  "Z": [1, -1, 1, 1, 1, 1, 1, -1, 1, -1, -1, 1, 1, 1, 1, -1, 1, 1, 1, -1, 1, 1, -1, -1, 1, 1, 1, -1, 1, -1, -1, 1, -1, -1, -1, 1],
+  "W": [1, 1, 1, -1, 1, -1, -1, -1, -1, -1, 1, 1, -1, -1, 1, -1, 1, 1, 1, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, 1, 1, 1, 1, -1, 1]
+}

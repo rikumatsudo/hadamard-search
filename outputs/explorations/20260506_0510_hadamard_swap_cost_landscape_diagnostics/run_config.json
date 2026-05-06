@@ -1,0 +1,43 @@
+{
+  "script": "49_swap_cost_landscape_diagnostics",
+  "out_dir": "outputs/explorations/20260506_0510_hadamard_swap_cost_landscape_diagnostics",
+  "targets": [
+    {
+      "candidate_id": "score164",
+      "path": "outputs/candidates/near_hits/near_hit_v167_score164_steepest_swap_descent_round1.json",
+      "write_swap_csv": true
+    },
+    {
+      "candidate_id": "score176",
+      "path": "outputs/candidates/near_hits/near_hit_v167_score176_seed101_step8576.json",
+      "write_swap_csv": true
+    },
+    {
+      "candidate_id": "score284_moment006",
+      "path": "outputs/candidates/near_hits/near_hit_v167_score284_moment_balanced_multiswap_repair_round2.json",
+      "write_swap_csv": false
+    },
+    {
+      "candidate_id": "score424_moment000",
+      "path": "outputs/candidates/near_hits/near_hit_v167_score424_moment_preserving_score_repair_round1.json",
+      "write_swap_csv": false
+    },
+    {
+      "candidate_id": "428_exact",
+      "path": "outputs/explorations/20260506_0310_hadamard428_positive_control_perturbation/exact_428_sds_candidate.json",
+      "write_swap_csv": false
+    },
+    {
+      "candidate_id": "428_distance1_best_score48",
+      "path": "outputs/explorations/20260506_0310_hadamard428_positive_control_perturbation/candidates/distance1_rank1_score48.json",
+      "write_swap_csv": true
+    },
+    {
+      "candidate_id": "428_distance2_best_nonzero_score80",
+      "path": "outputs/explorations/20260506_0310_hadamard428_positive_control_perturbation/candidates/distance2_rank2_score80.json",
+      "write_swap_csv": false
+    }
+  ],
+  "random_baseline_samples": 50,
+  "seed": 49
+}

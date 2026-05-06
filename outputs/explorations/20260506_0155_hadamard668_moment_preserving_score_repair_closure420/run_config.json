@@ -1,0 +1,14 @@
+{
+  "input": "outputs/candidates/near_hits/near_hit_v167_score284_moment_balanced_multiswap_repair_round2.json",
+  "mode": "closure",
+  "score_cap": 420,
+  "maxabs_cap": 6,
+  "candidate_pool": 900,
+  "prefilter": 450,
+  "beam_width": 700,
+  "max_moves": 4,
+  "evaluate_top": 400,
+  "rounds": 1,
+  "seed": 712,
+  "exploration_id": "20260506_0155_hadamard668_moment_preserving_score_repair_closure420"
+}

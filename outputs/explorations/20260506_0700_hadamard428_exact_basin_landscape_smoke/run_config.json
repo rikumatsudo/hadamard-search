@@ -1,0 +1,24 @@
+{
+  "script": "51_map_428_exact_basin_landscape",
+  "out_dir": "outputs/explorations/20260506_0700_hadamard428_exact_basin_landscape_smoke",
+  "exact_428_path": "outputs/explorations/20260506_0310_hadamard428_positive_control_perturbation/exact_428_sds_candidate.json",
+  "v": 107,
+  "n": 428,
+  "ks": [
+    47,
+    52,
+    60,
+    58
+  ],
+  "lambda": 110,
+  "distances": [
+    1,
+    2
+  ],
+  "samples_per_distance": 20,
+  "diagnostic_limit_per_distance": 10,
+  "low_score_frontier_size": 100,
+  "descent_limit_per_distance": 3,
+  "descent_max_steps": 5,
+  "seed": 51
+}

@@ -1,0 +1,25 @@
+{
+  "tuple": "A",
+  "blocks_per_k": 5000,
+  "pair_bucket_limit": 100,
+  "pair_samples": 1000000,
+  "max_candidates_eval": 50000,
+  "baseline_samples": 5000,
+  "frontier_size": 50,
+  "save_candidates_per_frontier": 3,
+  "seed": 811,
+  "mutation_source_glob": "outputs/candidates/near_hits/*.json",
+  "mutation_source_limit": 2000,
+  "mutations_per_source": 20,
+  "max_mutation_swaps": 3,
+  "out_dir": "outputs/explorations/20260506_0220_hadamard668_moment_compatible_pool_mitm_A_small",
+  "near_hit_dir": "outputs/candidates/near_hits",
+  "candidate_dir": "outputs/candidates",
+  "ks": [
+    73,
+    78,
+    79,
+    81
+  ],
+  "lambda": 144
+}

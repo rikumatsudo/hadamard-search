@@ -1,0 +1,28 @@
+{
+  "score_only": {
+    "mode": "score_only",
+    "run_count": 2,
+    "success_count": 0,
+    "success_rate": 0.0,
+    "median_success_step": null,
+    "best_score": 12,
+    "false_basin_event_count": 0,
+    "final_hard_basin_count": 0,
+    "best_low_score_escapable": 12,
+    "median_Q_ratio": 25.607638888888886,
+    "median_InitHardness": -1031.8285714285666
+  },
+  "escapability_aware": {
+    "mode": "escapability_aware",
+    "run_count": 2,
+    "success_count": 0,
+    "success_rate": 0.0,
+    "median_success_step": null,
+    "best_score": 16,
+    "false_basin_event_count": 0,
+    "final_hard_basin_count": 0,
+    "best_low_score_escapable": 20,
+    "median_Q_ratio": 17.26909722222222,
+    "median_InitHardness": -1083.8285714285666
+  }
+}

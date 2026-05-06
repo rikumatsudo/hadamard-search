@@ -1,0 +1,24 @@
+{
+  "script": "52_escapability_aware_guided_search",
+  "out_dir": "outputs/explorations/20260506_0840_hadamard668_escapability_aware_guided_search",
+  "v": 167,
+  "ks": [
+    73,
+    78,
+    79,
+    81
+  ],
+  "lambda": 144,
+  "modes": [
+    "score_only",
+    "escapability_aware"
+  ],
+  "seed_start": 1,
+  "seed_end": 10,
+  "steps_per_seed": 5000,
+  "candidate_samples": 16,
+  "targeted_prob": 0.3,
+  "diagnostic_score_thresholds": "800,600,500,400,300,240,200",
+  "diagnostic_interval": 1000,
+  "max_diagnostics_per_run": 60
+}

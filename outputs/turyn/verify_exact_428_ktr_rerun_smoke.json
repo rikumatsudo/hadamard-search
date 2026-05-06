@@ -1,0 +1,39 @@
+{
+  "script": "30_turyn_type_sequences",
+  "timestamp": "2026-05-05T23:26:29",
+  "n": 36,
+  "target_order": 428,
+  "notes": [
+    "Turyn route is diagnostic unless a sequence passes exact Turyn, T-sequence, and HH^T checks.",
+    "Fourier/Hall values are pruning diagnostics only."
+  ],
+  "input": "outputs/turyn/exact_428_kharaghani_tayfeh_rezaie.json",
+  "turyn_ok": true,
+  "turyn_bad_shifts": [],
+  "sums": {
+    "x": 0,
+    "y": 6,
+    "z": 8,
+    "w": 5,
+    "sum_square_identity": 214,
+    "expected_sum_square_identity": 214
+  },
+  "hall_grid": 100,
+  "hall": {
+    "X_max": 178.06212891627084,
+    "Y_max": 136.3148959339664,
+    "Z_max": 84.8072303652048,
+    "W_max": 95.45069214728002,
+    "single_ZW_bound": 107
+  },
+  "t_sequences_ok": true,
+  "t_sequence_bad": {
+    "entry_bad": [],
+    "support_bad": [],
+    "corr_bad": []
+  },
+  "hadamard_ok": true,
+  "hadamard_message": "OK",
+  "first_bad_hadamard_entries": [],
+  "generated_order": 428
+}
