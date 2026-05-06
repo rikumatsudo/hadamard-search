@@ -1,0 +1,19 @@
+{
+  "script": "55_p37_score4_false_basin_anatomy",
+  "timestamp": "2026-05-06T12:00:36",
+  "p": 37,
+  "ks": [
+    13,
+    16,
+    18,
+    18
+  ],
+  "lambda": 28,
+  "max_score4": 20,
+  "samples_per_r": 500,
+  "max_r": 4,
+  "return_samples": 1000,
+  "defect_return_samples": 500,
+  "defect_top_k": 100,
+  "out_dir": "outputs/explorations/20260506_1200_p37_score4_false_basin_anatomy"
+}
