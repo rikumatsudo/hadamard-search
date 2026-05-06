@@ -1,0 +1,12 @@
+section,name,run_count,best_score,success_score0_count,final_hard_basin_count,label_count,repair_improvement_count
+trajectory,energy_regularized_init,10,8,0,3,,
+trajectory,escapability_aware,10,8,0,3,,
+trajectory,mixed_diversity,10,8,0,1,,
+trajectory,score_only,10,8,0,4,,
+trajectory,threshold_accepting,10,4,0,6,,
+classifier,exact,,,,,1,
+classifier,exact_derived,,,,,17,
+classifier,hard_basin,,,,,2,
+classifier,search_derived_false_basin,,,,,36,
+classifier,unknown,,,,,44,
+repair,all_hooks,40,4,0,,,0

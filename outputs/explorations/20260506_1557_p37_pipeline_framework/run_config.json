@@ -1,0 +1,19 @@
+{
+  "script": "56_small_p_pipeline_framework",
+  "timestamp": "2026-05-06T15:59:33",
+  "p": 37,
+  "ks": [
+    13,
+    16,
+    18,
+    18
+  ],
+  "lambda": 28,
+  "exact_json": "outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+  "mode": "pipeline_smoke",
+  "seeds": 10,
+  "steps": 1000,
+  "initial_per_family": 20,
+  "diagnostic_max_candidates": 100,
+  "out_dir": "outputs/explorations/20260506_1557_p37_pipeline_framework"
+}

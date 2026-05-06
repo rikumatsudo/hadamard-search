@@ -1,0 +1,174 @@
+{
+  "target": {
+    "p": 37,
+    "n": 148,
+    "ks": [
+      13,
+      16,
+      18,
+      18
+    ],
+    "lambda": 28,
+    "row_sums": [
+      11,
+      5,
+      1,
+      1
+    ],
+    "has_known_exact": true,
+    "exact_json": "outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+    "role": "small_p_validation"
+  },
+  "exact_validation": {
+    "has_exact_json": true,
+    "exact_json": "outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+    "p": 37,
+    "n": 148,
+    "ks": [
+      13,
+      16,
+      18,
+      18
+    ],
+    "lambda": 28,
+    "score": 0,
+    "l1_error": 0,
+    "max_abs_error": 0,
+    "nonzero_defect_count": 0,
+    "sds_ok": true,
+    "bad_shifts": [],
+    "entries_pm1_ok": true,
+    "hh_t_ok": true,
+    "hh_t_expected": "148I",
+    "commands": [
+      "sage sage/08_analyze_sds_candidate.sage outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+      "sage sage/05_validate_candidate_json.sage outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+      "sage sage/04_build_gs_from_sds.sage outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json"
+    ]
+  },
+  "initialization_summary": {
+    "candidate_count": 140,
+    "families": {
+      "energy_regularized": {
+        "count": 20,
+        "best_score": 100,
+        "median_score": 158.0,
+        "median_Q_ratio_random_expected": 0.9862234235871343,
+        "median_InitHardness": -623.8285714285666,
+        "hypothesis_probe": "below-random score + near-random hardness + local entropy proxy"
+      },
+      "exact_perturbation": {
+        "count": 20,
+        "best_score": 16,
+        "median_score": 60.0,
+        "median_Q_ratio_random_expected": 0.9838825287217075,
+        "median_InitHardness": -729.8285714285666,
+        "hypothesis_probe": "below-random score + near-random hardness + local entropy proxy"
+      },
+      "low_energy_random": {
+        "count": 20,
+        "best_score": 100,
+        "median_score": 208.0,
+        "median_Q_ratio_random_expected": 0.9827341652028188,
+        "median_InitHardness": -781.8285714285666,
+        "hypothesis_probe": "below-random score + near-random hardness + local entropy proxy"
+      },
+      "mixed_diversity": {
+        "count": 20,
+        "best_score": 108,
+        "median_score": 174.0,
+        "median_Q_ratio_random_expected": 0.9860909201041856,
+        "median_InitHardness": -629.8285714285666,
+        "hypothesis_probe": "below-random score + near-random hardness + local entropy proxy"
+      },
+      "near_hit_perturbation": {
+        "count": 20,
+        "best_score": 16,
+        "median_score": 40.0,
+        "median_Q_ratio_random_expected": 0.981894976477477,
+        "median_InitHardness": -819.8285714285666,
+        "hypothesis_probe": "below-random score + near-random hardness + local entropy proxy"
+      },
+      "pure_random": {
+        "count": 20,
+        "best_score": 192,
+        "median_score": 324.0,
+        "median_Q_ratio_random_expected": 1.0035813798534132,
+        "median_InitHardness": 162.17142857143335,
+        "hypothesis_probe": "below-random score + near-random hardness + local entropy proxy"
+      },
+      "score_biased_random": {
+        "count": 20,
+        "best_score": 88,
+        "median_score": 156.0,
+        "median_Q_ratio_random_expected": 0.9873276192783735,
+        "median_InitHardness": -573.8285714285666,
+        "hypothesis_probe": "below-random score + near-random hardness + local entropy proxy"
+      }
+    }
+  },
+  "trajectory_summary": {
+    "energy_regularized_init": {
+      "run_count": 10,
+      "best_score": 8,
+      "success_score0_count": 0,
+      "final_hard_basin_count": 3,
+      "median_best_score": 12.0,
+      "median_accepted_moves": 15.5
+    },
+    "escapability_aware": {
+      "run_count": 10,
+      "best_score": 8,
+      "success_score0_count": 0,
+      "final_hard_basin_count": 3,
+      "median_best_score": 8.0,
+      "median_accepted_moves": 628.5
+    },
+    "mixed_diversity": {
+      "run_count": 10,
+      "best_score": 8,
+      "success_score0_count": 0,
+      "final_hard_basin_count": 1,
+      "median_best_score": 12.0,
+      "median_accepted_moves": 631.0
+    },
+    "score_only": {
+      "run_count": 10,
+      "best_score": 8,
+      "success_score0_count": 0,
+      "final_hard_basin_count": 4,
+      "median_best_score": 12.0,
+      "median_accepted_moves": 15.5
+    },
+    "threshold_accepting": {
+      "run_count": 10,
+      "best_score": 4,
+      "success_score0_count": 0,
+      "final_hard_basin_count": 6,
+      "median_best_score": 6.0,
+      "median_accepted_moves": 916.5
+    }
+  },
+  "label_counts": {
+    "exact": 1,
+    "search_derived_false_basin": 36,
+    "unknown": 44,
+    "hard_basin": 2,
+    "exact_derived": 17
+  },
+  "repair_summary": {
+    "attempt_count": 40,
+    "parent_count": 8,
+    "modes": [
+      "exact_joint_rswap_lns",
+      "negative_cross_pair_search",
+      "sparse_vector_cancellation_beam",
+      "pair_level_partial_defect_repair",
+      "moment_late_repair"
+    ],
+    "best_score_after": 4,
+    "improvement_count": 0,
+    "score0_count": 0,
+    "note": "Lightweight hook smoke only; score=0 only is success."
+  }
+}
