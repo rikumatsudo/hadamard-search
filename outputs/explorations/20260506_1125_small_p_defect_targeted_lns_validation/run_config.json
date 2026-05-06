@@ -1,0 +1,54 @@
+{
+  "script": "54_small_p_defect_targeted_lns_validation",
+  "timestamp": "2026-05-06T11:13:39",
+  "p": 37,
+  "ks": [
+    13,
+    16,
+    18,
+    18
+  ],
+  "lambda": 28,
+  "max_input_candidates": 3,
+  "thresholds": [
+    4,
+    8,
+    16
+  ],
+  "walk_lengths": [
+    100,
+    500,
+    1000
+  ],
+  "threshold_restarts": 5,
+  "beam_widths": [
+    500,
+    2000
+  ],
+  "beam_max_depth": 6,
+  "rswap_r_values": [
+    2,
+    3,
+    4,
+    5
+  ],
+  "out_dir": "outputs/explorations/20260506_1125_small_p_defect_targeted_lns_validation",
+  "previous_p37": {
+    "score_only": {
+      "best_score": 4,
+      "final_hard_basin": "17/20"
+    },
+    "escapability_aware": {
+      "best_score": 4,
+      "final_hard_basin": "15/20",
+      "best_low_score_escapable": 8
+    },
+    "energy_regularized_init": {
+      "final_hard_basin": "5/10"
+    },
+    "mixed_diversity": {
+      "final_hard_basin": "4/10"
+    }
+  },
+  "exact_imported_solution_excluded": true
+}
