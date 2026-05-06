@@ -1,0 +1,28 @@
+{
+  "script": "60_p37_exact_vs_search_low_score_comparison",
+  "timestamp": "2026-05-06T19:50:28",
+  "p": 37,
+  "ks": [
+    13,
+    16,
+    18,
+    18
+  ],
+  "lambda": 28,
+  "exact_json": "outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+  "max_search_candidates": 100,
+  "r_values": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    8,
+    10
+  ],
+  "samples_per_r": 1000,
+  "return_samples_per_r": 500,
+  "out_dir": "outputs/explorations/20260506_1950_p37_exact_vs_search_low_score_comparison",
+  "note": "score=0 only is success; exact perturbation is controlled sampling."
+}
