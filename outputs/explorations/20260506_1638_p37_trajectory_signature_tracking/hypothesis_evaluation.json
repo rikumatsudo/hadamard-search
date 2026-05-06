@@ -1,0 +1,38 @@
+{
+  "H4_false_basin_paths_disappear": {
+    "support_fraction": 1.0,
+    "run_count": 4
+  },
+  "H5_exact_paths_remain": {
+    "support_fraction": 0.0,
+    "run_count": 20
+  },
+  "H6_exact_basin_trap_like": {
+    "support_fraction": 0.0,
+    "run_count": 20
+  },
+  "H15_score_only_Q_hardening": {
+    "support_fraction": 0.85,
+    "run_count": 20
+  },
+  "H16_false_basin_P_tau_declines": {
+    "support_fraction": 1.0,
+    "run_count": 4
+  },
+  "H17_false_basin_kappa_below_1": {
+    "support_fraction": 1.0,
+    "run_count": 4
+  },
+  "threshold_accepting": {
+    "run_count": 20,
+    "escapable_final_count": 19,
+    "false_basin_final_count": 0,
+    "median_P_8_slope": -2.156137992831541e-05
+  },
+  "mixed_diversity": {
+    "run_count": 20,
+    "distinct_final_hashes": 20,
+    "median_P_8_slope": -2.815315315315315e-05,
+    "median_Q_ratio_slope": 0.0008243872407900307
+  }
+}

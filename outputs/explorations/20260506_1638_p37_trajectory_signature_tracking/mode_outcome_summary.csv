@@ -1,0 +1,5 @@
+mode,run_count,success_score0,false_basin_final,escapable_final,unknown_final,median_score_best,median_score_end,median_P_8_slope,median_Q_ratio_slope
+exact_derived_return,20,20,0,0,0,0.0,0.0,-0.09001501501501502,2.260986658017908
+mixed_diversity,20,0,0,19,1,12.0,24.0,-2.815315315315315e-05,0.0008243872407900307
+score_only,20,0,4,4,12,8.0,12.0,-3.1637484258452005e-05,0.001595613914528625
+threshold_accepting,20,0,0,19,1,10.0,30.0,-2.156137992831541e-05,0.00020607298613411476

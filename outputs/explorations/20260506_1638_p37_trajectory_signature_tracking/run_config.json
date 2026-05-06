@@ -1,0 +1,26 @@
+{
+  "script": "58_p37_trajectory_signature_tracking",
+  "timestamp": "2026-05-06T16:38:32",
+  "p": 37,
+  "ks": [
+    13,
+    16,
+    18,
+    18
+  ],
+  "lambda": 28,
+  "exact_json": "outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+  "modes": [
+    "score_only",
+    "threshold_accepting",
+    "mixed_diversity",
+    "exact_derived_return"
+  ],
+  "seeds": 20,
+  "steps": 3000,
+  "snapshot_interval": 100,
+  "full_diagnostic_max_per_run": 40,
+  "candidate_samples": 24,
+  "out_dir": "outputs/explorations/20260506_1638_p37_trajectory_signature_tracking",
+  "note": "score=0 only is success; p=37 trajectory signature validation only."
+}
