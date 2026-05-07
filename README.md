@@ -78,7 +78,7 @@ If local SageMath cannot write to `~/.sage`, point Sage's dot directory at a
 writable temporary location:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/00_baseline.sage
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/00_baseline.sage
 ```
 
 ## Scripts
@@ -140,7 +140,7 @@ equations, block sizes, duplicate/range errors, and all nonzero difference
 shifts:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/05_validate_candidate_json.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/05_validate_candidate_json.sage \
   outputs/candidates/candidate_sds_668.json
 ```
 
@@ -150,7 +150,7 @@ Builds four `+1/-1` circulant matrices from the candidate blocks, assembles the
 Goethals-Seidel array, and verifies the exact integer identity `HH^T = nI`:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/04_build_gs_from_sds.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/04_build_gs_from_sds.sage \
   outputs/candidates/candidate_sds_668.json
 ```
 
@@ -161,13 +161,13 @@ pre-search check that the JSON, SDS validation, Goethals-Seidel construction,
 and exact Hadamard verification pipeline agree:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/06_known_sds_regression.sage
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/06_known_sds_regression.sage
 ```
 
 To keep the generated known-SDS JSON fixtures for separate `04`/`05` checks:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/06_known_sds_regression.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/06_known_sds_regression.sage \
   --fixture-dir outputs/candidates/known_regression
 ```
 
@@ -179,7 +179,7 @@ Runs the main guided swap local search for `Z_167`. The default target is
 Single seed:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --steps 1000000 \
   --seed 1 \
   --ks 71,81,82,82 \
@@ -189,7 +189,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
 Seed range:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --steps 1000000 \
   --seed-start 1 \
   --seed-end 20
@@ -198,7 +198,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
 All `v = 167` parameter candidates from `outputs/params`:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --all-params \
   --steps 1000000 \
   --seed-start 1 \
@@ -209,7 +209,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
 Longer run:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --steps 10000000 \
   --seed-start 1 \
   --seed-end 50 \
@@ -225,18 +225,18 @@ hash, and elapsed time to both `outputs/logs/*.log` and a CSV file.
 Strategy options:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --steps 1000000 \
   --seed 1 \
   --strategy baseline
 
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --steps 1000000 \
   --seed 1 \
   --strategy greedy \
   --targeted-prob 0.3
 
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --steps 1000000 \
   --seed 1 \
   --strategy mixed \
@@ -289,7 +289,7 @@ to retain an additional bucket ranked directly by the active objective.
 Short objective-schedule A/B run with actual plateau escapes:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --ks 73,78,79,81 \
   --lam 144 \
   --steps 30000 \
@@ -305,7 +305,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
 Soft/bounded objective A/B examples:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --ks 73,78,79,81 \
   --lam 144 \
   --steps 30000 \
@@ -320,7 +320,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
   --shake-rate 0.08 \
   --restart-patience 5000
 
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --ks 73,76,83,83 \
   --lam 148 \
   --steps 30000 \
@@ -337,7 +337,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
 Cluster-aware capped novelty example:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --ks 73,78,79,81 \
   --lam 144 \
   --steps 30000 \
@@ -373,7 +373,7 @@ states.
 To resume from a saved candidate or near-hit:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --resume-json outputs/candidates/near_hits/near_hit_v167_score556_seed1_step925.json \
   --steps 1000000 \
   --seed 2
@@ -387,7 +387,7 @@ checks duplicate elements, range errors, and block sizes before continuing.
 Analyzes a saved success candidate or near-hit JSON:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/08_analyze_sds_candidate.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/08_analyze_sds_candidate.sage \
   outputs/candidates/near_hits/near_hit_v167_score123_seed7_step456789.json
 ```
 
@@ -441,12 +441,12 @@ k = (74, 76, 79, 83), lambda = 145
 Examples:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/10_skew_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/10_skew_sds_search_668.sage \
   --steps 1000000 \
   --seed-start 1 \
   --seed-end 20
 
-DOT_SAGE=/private/tmp/sage-dot sage sage/10_skew_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/10_skew_sds_search_668.sage \
   --target one83 \
   --skew-blocks 3 \
   --steps 1000000 \
@@ -466,7 +466,7 @@ removed and `b not in B_i` inserted, adopts the best lexicographic improvement,
 and stops when no improving 1-swap exists.
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/11_steepest_swap_descent.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/11_steepest_swap_descent.sage \
   outputs/candidates/near_hits/near_hit_v167_score168_seed4_step36303.json
 ```
 
@@ -483,7 +483,7 @@ combinations from that beam. This is intended for states that are already
 1-swap local optima.
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/12_beam_two_swap_repair.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/12_beam_two_swap_repair.sage \
   outputs/candidates/near_hits/<repaired-near-hit>.json \
   --beam-width 200 \
   --rounds 50
@@ -500,7 +500,7 @@ repair objective over the current defect vector instead of searching the full
 SDS space.
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
   outputs/candidates/near_hits/near_hit_v167_score164_steepest_swap_descent_round1.json \
   --pool-size 400 \
   --pool-mode mixed \
@@ -537,7 +537,7 @@ large model. It builds the move pool, applies `--active-top-k-shifts` and
 honor `--time-limit`.
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
   outputs/candidates/near_hits/near_hit_v167_score176_seed101_step8576.json \
   --pool-mode active_defect_lns \
   --active-defects nonzero \
@@ -562,7 +562,7 @@ still near-hits, not success candidates. They are meant to be followed by
 `11_steepest_swap_descent.sage` and `12_beam_two_swap_repair.sage`.
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
   outputs/candidates/near_hits/near_hit_v167_score176_seed101_step8576.json \
   --pool-mode active_defect_lns \
   --active-defects nonzero \
@@ -589,7 +589,7 @@ whether the result passed the configured worsen-limit checks.
 For the low-nonzero branch:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
   outputs/candidates/near_hits/near_hit_v167_score184_ilp_repair_from_near_hit_round1_4.json \
   --pool-size 120 \
   --pool-mode zero_protect \
@@ -619,7 +619,7 @@ repair and bounded beam repair only when the ILP produces a changed state. The
 frontier index is updated after each final near-hit.
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/14_frontier_repair_batch.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/14_frontier_repair_batch.sage \
   --loops 10 \
   --pool-size 40 \
   --pool-mode diverse \
@@ -637,7 +637,7 @@ To prevent an ILP move from being immediately reversed by local descent, pass
 the ILP output JSON as a tabu source to the post-ILP repair stages:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/14_frontier_repair_batch.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/14_frontier_repair_batch.sage \
   --loops 5 \
   --pool-size 80 \
   --pool-mode diverse \
@@ -664,7 +664,7 @@ pool; keep the beam width small at first.
 Low-nonzero branches can be prioritized directly:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/14_frontier_repair_batch.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/14_frontier_repair_batch.sage \
   --loops 5 \
   --pool-size 80 \
   --pool-mode zero_protect \
@@ -696,7 +696,7 @@ near-hit generator, not a proof of the Constantine construction.
 Basic random fixed-block smoke:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/15_one_block_autocorrelation_completion_167.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/15_one_block_autocorrelation_completion_167.sage \
   --v 167 \
   --ks 76,76,77,80 \
   --lam 142 \
@@ -708,7 +708,7 @@ Use an existing JSON with matching `v`, `ks`, and `lambda` to fix three blocks
 and replace the completion block by a random size-80 block:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/15_one_block_autocorrelation_completion_167.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/15_one_block_autocorrelation_completion_167.sage \
   --from-json outputs/candidates/near_hits/example_76_76_77_80.json \
   --complete-index 3 \
   --steps 30000 \
@@ -750,7 +750,7 @@ rejects outputs that violate score/max_abs/zero-damage bounds.
 Dry-run model sizing:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/21_partial_membership_lns_repair.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/21_partial_membership_lns_repair.sage \
   outputs/candidates/near_hits/near_hit_v167_score176_seed101_step8576.json \
   --active-top-k-shifts 20 \
   --free-per-block 8 \
@@ -766,7 +766,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/21_partial_membership_lns_repair.sage \
 Solve the same bounded prototype:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/21_partial_membership_lns_repair.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/21_partial_membership_lns_repair.sage \
   outputs/candidates/near_hits/near_hit_v167_score176_seed101_step8576.json \
   --active-top-k-shifts 20 \
   --free-per-block 8 \
@@ -808,7 +808,7 @@ not change the final success condition.
 Extract pair profiles from existing near-hits:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/22_pair_profile_dataset.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/22_pair_profile_dataset.sage \
   --ks 73,78,79,81 \
   --lam 144 \
   --split 0,1:2,3 \
@@ -819,14 +819,14 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/22_pair_profile_dataset.sage \
 Generate random two-block profile datasets:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/23_pair_profile_generator.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/23_pair_profile_generator.sage \
   --v 167 \
   --sizes 73,78 \
   --samples 50000 \
   --seed 1 \
   --out outputs/pair_profiles/pairs_73_78_seed1.json
 
-DOT_SAGE=/private/tmp/sage-dot sage sage/23_pair_profile_generator.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/23_pair_profile_generator.sage \
   --v 167 \
   --sizes 79,81 \
   --samples 50000 \
@@ -839,7 +839,7 @@ dataset. This ranks candidates by complement error instead of by standalone
 flatness:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/23_pair_profile_generator.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/23_pair_profile_generator.sage \
   --v 167 \
   --sizes 79,81 \
   --samples 50000 \
@@ -856,7 +856,7 @@ Fix one side of an existing near-hit and randomly complete the opposite side
 by matching the residual pair profile:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/25_pair_profile_target_completion.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/25_pair_profile_target_completion.sage \
   outputs/candidates/near_hits/frontier/near_hit_v167_score164_ilp_repair_from_near_hit_round1.json \
   --split 0,1:2,3 \
   --fixed-side left \
@@ -873,7 +873,7 @@ keeps one two-block side from the input near-hit and directly minimizes
 `generated_pair_profile - (lambda - fixed_pair_profile)`:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/26_pair_profile_target_search.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/26_pair_profile_target_search.sage \
   outputs/candidates/near_hits/frontier/near_hit_v167_score164_ilp_repair_from_near_hit_round1.json \
   --split 0,1:2,3 \
   --fixed-side left \
@@ -897,7 +897,7 @@ Goethals-Seidel verification.
 Alternate the two residual-pair searches as a coordinate descent:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/27_pair_profile_coordinate_descent.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/27_pair_profile_coordinate_descent.sage \
   outputs/candidates/near_hits/frontier/near_hit_v167_score164_ilp_repair_from_near_hit_round1.json \
   --split 0,1:2,3 \
   --rounds 5 \
@@ -927,7 +927,7 @@ Hadamard verification.
 Analyze the dominant defect modes of a near-hit:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/28_fourier_defect_analysis.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/28_fourier_defect_analysis.sage \
   outputs/candidates/near_hits/frontier/near_hit_v167_score164_ilp_repair_from_near_hit_round1.json \
   --top-modes 24 \
   --out outputs/fourier/score164_fourier_defect.json
@@ -938,7 +938,7 @@ scores them by their effect on the current dominant Fourier modes, then
 recomputes exact integer difference-count metrics before saving any near-hit:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/29_fourier_targeted_search.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/29_fourier_targeted_search.sage \
   outputs/candidates/near_hits/frontier/near_hit_v167_score164_ilp_repair_from_near_hit_round1.json \
   --steps 30000 \
   --seed 81 \
@@ -960,7 +960,7 @@ Fourier information as a bounded escape direction, keep the exact score inside a
 cap and disperse energy across the selected modes instead:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/29_fourier_targeted_search.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/29_fourier_targeted_search.sage \
   outputs/candidates/near_hits/near_hit_v167_score176_seed101_step8576.json \
   --steps 5000 \
   --seed 92 \
@@ -1004,14 +1004,14 @@ Verify Turyn type sequences, convert them to base/T-sequences, and, if they are
 exact, build the Goethals-Seidel Hadamard candidate:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/30_turyn_type_sequences.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/30_turyn_type_sequences.sage \
   --turyn-json outputs/turyn/example_turyn56.json
 ```
 
 List the sum-square candidates for the 668 analogue:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/30_turyn_type_sequences.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/30_turyn_type_sequences.sage \
   --n 56 \
   --sum-candidates \
   --out outputs/turyn/turyn56_sum_candidates.json
@@ -1020,7 +1020,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/30_turyn_type_sequences.sage \
 Run a small diagnostic comparing the 428 and 668 Turyn pruning landscape:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/31_turyn56_search_prototype.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/31_turyn56_search_prototype.sage \
   --n 56 \
   --samples 200 \
   --grid 100 \
@@ -1034,7 +1034,7 @@ Generate Hall-pruned `Z/W` endpoint buckets and compare the direct 668 analogue
 with the 428 case:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/32_turyn_endpoint_bucket_generator.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/32_turyn_endpoint_bucket_generator.sage \
   --n 56 \
   --samples 3000 \
   --grid 100 \
@@ -1050,7 +1050,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/32_turyn_endpoint_bucket_generator.sage
 Anneal a `Z/W` pair directly against the Hall pair bound:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/33_hall_pair_bucket_annealer.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/33_hall_pair_bucket_annealer.sage \
   --n 56 \
   --tuple 0,-18,-2,1 \
   --steps 5000 \
@@ -1070,7 +1070,7 @@ row sums fixed while biasing candidate flips toward the Fourier grid points
 where `f_Z(theta) + f_W(theta)` is currently largest:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/33_hall_pair_bucket_annealer.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/33_hall_pair_bucket_annealer.sage \
   --n 56 \
   --tuple 0,-18,-2,1 \
   --steps 8000 \
@@ -1102,7 +1102,7 @@ n=56, tuple [0,-18,-2,1], bound 167:
 Run short basin probes before spending longer runs on a seed:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/34_hall_pair_basin_probe.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/34_hall_pair_basin_probe.sage \
   --n 56 \
   --tuple 0,-18,-2,1 \
   --seed-start 1 \
@@ -1141,7 +1141,7 @@ Late-stage objectives can be used when a promoted state is already close to the
 Hall bound:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/33_hall_pair_bucket_annealer.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/33_hall_pair_bucket_annealer.sage \
   --n 56 \
   --tuple 0,-18,-2,1 \
   --steps 8000 \
@@ -1166,7 +1166,7 @@ generator.
 Run a coordinated single-spike repair on a close Hall-pair state:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/35_single_spike_hall_pair_repair.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/35_single_spike_hall_pair_repair.sage \
   outputs/turyn/hall_pair_targeted_n56_tuple_0_m18_m2_1_10x_seed6_seed6_step1049_pairmax168.305.json \
   --n 56 \
   --tuple 0,-18,-2,1 \
@@ -1186,7 +1186,7 @@ evaluation checked `593487` candidate combinations and found no improving move.
 Use a larger multi-flip beam neighborhood when the 1+1 neighborhood is hard:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/36_multi_flip_hall_pair_repair.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/36_multi_flip_hall_pair_repair.sage \
   outputs/turyn/hall_pair_targeted_n56_tuple_0_m18_m2_1_10x_seed6_seed6_step1049_pairmax168.305.json \
   --n 56 \
   --tuple 0,-18,-2,1 \
@@ -1236,7 +1236,7 @@ this repaired `Z/W` pair.
 Run a fixed-`Z/W` `X/Y` completion search:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/37_fixed_zw_xy_completion.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/37_fixed_zw_xy_completion.sage \
   outputs/turyn/multi_flip_pairmax_seed6_grid500_beam150_pairmax166.842.json \
   --n 56 \
   --tuple 0,-18,-2,1 \
@@ -1317,7 +1317,7 @@ annealing quickly becomes stuck.
 Diagnose the current `X/Y` near-hit in `P=X+Y`, `Q=X-Y` coordinates:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/39_pq_xy_completion_diagnostics.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/39_pq_xy_completion_diagnostics.sage \
   outputs/turyn/xy_multi_flip_score296_worst7_beam220_score288.json \
   --n 56 \
   --tuple 0,-18,-2,1 \
@@ -1349,7 +1349,7 @@ outputs/turyn/pq_xy_score288_diagnostic_score288.md
 Run a P/Q-aware channel-routing repair beam:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/40_pq_channel_routing_repair.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/40_pq_channel_routing_repair.sage \
   outputs/turyn/xy_multi_flip_score296_worst7_beam220_score288.json \
   --n 56 \
   --tuple 0,-18,-2,1 \
@@ -1399,7 +1399,7 @@ short bad-score excursion and then run a delayed repair.
 Reverse feasibility diagnostics for fixed `Z/W` completion:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/41_turyn_completion_feasibility_diagnostics.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/41_turyn_completion_feasibility_diagnostics.sage \
   outputs/turyn/multi_flip_pairmax_seed6_grid500_beam150_pairmax166.842.json \
   --xy-json outputs/turyn/xy_multi_flip_score296_worst7_beam220_score288.json \
   --n 56 \
@@ -1526,7 +1526,7 @@ To turn this into an actionable objective, `42` scores a fixed `Z/W` pair by
 cheap X/Y-completability proxies:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/42_zw_completion_proxy_diagnostics.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/42_zw_completion_proxy_diagnostics.sage \
   outputs/turyn/exact_428_kharaghani_tayfeh_rezaie.json \
   --n 36 \
   --tuple 0,6,8,5 \
@@ -1547,7 +1547,7 @@ basin-ranking tool only.
 The Hall-pair annealer also accepts a cheap in-loop version:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/33_hall_pair_bucket_annealer.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/33_hall_pair_bucket_annealer.sage \
   --n 56 \
   --tuple 0,-18,-2,1 \
   --steps 50000 \
@@ -1589,7 +1589,7 @@ checks and exact `HH^T = 668I` verification.
 Match two profile datasets and save top four-block near-hits:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/24_pair_profile_match.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/24_pair_profile_match.sage \
   --left outputs/pair_profiles/pairs_73_78_seed1.json \
   --right outputs/pair_profiles/pairs_79_81_seed2.json \
   --lam 144 \
@@ -1660,7 +1660,7 @@ Guided search also records p-adic moment diagnostics in saved JSON and canonical
 frontier records. To retain moment-aware buckets:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --ks 73,78,79,81 \
   --lam 144 \
   --steps 30000 \
@@ -1692,7 +1692,7 @@ Example: start from a `T2=0` near-hit and try to keep `T2` locked while making
 `T4` or `T6` zero:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/44_moment_balanced_multiswap_repair.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/44_moment_balanced_multiswap_repair.sage \
   outputs/candidates/near_hits/near_hit_v167_score216_seed411_step63.json \
   --lock-powers 2 \
   --target-powers 4,6 \
@@ -1708,7 +1708,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/44_moment_balanced_multiswap_repair.sag
 Example: start from a `T2=T4=0` near-hit and try to make `T6=0`:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/44_moment_balanced_multiswap_repair.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/44_moment_balanced_multiswap_repair.sage \
   outputs/candidates/near_hits/near_hit_v167_score284_moment_balanced_multiswap_repair_round2.json \
   --lock-powers 2,4 \
   --target-powers 6 \

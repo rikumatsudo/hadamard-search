@@ -374,7 +374,7 @@ def main():
     write_json(manifest_path, manifest)
 
     env = os.environ.copy()
-    env.setdefault("DOT_SAGE", "/private/tmp/sage-dot")
+    env.setdefault("DOT_SAGE", os.path.join(os.environ.get("TMPDIR", "/tmp"), "sage-dot"))
 
     for idx, run in enumerate(runs, start=1):
         run_id = "{:02d}_{}_{}_w{}".format(

@@ -1,15 +1,30 @@
 .DS_Store
 Thumbs.db
 
+# Local secrets and machine-specific settings.
+.env
+.env.*
+!.env.example
+
+# Virtual environments and local package caches.
+.venv/
+venv/
+env/
+
 # Python/Sage cache and local runtime noise.
 __pycache__/
 *.py[cod]
 *.so
+*.sage.py
 .ipynb_checkpoints/
 .sage/
 
 # Generated logs and bulk search artifacts.
+*.log
 outputs/logs/
+outputs/artifacts/
+outputs/tmp/
+outputs/cache/
 outputs/candidates/**
 !outputs/candidates/
 !outputs/candidates/small_p/
@@ -24,6 +39,7 @@ outputs/explorations/**
 !outputs/explorations/*/
 !outputs/explorations/*/*.md
 !outputs/explorations/*/run_config.json
+!outputs/explorations/*/run_config.yaml
 !outputs/explorations/*/comparison_summary.json
 !outputs/explorations/*/comparison_summary.csv
 

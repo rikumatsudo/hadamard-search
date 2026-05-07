@@ -1,9 +1,0 @@
-mode,attempt_count,score_improvement_count,score_improvement_rate,escaped_false_basin_count,escaped_false_basin_rate,score0_count,best_score_after,median_score_after,median_score_delta,median_D_min_ratio_after,median_P_8_after,median_kappa_max_after
-baseline_no_repair,50,0,0.0,0,0.0,0,4,12.0,0.0,0.75,0.03716216216216216,1.2
-exact_joint_rswap_lns,50,0,0.0,22,0.44,0,12,42.0,30.0,0.45454545454545453,0.1794294294294294,2.0
-hybrid_repair,50,1,0.02,22,0.44,0,8,36.0,24.0,0.4444444444444444,0.14714714714714716,2.0
-moment_late_repair,50,27,0.54,16,0.32,19,0,8.0,-4.0,0.75,0.022897897897897895,1.0
-negative_cross_pair_search,50,28,0.56,4,0.08,0,4,8.0,-4.0,1.0,0.022897897897897895,1.0
-pair_level_partial_defect_repair,50,34,0.68,10,0.2,19,0,8.0,-8.0,1.0,0.015765765765765764,0.75
-sparse_vector_cancellation_beam,50,35,0.7,7,0.14,19,0,8.0,-8.0,1.0,0.016516516516516516,0.75
-threshold_accepting_repair,50,33,0.66,9,0.18,11,0,8.0,-4.0,1.0,0.018018018018018018,0.8166666666666667

@@ -5,7 +5,7 @@ Date: 2026-05-04
 This note summarizes the current computational status of the search for a
 Hadamard matrix of order 668 via supplementary difference sets over `Z_167`.
 No construction has been found yet. All files referenced below are in the
-project directory `/Users/matsudouriku/Desktop/hadmard`.
+project directory `<repo-root>`.
 
 ## 1. Mathematical target
 
@@ -106,7 +106,7 @@ outputs/logs/01_sds_params_20260504_015619.log
 The latest all-parameter screening used the guided local search engine:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --all-params \
   --steps 100000 \
   --seed-start 1 \
@@ -184,7 +184,7 @@ hh_t = false
 The JSON was re-analyzed with
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/08_analyze_sds_candidate.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/08_analyze_sds_candidate.sage \
   outputs/candidates/near_hits/near_hit_v167_score168_seed4_step36303.json
 ```
 
@@ -261,7 +261,7 @@ The second parameter set is also interesting because it reached
 First, concentrate longer runs on the current top parameter set:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --steps 10000000 \
   --seed-start 1 \
   --seed-end 50 \
@@ -273,7 +273,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
 Resume from the current best near-hit with fresh seeds:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --resume-json outputs/candidates/near_hits/near_hit_v167_score168_seed4_step36303.json \
   --steps 10000000 \
   --seed 21 \
@@ -283,7 +283,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
 Also run focused tests on the next two parameter sets:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --steps 10000000 \
   --seed-start 1 \
   --seed-end 50 \
@@ -293,7 +293,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
 ```
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --steps 10000000 \
   --seed-start 1 \
   --seed-end 50 \
@@ -306,7 +306,7 @@ For algorithmic comparison, run one smaller A/B test with targeted or mixed
 strategy before committing large compute time:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/07_guided_sds_search_668.sage \
   --steps 1000000 \
   --seed-start 1 \
   --seed-end 10 \
@@ -323,25 +323,25 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/07_guided_sds_search_668.sage \
 Re-run known SDS regression:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/06_known_sds_regression.sage
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/06_known_sds_regression.sage
 ```
 
 Validate a candidate JSON as an SDS:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/05_validate_candidate_json.sage <candidate.json>
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/05_validate_candidate_json.sage <candidate.json>
 ```
 
 Build the Goethals-Seidel matrix and verify Hadamard condition:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/04_build_gs_from_sds.sage <candidate.json>
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/04_build_gs_from_sds.sage <candidate.json>
 ```
 
 Analyze a near-hit:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/08_analyze_sds_candidate.sage <near_hit.json>
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/08_analyze_sds_candidate.sage <near_hit.json>
 ```
 
 Summarize logs:
@@ -364,7 +364,7 @@ outputs/candidates/near_hits/near_hit_v167_score168_seed4_step36303.json
 was passed to a complete 1-swap steepest-descent repair:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/11_steepest_swap_descent.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/11_steepest_swap_descent.sage \
   outputs/candidates/near_hits/near_hit_v167_score168_seed4_step36303.json
 ```
 
@@ -399,7 +399,7 @@ lexicographic metric
 The repaired near-hit was then tested with bounded 2-swap beam repair:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/12_beam_two_swap_repair.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/12_beam_two_swap_repair.sage \
   outputs/candidates/near_hits/near_hit_v167_score164_steepest_swap_descent_round1.json \
   --beam-width 200 \
   --rounds 50
@@ -411,7 +411,7 @@ ordered 2-swap evaluations. No improving 2-swap was found in that beam.
 The repaired near-hit was re-analyzed with:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/08_analyze_sds_candidate.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/08_analyze_sds_candidate.sage \
   outputs/candidates/near_hits/near_hit_v167_score164_steepest_swap_descent_round1.json \
   --no-defect-vector
 ```
@@ -471,7 +471,7 @@ sage/13_ilp_repair_from_near_hit.sage
 Example:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
   outputs/candidates/near_hits/near_hit_v167_score164_steepest_swap_descent_round1.json \
   --pool-size 400 \
   --pool-mode mixed \
@@ -556,7 +556,7 @@ worse than the score-best branch under the primary lexicographic metric.
 A score-encoded ILP objective was also tested:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
   outputs/candidates/near_hits/near_hit_v167_score164_steepest_swap_descent_round1.json \
   --pool-size 60 \
   --max-moves 4 \
@@ -620,7 +620,7 @@ near-hits:
 Additional tests:
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
   outputs/candidates/near_hits/near_hit_v167_score164_steepest_swap_descent_round1.json \
   --pool-size 80 \
   --pool-mode mixed \
@@ -634,7 +634,7 @@ DOT_SAGE=/private/tmp/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
 Result: no improving score-directed move set was selected from this pool.
 
 ```bash
-DOT_SAGE=/private/tmp/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/13_ilp_repair_from_near_hit.sage \
   outputs/candidates/near_hits/near_hit_v167_score184_steepest_swap_descent_round1.json \
   --pool-size 80 \
   --pool-mode mixed \

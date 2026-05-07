@@ -461,7 +461,7 @@ def promotion_command(result, args):
     if result.get("probe_best_json"):
         resume_part = "--resume-pair-json {path} ".format(path=result["probe_best_json"])
     return (
-        "DOT_SAGE=/private/tmp/sage-dot sage sage/33_hall_pair_bucket_annealer.sage "
+        "DOT_SAGE=\"${TMPDIR:-/tmp}/sage-dot\" sage sage/33_hall_pair_bucket_annealer.sage "
         "--n {n} --tuple {tuple_text} --steps {steps} --seed {seed} --grid {grid} "
         "--candidate-trials {trials} --objective {objective} --strategy {strategy} "
         "--temperature {temperature} --restart-patience {patience} --shake-rate {shake_rate} "

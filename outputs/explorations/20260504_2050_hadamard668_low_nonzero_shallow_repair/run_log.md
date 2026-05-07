@@ -2,9 +2,9 @@
 
 - exploration_id: `20260504_2050_hadamard668_low_nonzero_shallow_repair`
 - started_at: `2026-05-04T20:51:04`
-- cwd: `/Users/matsudouriku/Desktop/hadmard`
+- cwd: `<repo-root>`
 - sage_bin: `sage`
-- DOT_SAGE: `/private/tmp/sage-dot`
+- DOT_SAGE: `${TMPDIR:-/tmp}/sage-dot`
 - suite: `all`
 - .sage.py cleanup: pending
 
