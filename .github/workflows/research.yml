@@ -134,7 +134,18 @@ jobs:
             -w /work \
             -e DOT_SAGE=/tmp/sage-dot \
             sagemath/sagemath:latest \
-            bash -lc 'sage sage/62_exactlike_guided_generator_validation.sage "$@"' bash "${args[@]}" \
+            bash -lc '
+              set -euo pipefail
+              if ! command -v python3 >/dev/null 2>&1; then
+                python3_path="$(find / -path "*/bin/python3" -print -quit 2>/dev/null || true)"
+                if [ -z "$python3_path" ]; then
+                  echo "python3 was not found in the SageMath image"
+                  exit 127
+                fi
+                export PATH="$(dirname "$python3_path"):$PATH"
+              fi
+              sage sage/62_exactlike_guided_generator_validation.sage "$@"
+            ' bash "${args[@]}" \
             2>&1 | tee "$OUT_DIR/runner.log"
 
       - name: Build run summary
