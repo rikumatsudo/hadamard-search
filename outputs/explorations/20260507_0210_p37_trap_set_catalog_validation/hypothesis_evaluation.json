@@ -1,0 +1,12 @@
+{
+  "H_TRAP1": "not_supported",
+  "H_TRAP2": "supported",
+  "H_TRAP3": "inconclusive",
+  "H_TRAP4": "supported",
+  "exact_false_level2_overlap_count": 0,
+  "exact_false_level2_separation_proxy": 1.0,
+  "false_basin_count": 84,
+  "false_top_trap_type_share": 0.08333333333333333,
+  "nearhit_668_count": 0,
+  "operator_response_rows": 302
+}
