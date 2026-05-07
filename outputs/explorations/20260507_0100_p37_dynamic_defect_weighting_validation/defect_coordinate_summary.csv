@@ -1,0 +1,7 @@
+count,mean_defect_support_turnover,mean_persistent_defect_fraction,median_defect_support_turnover,median_high_weight_persistent_fraction,median_persistent_defect_fraction,mode
+48,0.3666666666666667,0.6354166666666666,0.0,,1.0,baseline_score_only_recheck
+48,0.45,0.5520833333333334,0.0,1.0,1.0,dynamic_weighting_basic
+48,0.3666666666666667,0.6354166666666666,0.0,0.7333333333333334,1.0,dynamic_weighting_breakout
+48,0.3666666666666667,0.6354166666666666,0.0,,1.0,dynamic_weighting_stubborn
+48,0.2606837606837607,0.7552083333333334,0.0,1.0,1.0,dynamic_weighting_with_exactlike_guard
+48,0.569047619047619,0.4583333333333333,0.7333333333333334,0.375,0.375,static_weighted_score

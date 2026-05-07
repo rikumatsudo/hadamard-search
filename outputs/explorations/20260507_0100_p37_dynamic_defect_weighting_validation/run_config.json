@@ -1,0 +1,15 @@
+{
+  "exact_json": "outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+  "ks": "13,16,18,18",
+  "lam": 28,
+  "max_parent_candidates": 24,
+  "no_external_validation": false,
+  "no_move_patience": 120,
+  "out_dir": "outputs/explorations/20260507_0100_p37_dynamic_defect_weighting_validation",
+  "p": 37,
+  "restarts": 2,
+  "seed_base": 20260507,
+  "snapshot_interval": 50,
+  "steps": 250,
+  "update_interval": 50
+}
