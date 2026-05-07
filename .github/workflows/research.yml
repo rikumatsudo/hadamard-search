@@ -136,6 +136,7 @@ jobs:
           # The SageMath image entrypoint runs `sage -sh -c "$*"`.
           # Pass a single quoted command string so arguments survive intact.
           docker run --rm \
+            --user root \
             -v "$PWD":/work \
             -w /work \
             -e DOT_SAGE=/tmp/sage-dot \
