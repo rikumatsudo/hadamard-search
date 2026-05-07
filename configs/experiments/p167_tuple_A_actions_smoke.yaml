@@ -1,0 +1,68 @@
+experiment:
+  name: p167_tuple_A_actions_smoke
+  description: minimal GitHub Actions smoke test for Hadamard 668 tuple A
+  output_root: outputs/explorations
+  random_seed_base: 20260506
+target:
+  p: 167
+  n: 668
+  ks: [73, 78, 79, 81]
+  lambda: 144
+  row_sums: [21, 11, 9, 5]
+  exact_json: null
+  has_known_exact: false
+  role: target_668
+  tuple_name: A_73_78_79_81
+run:
+  modes:
+    - score_only
+  seeds: 1
+  steps: 1
+  snapshot_interval: 1
+  max_diagnostics_per_run: 1
+  stop_on_score0: true
+initialization:
+  families:
+    - pure_random
+  candidates_per_family: 1
+  selected_per_family: 1
+diagnostics:
+  full_1swap: false
+  compute_dmin1: false
+  compute_p_tau: false
+  compute_kappa: false
+  compute_q_ratio: false
+  compute_init_hardness: false
+  compute_moments: true
+  moment_orders: [2]
+  p_tau_thresholds_absolute: [0]
+  p_tau_thresholds_relative: [0.01]
+  low_score_thresholds:
+    absolute: [400]
+exactlike_score:
+  enabled: false
+  features: {}
+frontier:
+  max_size: 10
+  buckets:
+    best_score: 5
+    best_exactlike_score: 5
+    diversity: 5
+  archive_false_like: false
+  archive_score_low_false_like: false
+repair:
+  enabled: false
+  route_only_if:
+    score_lte: 0
+    exactlike_score_percentile_gte: 100
+  modes: []
+validation:
+  run_known_sds_regression: false
+  validate_score0_candidates: true
+  build_gs_for_score0: true
+  save_candidate_json: true
+  score0_is_only_success: true
+report:
+  write_markdown_summary: true
+  write_jsonl: true
+  write_csv: true

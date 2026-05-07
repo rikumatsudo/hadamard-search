@@ -6,7 +6,7 @@ on:
       config:
         description: "Experiment config under configs/experiments/"
         required: true
-        default: "configs/experiments/p167_tuple_A_exactlike_smoke.yaml"
+        default: "configs/experiments/p167_tuple_A_actions_smoke.yaml"
         type: string
       run_label:
         description: "Short label for artifact and Slack messages"
@@ -16,32 +16,32 @@ on:
       seeds:
         description: "Override run.seeds. Leave blank to use config."
         required: false
-        default: "2"
+        default: "1"
         type: string
       steps:
         description: "Override run.steps. Leave blank to use config."
         required: false
-        default: "1000"
+        default: "1"
         type: string
       snapshot_interval:
         description: "Override run.snapshot_interval. Leave blank to use config."
         required: false
-        default: "100"
+        default: "1"
         type: string
       candidates_per_family:
         description: "Override initialization.candidates_per_family. Leave blank to use config."
         required: false
-        default: "8"
+        default: "1"
         type: string
       selected_per_family:
         description: "Override initialization.selected_per_family. Leave blank to use config."
         required: false
-        default: "2"
+        default: "1"
         type: string
       max_repair_candidates:
         description: "Maximum routed repair candidates."
         required: false
-        default: "2"
+        default: "0"
         type: string
       artifact_retention_days:
         description: "Artifact retention, 1-90 days."

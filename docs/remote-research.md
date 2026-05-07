@@ -7,14 +7,14 @@ This repository can run SageMath experiments on GitHub Actions through
 
 ```bash
 gh workflow run research.yml \
-  -f run_label=p167-smoke \
-  -f config=configs/experiments/p167_tuple_A_exactlike_smoke.yaml \
-  -f seeds=2 \
-  -f steps=1000 \
-  -f snapshot_interval=100 \
-  -f candidates_per_family=8 \
-  -f selected_per_family=2 \
-  -f max_repair_candidates=2
+  -f run_label=p167-actions-smoke \
+  -f config=configs/experiments/p167_tuple_A_actions_smoke.yaml \
+  -f seeds=1 \
+  -f steps=1 \
+  -f snapshot_interval=1 \
+  -f candidates_per_family=1 \
+  -f selected_per_family=1 \
+  -f max_repair_candidates=0
 ```
 
 Watch the run:
@@ -41,6 +41,9 @@ only the Slack notification step is skipped.
 ## Notes
 
 - The workflow only accepts config paths under `configs/experiments/*.yaml`.
+- Use `configs/experiments/p167_tuple_A_actions_smoke.yaml` for fast
+  workflow checks. Use `configs/experiments/p167_tuple_A_exactlike_smoke.yaml`
+  or larger configs when you intentionally want heavier diagnostics.
 - The workflow pins the SageMath Docker image to `sagemath/sagemath:10.8`,
   matching the local SageMath version used in this repository.
 - Large raw outputs remain ignored by git and should be consumed from Actions
