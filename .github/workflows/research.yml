@@ -1,0 +1,174 @@
+name: Research experiment
+
+on:
+  workflow_dispatch:
+    inputs:
+      config:
+        description: "Experiment config under configs/experiments/"
+        required: true
+        default: "configs/experiments/p167_tuple_A_exactlike_smoke.yaml"
+        type: string
+      run_label:
+        description: "Short label for artifact and Slack messages"
+        required: false
+        default: "manual"
+        type: string
+      seeds:
+        description: "Override run.seeds. Leave blank to use config."
+        required: false
+        default: "2"
+        type: string
+      steps:
+        description: "Override run.steps. Leave blank to use config."
+        required: false
+        default: "1000"
+        type: string
+      snapshot_interval:
+        description: "Override run.snapshot_interval. Leave blank to use config."
+        required: false
+        default: "100"
+        type: string
+      candidates_per_family:
+        description: "Override initialization.candidates_per_family. Leave blank to use config."
+        required: false
+        default: "8"
+        type: string
+      selected_per_family:
+        description: "Override initialization.selected_per_family. Leave blank to use config."
+        required: false
+        default: "2"
+        type: string
+      max_repair_candidates:
+        description: "Maximum routed repair candidates."
+        required: false
+        default: "2"
+        type: string
+      artifact_retention_days:
+        description: "Artifact retention, 1-90 days."
+        required: false
+        default: "14"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: research-${{ github.ref }}-${{ inputs.run_label }}
+  cancel-in-progress: false
+
+env:
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  run:
+    name: Run Sage experiment
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare run
+        id: prepare
+        env:
+          CONFIG: ${{ inputs.config }}
+          RUN_LABEL: ${{ inputs.run_label }}
+          RETENTION_DAYS: ${{ inputs.artifact_retention_days }}
+        run: |
+          set -euo pipefail
+
+          case "$CONFIG" in
+            configs/experiments/*.yaml) ;;
+            *)
+              echo "::error::config must be under configs/experiments/*.yaml"
+              exit 2
+              ;;
+          esac
+          test -f "$CONFIG"
+
+          if ! [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] || [ "$RETENTION_DAYS" -lt 1 ] || [ "$RETENTION_DAYS" -gt 90 ]; then
+            echo "::error::artifact_retention_days must be an integer from 1 to 90"
+            exit 2
+          fi
+
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          safe_label="${safe_label:-manual}"
+          out_dir="outputs/artifacts/${safe_label}-${GITHUB_RUN_ID}"
+          mkdir -p "$out_dir"
+
+          {
+            echo "safe_label=$safe_label"
+            echo "out_dir=$out_dir"
+            echo "retention_days=$RETENTION_DAYS"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run exact-like guided generator
+        id: experiment
+        env:
+          CONFIG: ${{ inputs.config }}
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+          SEEDS: ${{ inputs.seeds }}
+          STEPS: ${{ inputs.steps }}
+          SNAPSHOT_INTERVAL: ${{ inputs.snapshot_interval }}
+          CANDIDATES_PER_FAMILY: ${{ inputs.candidates_per_family }}
+          SELECTED_PER_FAMILY: ${{ inputs.selected_per_family }}
+          MAX_REPAIR_CANDIDATES: ${{ inputs.max_repair_candidates }}
+        run: |
+          set -euo pipefail
+
+          args=(
+            --config "$CONFIG"
+            --out-dir "$OUT_DIR"
+          )
+
+          if [ -n "$SEEDS" ]; then args+=(--seeds "$SEEDS"); fi
+          if [ -n "$STEPS" ]; then args+=(--steps "$STEPS"); fi
+          if [ -n "$SNAPSHOT_INTERVAL" ]; then args+=(--snapshot-interval "$SNAPSHOT_INTERVAL"); fi
+          if [ -n "$CANDIDATES_PER_FAMILY" ]; then args+=(--candidates-per-family "$CANDIDATES_PER_FAMILY"); fi
+          if [ -n "$SELECTED_PER_FAMILY" ]; then args+=(--selected-per-family "$SELECTED_PER_FAMILY"); fi
+          if [ -n "$MAX_REPAIR_CANDIDATES" ]; then args+=(--max-repair-candidates "$MAX_REPAIR_CANDIDATES"); fi
+
+          docker run --rm \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            sagemath/sagemath:latest \
+            bash -lc 'sage sage/62_exactlike_guided_generator_validation.sage "$@"' bash "${args[@]}" \
+            2>&1 | tee "$OUT_DIR/runner.log"
+
+      - name: Build run summary
+        if: always()
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+          CONFIG: ${{ inputs.config }}
+          RUN_LABEL: ${{ inputs.run_label }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 scripts/actions_summary.py \
+            --out-dir "$OUT_DIR" \
+            --config "$CONFIG" \
+            --run-label "$RUN_LABEL" \
+            --run-url "$RUN_URL" \
+            --status "$JOB_STATUS" \
+            --payload "$OUT_DIR/slack_payload.json" \
+            --github-summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-${{ steps.prepare.outputs.safe_label }}-${{ github.run_id }}
+          path: ${{ steps.prepare.outputs.out_dir }}
+          if-no-files-found: warn
+          retention-days: ${{ steps.prepare.outputs.retention_days }}
+
+      - name: Notify Slack
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v3.0.2
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: ${{ steps.prepare.outputs.out_dir }}/slack_payload.json

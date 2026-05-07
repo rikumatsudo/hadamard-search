@@ -81,6 +81,12 @@ writable temporary location:
 DOT_SAGE=${TMPDIR:-/tmp}/sage-dot sage sage/00_baseline.sage
 ```
 
+## Remote GitHub Actions Runs
+
+Remote SageMath experiments can be launched with GitHub Actions. See
+[`docs/remote-research.md`](docs/remote-research.md) for the `gh workflow run`
+command, artifact layout, and optional Slack notification setup.
+
 ## Scripts
 
 ### `sage/00_baseline.sage`
