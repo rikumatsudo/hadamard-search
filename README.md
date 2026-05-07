@@ -61,7 +61,7 @@ From this directory:
 docker run -it --rm \
   -v "$PWD":/work \
   -w /work \
-  sagemath/sagemath:latest bash
+  sagemath/sagemath:10.8 bash
 ```
 
 Inside the container:

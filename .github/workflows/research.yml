@@ -57,6 +57,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
 jobs:
@@ -129,28 +130,17 @@ jobs:
           if [ -n "$SELECTED_PER_FAMILY" ]; then args+=(--selected-per-family "$SELECTED_PER_FAMILY"); fi
           if [ -n "$MAX_REPAIR_CANDIDATES" ]; then args+=(--max-repair-candidates "$MAX_REPAIR_CANDIDATES"); fi
 
+          sage_args=(sage sage/62_exactlike_guided_generator_validation.sage "${args[@]}")
+          sage_command="$(printf '%q ' "${sage_args[@]}")"
+
+          # The SageMath image entrypoint runs `sage -sh -c "$*"`.
+          # Pass a single quoted command string so arguments survive intact.
           docker run --rm \
             -v "$PWD":/work \
             -w /work \
             -e DOT_SAGE=/tmp/sage-dot \
-            sagemath/sagemath:latest \
-            bash -lc '
-              set -euo pipefail
-              sage_cmd="$(command -v sage || true)"
-              if [ -z "$sage_cmd" ]; then
-                echo "sage was not found in the SageMath image"
-                exit 127
-              fi
-              if ! command -v python3 >/dev/null 2>&1; then
-                python3_path="$(find / -path "*/bin/python3" -print -quit 2>/dev/null || true)"
-                if [ -z "$python3_path" ]; then
-                  echo "python3 was not found in the SageMath image"
-                  exit 127
-                fi
-                export PATH="$PATH:$(dirname "$python3_path")"
-              fi
-              "$sage_cmd" sage/62_exactlike_guided_generator_validation.sage "$@"
-            ' bash "${args[@]}" \
+            "$SAGE_DOCKER_IMAGE" \
+            "$sage_command" \
             2>&1 | tee "$OUT_DIR/runner.log"
 
       - name: Build run summary

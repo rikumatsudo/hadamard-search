@@ -41,6 +41,8 @@ only the Slack notification step is skipped.
 ## Notes
 
 - The workflow only accepts config paths under `configs/experiments/*.yaml`.
+- The workflow pins the SageMath Docker image to `sagemath/sagemath:10.8`,
+  matching the local SageMath version used in this repository.
 - Large raw outputs remain ignored by git and should be consumed from Actions
   artifacts, releases, or external research storage.
 - A `score=0` candidate is still only accepted when the existing Sage validation
