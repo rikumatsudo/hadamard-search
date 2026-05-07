@@ -1,0 +1,473 @@
+{
+  "rows": [
+    {
+      "count": 55,
+      "distinct_hashes": 55,
+      "exact_like_indicator_rate": 0.7818181818181819,
+      "false_like_indicator_rate": 0.10909090909090909,
+      "lambda_distribution": {
+        "144": 55
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P80_K0.9-1_Q<10": 3,
+        "D1-1.5_P8low_K0.9-1_Q<10": 1,
+        "D1-1.5_P8mid_K0.9-1_Q<10": 2,
+        "D<1_P8high_K>1_Q<10": 12,
+        "D<1_P8low_K>1_Q<10": 4,
+        "D<1_P8mid_K>1_Q<10": 27,
+        "D=1_P8low_K0.9-1_Q<10": 2,
+        "D=1_P8mid_K0.9-1_Q<10": 4
+      },
+      "median_D_min_ratio": 0.9310344827586207,
+      "median_InitHardness": -20674.690909091383,
+      "median_P_16": 0.11666666666666667,
+      "median_P_32": 0.48333333333333334,
+      "median_P_4": 0.041666666666666664,
+      "median_P_8": 0.058333333333333334,
+      "median_P_thetaS_001": 0.025,
+      "median_P_thetaS_005": 0.058333333333333334,
+      "median_P_thetaS_010": 0.18333333333333332,
+      "median_Q_ratio": 0.12210161400318253,
+      "median_kappa_max": 1.12,
+      "median_kappa_q90": 0.8857142857142857,
+      "median_kappa_q99": 1.0,
+      "median_max_abs_rho": 3.0,
+      "median_score": 212.0,
+      "median_score_per_p": 1.2694610778443114,
+      "median_support_fraction": 0.6265060240963856,
+      "median_support_pair_count": 52.0,
+      "method_distribution": {
+        "coherent_multiswap": 55
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs11_ -pairs16_ other16": 1,
+        "+pairs11_ -pairs20_ other13": 1,
+        "+pairs12_ -pairs18_ other19": 1,
+        "+pairs12_ -pairs19_ other13": 1,
+        "+pairs13_ -pairs12_ other16": 1,
+        "+pairs13_ -pairs13_ other17": 1,
+        "+pairs13_ -pairs17_ other16": 1,
+        "+pairs13_ -pairs20_ other19": 1,
+        "+pairs14_ -pairs14_ other16": 1,
+        "+pairs15_ -pairs14_ other17": 1,
+        "+pairs16_ -pairs10_ other17": 1,
+        "+pairs16_ -pairs12_ other18": 1,
+        "+pairs16_ -pairs14_ other17": 1,
+        "+pairs16_ -pairs15_ other13": 1,
+        "+pairs16_ -pairs16_ other13": 1,
+        "+pairs16_ -pairs16_ other15": 1,
+        "+pairs17_ -pairs21_ other16": 1,
+        "+pairs18_ -pairs16_ other17": 1,
+        "+pairs18_ -pairs17_ other16": 1,
+        "+pairs18_ -pairs19_ other14": 1,
+        "+pairs18_ -pairs22_ other18": 1,
+        "+pairs19_ -pairs19_ other16": 2,
+        "+pairs19_ -pairs19_ other18": 1,
+        "+pairs19_ -pairs21_ other17": 1,
+        "+pairs19_ -pairs24_ other13": 1,
+        "+pairs19_ -pairs25_ other10": 1,
+        "+pairs19_ -pairs25_ other15": 1,
+        "+pairs19_ -pairs25_ other17": 1,
+        "+pairs19_ -pairs9_ other19": 1,
+        "+pairs20_ -pairs12_ other13": 1,
+        "+pairs20_ -pairs16_ other18": 1,
+        "+pairs20_ -pairs19_ other11": 1,
+        "+pairs20_ -pairs22_ other17": 1,
+        "+pairs21_ -pairs11_ other15": 1,
+        "+pairs21_ -pairs15_ other15": 1,
+        "+pairs21_ -pairs16_ other13": 1,
+        "+pairs21_ -pairs17_ other18": 1,
+        "+pairs21_ -pairs18_ other11": 1,
+        "+pairs21_ -pairs18_ other14": 1,
+        "+pairs21_ -pairs19_ other17": 2,
+        "+pairs22_ -pairs16_ other19": 1,
+        "+pairs22_ -pairs19_ other15": 1,
+        "+pairs22_ -pairs20_ other15": 1,
+        "+pairs22_ -pairs22_ other13": 1,
+        "+pairs23_ -pairs15_ other14": 1,
+        "+pairs23_ -pairs19_ other14": 1,
+        "+pairs23_ -pairs21_ other11": 1,
+        "+pairs24_ -pairs12_ other14": 1,
+        "+pairs24_ -pairs14_ other19": 1,
+        "+pairs24_ -pairs16_ other18": 1,
+        "+pairs24_ -pairs21_ other13": 1,
+        "+pairs24_ -pairs22_ other13": 1,
+        "+pairs28_ -pairs14_ other17": 1
+      },
+      "score_distribution": {
+        "176": 2,
+        "192": 1,
+        "196": 5,
+        "200": 3,
+        "204": 8,
+        "208": 5,
+        "212": 5,
+        "216": 5,
+        "220": 6,
+        "224": 6,
+        "228": 5,
+        "232": 4
+      },
+      "source_method": "coherent_multiswap",
+      "tuple_distribution": {
+        "73,78,79,81": 55
+      }
+    },
+    {
+      "count": 20,
+      "distinct_hashes": 20,
+      "exact_like_indicator_rate": 0.6,
+      "false_like_indicator_rate": 0.2,
+      "lambda_distribution": {
+        "144": 20
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P80_K0.9-1_Q<10": 1,
+        "D1-1.5_P8low_K0.9-1_Q<10": 1,
+        "D1-1.5_P8mid_K0.9-1_Q<10": 2,
+        "D<1_P8high_K>1_Q<10": 4,
+        "D<1_P8mid_K>1_Q<10": 8,
+        "D=1_P8mid_K0.9-1_Q<10": 4
+      },
+      "median_D_min_ratio": 0.9821371610845295,
+      "median_InitHardness": -17036.690909091383,
+      "median_P_16": 0.125,
+      "median_P_32": 0.5208333333333334,
+      "median_P_4": 0.0375,
+      "median_P_8": 0.058333333333333334,
+      "median_P_thetaS_001": 0.020833333333333336,
+      "median_P_thetaS_005": 0.058333333333333334,
+      "median_P_thetaS_010": 0.16666666666666666,
+      "median_Q_ratio": 0.11893357158793905,
+      "median_kappa_max": 1.0370879120879122,
+      "median_kappa_q90": 0.8857142857142857,
+      "median_kappa_q99": 0.9878048780487805,
+      "median_max_abs_rho": 3.0,
+      "median_score": 220.0,
+      "median_score_per_p": 1.3173652694610778,
+      "median_support_fraction": 0.6566265060240963,
+      "median_support_pair_count": 54.5,
+      "method_distribution": {
+        "escapability_aware": 20
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs14_ -pairs25_ other14": 1,
+        "+pairs15_ -pairs18_ other17": 1,
+        "+pairs17_ -pairs19_ other13": 1,
+        "+pairs18_ -pairs17_ other15": 1,
+        "+pairs18_ -pairs21_ other18": 1,
+        "+pairs19_ -pairs22_ other13": 1,
+        "+pairs19_ -pairs25_ other13": 1,
+        "+pairs19_ -pairs25_ other15": 1,
+        "+pairs20_ -pairs26_ other14": 1,
+        "+pairs21_ -pairs16_ other15": 1,
+        "+pairs21_ -pairs19_ other15": 1,
+        "+pairs21_ -pairs20_ other9": 1,
+        "+pairs21_ -pairs24_ other10": 1,
+        "+pairs22_ -pairs16_ other12": 1,
+        "+pairs22_ -pairs17_ other15": 1,
+        "+pairs23_ -pairs19_ other14": 1,
+        "+pairs23_ -pairs19_ other16": 1,
+        "+pairs24_ -pairs24_ other12": 1,
+        "+pairs27_ -pairs14_ other17": 1,
+        "+pairs8_ -pairs23_ other13": 1
+      },
+      "score_distribution": {
+        "164": 1,
+        "176": 1,
+        "192": 1,
+        "196": 1,
+        "200": 2,
+        "212": 1,
+        "216": 2,
+        "220": 2,
+        "224": 2,
+        "228": 4,
+        "232": 3
+      },
+      "source_method": "escapability_aware",
+      "tuple_distribution": {
+        "73,78,79,81": 20
+      }
+    },
+    {
+      "count": 16,
+      "distinct_hashes": 16,
+      "exact_like_indicator_rate": 0.625,
+      "false_like_indicator_rate": 0.3125,
+      "lambda_distribution": {
+        "144": 9,
+        "148": 7
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P80_K0.9-1_Q<10": 1,
+        "D1-1.5_P8low_K0.9-1_Q<10": 3,
+        "D1-1.5_P8mid_K0.9-1_Q<10": 1,
+        "D<1_P8high_K>1_Q<10": 3,
+        "D<1_P8mid_K>1_Q<10": 7,
+        "D=1_P8low_K0.9-1_Q<10": 1
+      },
+      "median_D_min_ratio": 0.9578900709219859,
+      "median_InitHardness": -21422.690909091383,
+      "median_P_16": 0.075,
+      "median_P_32": 0.2791666666666667,
+      "median_P_4": 0.025,
+      "median_P_8": 0.03333333333333333,
+      "median_P_thetaS_001": 0.016666666666666666,
+      "median_P_thetaS_005": 0.03333333333333333,
+      "median_P_thetaS_010": 0.075,
+      "median_Q_ratio": 0.13577982141331282,
+      "median_kappa_max": 1.0598214285714285,
+      "median_kappa_q90": 0.8431372549019608,
+      "median_kappa_q99": 0.9714285714285714,
+      "median_max_abs_rho": 3.0,
+      "median_score": 188.0,
+      "median_score_per_p": 1.125748502994012,
+      "median_support_fraction": 0.572289156626506,
+      "median_support_pair_count": 47.5,
+      "method_distribution": {
+        "ilp": 16
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs12_ -pairs14_ other14": 1,
+        "+pairs13_ -pairs11_ other19": 1,
+        "+pairs13_ -pairs19_ other13": 1,
+        "+pairs13_ -pairs19_ other16": 1,
+        "+pairs14_ -pairs11_ other16": 1,
+        "+pairs15_ -pairs16_ other15": 1,
+        "+pairs15_ -pairs23_ other13": 1,
+        "+pairs15_ -pairs24_ other8": 1,
+        "+pairs17_ -pairs15_ other15": 1,
+        "+pairs18_ -pairs18_ other12": 1,
+        "+pairs18_ -pairs19_ other12": 1,
+        "+pairs18_ -pairs26_ other12": 1,
+        "+pairs19_ -pairs14_ other13": 1,
+        "+pairs20_ -pairs20_ other8": 1,
+        "+pairs20_ -pairs22_ other11": 1,
+        "+pairs25_ -pairs11_ other15": 1
+      },
+      "score_distribution": {
+        "164": 1,
+        "172": 1,
+        "180": 2,
+        "184": 2,
+        "188": 3,
+        "192": 3,
+        "200": 2,
+        "204": 1,
+        "232": 1
+      },
+      "source_method": "ilp",
+      "tuple_distribution": {
+        "73,76,83,83": 7,
+        "73,78,79,81": 9
+      }
+    },
+    {
+      "count": 12,
+      "distinct_hashes": 12,
+      "exact_like_indicator_rate": 1.0,
+      "false_like_indicator_rate": 0.0,
+      "lambda_distribution": {
+        "144": 12
+      },
+      "local_dynamics_distribution": {
+        "D<1_P8high_K>1_Q<10": 4,
+        "D<1_P8mid_K>1_Q<10": 8
+      },
+      "median_D_min_ratio": 0.8912037037037037,
+      "median_InitHardness": -20420.690909091383,
+      "median_P_16": 0.125,
+      "median_P_32": 0.525,
+      "median_P_4": 0.04583333333333334,
+      "median_P_8": 0.0625,
+      "median_P_thetaS_001": 0.029166666666666667,
+      "median_P_thetaS_005": 0.0625,
+      "median_P_thetaS_010": 0.18333333333333335,
+      "median_Q_ratio": 0.12303249645898542,
+      "median_kappa_max": 1.1758832565284179,
+      "median_kappa_q90": 0.8942218080149115,
+      "median_kappa_q99": 1.0121951219512195,
+      "median_max_abs_rho": 2.5,
+      "median_score": 212.0,
+      "median_score_per_p": 1.2694610778443114,
+      "median_support_fraction": 0.6506024096385542,
+      "median_support_pair_count": 54.0,
+      "method_distribution": {
+        "filtered_2swap": 12
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs14_ -pairs16_ other14": 1,
+        "+pairs15_ -pairs14_ other18": 1,
+        "+pairs16_ -pairs14_ other19": 1,
+        "+pairs18_ -pairs13_ other16": 1,
+        "+pairs18_ -pairs20_ other17": 1,
+        "+pairs18_ -pairs26_ other16": 1,
+        "+pairs19_ -pairs15_ other12": 1,
+        "+pairs19_ -pairs22_ other12": 1,
+        "+pairs20_ -pairs24_ other16": 1,
+        "+pairs22_ -pairs18_ other16": 1,
+        "+pairs22_ -pairs21_ other16": 1,
+        "+pairs24_ -pairs16_ other16": 1
+      },
+      "score_distribution": {
+        "208": 4,
+        "212": 3,
+        "216": 3,
+        "220": 1,
+        "224": 1
+      },
+      "source_method": "filtered_2swap",
+      "tuple_distribution": {
+        "73,78,79,81": 12
+      }
+    },
+    {
+      "count": 5,
+      "distinct_hashes": 5,
+      "exact_like_indicator_rate": 0.6,
+      "false_like_indicator_rate": 0.4,
+      "lambda_distribution": {
+        "144": 3,
+        "148": 2
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P80_K0.9-1_Q<10": 1,
+        "D1-1.5_P8low_K0.9-1_Q<10": 1,
+        "D<1_P8low_K>1_Q<10": 1,
+        "D<1_P8mid_K>1_Q<10": 2
+      },
+      "median_D_min_ratio": 0.9821428571428571,
+      "median_InitHardness": -20926.690909091383,
+      "median_P_16": 0.025,
+      "median_P_32": 0.16666666666666666,
+      "median_P_4": 0.008333333333333333,
+      "median_P_8": 0.008333333333333333,
+      "median_P_thetaS_001": 0.008333333333333333,
+      "median_P_thetaS_005": 0.008333333333333333,
+      "median_P_thetaS_010": 0.025,
+      "median_Q_ratio": 0.14207968236582694,
+      "median_kappa_max": 1.0303030303030303,
+      "median_kappa_q90": 0.7941176470588235,
+      "median_kappa_q99": 0.8928571428571429,
+      "median_max_abs_rho": 3.0,
+      "median_score": 176.0,
+      "median_score_per_p": 1.0538922155688624,
+      "median_support_fraction": 0.5903614457831325,
+      "median_support_pair_count": 49.0,
+      "method_distribution": {
+        "seed": 5
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs12_ -pairs20_ other20": 1,
+        "+pairs18_ -pairs15_ other10": 1,
+        "+pairs19_ -pairs20_ other10": 2,
+        "+pairs23_ -pairs13_ other16": 1
+      },
+      "score_distribution": {
+        "168": 2,
+        "176": 1,
+        "220": 1,
+        "224": 1
+      },
+      "source_method": "seed",
+      "tuple_distribution": {
+        "73,76,83,83": 2,
+        "73,78,79,81": 3
+      }
+    },
+    {
+      "count": 4,
+      "distinct_hashes": 4,
+      "exact_like_indicator_rate": 0.25,
+      "false_like_indicator_rate": 0.75,
+      "lambda_distribution": {
+        "144": 3,
+        "148": 1
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P8low_K0.9-1_Q<10": 3,
+        "D<1_P8mid_K>1_Q<10": 1
+      },
+      "median_D_min_ratio": 1.0454780361757106,
+      "median_InitHardness": -20998.690909091383,
+      "median_P_16": 0.025,
+      "median_P_32": 0.16666666666666669,
+      "median_P_4": 0.0,
+      "median_P_8": 0.008333333333333333,
+      "median_P_thetaS_001": 0.0,
+      "median_P_thetaS_005": 0.008333333333333333,
+      "median_P_thetaS_010": 0.025,
+      "median_Q_ratio": 0.14017620871081224,
+      "median_kappa_max": 0.936491935483871,
+      "median_kappa_q90": 0.7804878048780488,
+      "median_kappa_q99": 0.8875,
+      "median_max_abs_rho": 3.0,
+      "median_score": 176.0,
+      "median_score_per_p": 1.0538922155688621,
+      "median_support_fraction": 0.6204819277108433,
+      "median_support_pair_count": 51.5,
+      "method_distribution": {
+        "beam": 4
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs16_ -pairs25_ other10": 1,
+        "+pairs22_ -pairs19_ other11": 2,
+        "+pairs24_ -pairs17_ other9": 1
+      },
+      "score_distribution": {
+        "164": 1,
+        "172": 1,
+        "180": 2
+      },
+      "source_method": "beam",
+      "tuple_distribution": {
+        "73,76,83,83": 1,
+        "73,78,79,81": 3
+      }
+    },
+    {
+      "count": 1,
+      "distinct_hashes": 1,
+      "exact_like_indicator_rate": 0.0,
+      "false_like_indicator_rate": 1.0,
+      "lambda_distribution": {
+        "148": 1
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P80_K0.9-1_Q<10": 1
+      },
+      "median_D_min_ratio": 1.0714285714285714,
+      "median_InitHardness": -23962.327272728086,
+      "median_P_16": 0.016666666666666666,
+      "median_P_32": 0.11666666666666667,
+      "median_P_4": 0.0,
+      "median_P_8": 0.0,
+      "median_P_thetaS_001": 0.0,
+      "median_P_thetaS_005": 0.0,
+      "median_P_thetaS_010": 0.016666666666666666,
+      "median_Q_ratio": 0.15239529546758462,
+      "median_kappa_max": 0.9285714285714286,
+      "median_kappa_q90": 0.7619047619047619,
+      "median_kappa_q99": 0.8461538461538461,
+      "median_max_abs_rho": 3.0,
+      "median_score": 168.0,
+      "median_score_per_p": 1.0059880239520957,
+      "median_support_fraction": 0.5903614457831325,
+      "median_support_pair_count": 49.0,
+      "method_distribution": {
+        "steepest": 1
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs17_ -pairs22_ other10": 1
+      },
+      "score_distribution": {
+        "168": 1
+      },
+      "source_method": "steepest",
+      "tuple_distribution": {
+        "73,76,83,83": 1
+      }
+    }
+  ]
+}

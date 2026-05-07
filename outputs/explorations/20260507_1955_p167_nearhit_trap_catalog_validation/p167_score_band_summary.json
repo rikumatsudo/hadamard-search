@@ -1,0 +1,944 @@
+{
+  "rows": [
+    {
+      "count": 10,
+      "distinct_hashes": 10,
+      "exact_like_indicator_rate": 0.9,
+      "false_like_indicator_rate": 0.1,
+      "lambda_distribution": {
+        "144": 10
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P8mid_K0.9-1_Q<10": 1,
+        "D<1_P8high_K>1_Q<10": 3,
+        "D<1_P8mid_K>1_Q<10": 6
+      },
+      "median_D_min_ratio": 0.8518518518518519,
+      "median_InitHardness": -20288.690909091383,
+      "median_P_16": 0.125,
+      "median_P_32": 0.5125,
+      "median_P_4": 0.05,
+      "median_P_8": 0.075,
+      "median_P_thetaS_001": 0.029166666666666667,
+      "median_P_thetaS_005": 0.075,
+      "median_P_thetaS_010": 0.17916666666666664,
+      "median_Q_ratio": 0.11986836233824186,
+      "median_kappa_max": 1.2033462033462032,
+      "median_kappa_q90": 0.9032634032634033,
+      "median_kappa_q99": 1.0,
+      "median_max_abs_rho": 2.0,
+      "median_score": 216.0,
+      "median_score_per_p": 1.2934131736526946,
+      "median_support_fraction": 0.6867469879518072,
+      "median_support_pair_count": 57.0,
+      "method_distribution": {
+        "coherent_multiswap": 5,
+        "escapability_aware": 2,
+        "filtered_2swap": 3
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs14_ -pairs16_ other14": 1,
+        "+pairs18_ -pairs26_ other16": 1,
+        "+pairs19_ -pairs21_ other17": 1,
+        "+pairs20_ -pairs16_ other18": 1,
+        "+pairs20_ -pairs24_ other16": 1,
+        "+pairs21_ -pairs19_ other17": 2,
+        "+pairs22_ -pairs16_ other12": 1,
+        "+pairs23_ -pairs19_ other14": 1,
+        "+pairs24_ -pairs22_ other13": 1
+      },
+      "score": "216",
+      "score_distribution": {
+        "216": 10
+      },
+      "tuple_distribution": {
+        "73,78,79,81": 10
+      }
+    },
+    {
+      "count": 10,
+      "distinct_hashes": 10,
+      "exact_like_indicator_rate": 0.9,
+      "false_like_indicator_rate": 0.1,
+      "lambda_distribution": {
+        "144": 9,
+        "148": 1
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P8low_K0.9-1_Q<10": 1,
+        "D<1_P8high_K>1_Q<10": 5,
+        "D<1_P8mid_K>1_Q<10": 4
+      },
+      "median_D_min_ratio": 0.9272727272727272,
+      "median_InitHardness": -20210.690909091383,
+      "median_P_16": 0.15416666666666667,
+      "median_P_32": 0.6583333333333333,
+      "median_P_4": 0.07083333333333333,
+      "median_P_8": 0.09583333333333333,
+      "median_P_thetaS_001": 0.037500000000000006,
+      "median_P_thetaS_005": 0.09583333333333333,
+      "median_P_thetaS_010": 0.21250000000000002,
+      "median_Q_ratio": 0.11733296823658271,
+      "median_kappa_max": 1.1028571428571428,
+      "median_kappa_q90": 0.9245535714285714,
+      "median_kappa_q99": 1.0147058823529411,
+      "median_max_abs_rho": 3.0,
+      "median_score": 220.0,
+      "median_score_per_p": 1.3173652694610778,
+      "median_support_fraction": 0.6566265060240963,
+      "median_support_pair_count": 54.5,
+      "method_distribution": {
+        "coherent_multiswap": 6,
+        "escapability_aware": 2,
+        "filtered_2swap": 1,
+        "seed": 1
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs12_ -pairs19_ other13": 1,
+        "+pairs16_ -pairs12_ other18": 1,
+        "+pairs18_ -pairs13_ other16": 1,
+        "+pairs19_ -pairs19_ other18": 1,
+        "+pairs19_ -pairs22_ other13": 1,
+        "+pairs20_ -pairs22_ other17": 1,
+        "+pairs21_ -pairs17_ other18": 1,
+        "+pairs21_ -pairs19_ other15": 1,
+        "+pairs23_ -pairs13_ other16": 1,
+        "+pairs28_ -pairs14_ other17": 1
+      },
+      "score": "220",
+      "score_distribution": {
+        "220": 10
+      },
+      "tuple_distribution": {
+        "73,76,83,83": 1,
+        "73,78,79,81": 9
+      }
+    },
+    {
+      "count": 10,
+      "distinct_hashes": 10,
+      "exact_like_indicator_rate": 0.9,
+      "false_like_indicator_rate": 0.0,
+      "lambda_distribution": {
+        "144": 9,
+        "148": 1
+      },
+      "local_dynamics_distribution": {
+        "D<1_P8high_K>1_Q<10": 4,
+        "D<1_P8mid_K>1_Q<10": 5,
+        "D=1_P8mid_K0.9-1_Q<10": 1
+      },
+      "median_D_min_ratio": 0.9196428571428572,
+      "median_InitHardness": -20146.690909091383,
+      "median_P_16": 0.15416666666666667,
+      "median_P_32": 0.675,
+      "median_P_4": 0.058333333333333334,
+      "median_P_8": 0.075,
+      "median_P_thetaS_001": 0.03333333333333333,
+      "median_P_thetaS_005": 0.075,
+      "median_P_thetaS_010": 0.24583333333333335,
+      "median_Q_ratio": 0.11663618760757315,
+      "median_kappa_max": 1.1286186931348223,
+      "median_kappa_q90": 0.9083623693379791,
+      "median_kappa_q99": 1.0459558823529411,
+      "median_max_abs_rho": 3.0,
+      "median_score": 224.0,
+      "median_score_per_p": 1.341317365269461,
+      "median_support_fraction": 0.6746987951807228,
+      "median_support_pair_count": 56.0,
+      "method_distribution": {
+        "coherent_multiswap": 6,
+        "escapability_aware": 2,
+        "filtered_2swap": 1,
+        "seed": 1
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs12_ -pairs20_ other20": 1,
+        "+pairs14_ -pairs14_ other16": 1,
+        "+pairs14_ -pairs25_ other14": 1,
+        "+pairs17_ -pairs21_ other16": 1,
+        "+pairs18_ -pairs22_ other18": 1,
+        "+pairs19_ -pairs25_ other17": 1,
+        "+pairs20_ -pairs26_ other14": 1,
+        "+pairs22_ -pairs21_ other16": 1,
+        "+pairs24_ -pairs12_ other14": 1,
+        "+pairs24_ -pairs16_ other18": 1
+      },
+      "score": "224",
+      "score_distribution": {
+        "224": 10
+      },
+      "tuple_distribution": {
+        "73,76,83,83": 1,
+        "73,78,79,81": 9
+      }
+    },
+    {
+      "count": 9,
+      "distinct_hashes": 9,
+      "exact_like_indicator_rate": 0.5555555555555556,
+      "false_like_indicator_rate": 0.2222222222222222,
+      "lambda_distribution": {
+        "144": 9
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P80_K0.9-1_Q<10": 1,
+        "D1-1.5_P8low_K0.9-1_Q<10": 1,
+        "D<1_P8high_K>1_Q<10": 1,
+        "D<1_P8low_K>1_Q<10": 1,
+        "D<1_P8mid_K>1_Q<10": 3,
+        "D=1_P8mid_K0.9-1_Q<10": 2
+      },
+      "median_D_min_ratio": 0.9803921568627451,
+      "median_InitHardness": -20390.690909091383,
+      "median_P_16": 0.06666666666666667,
+      "median_P_32": 0.4083333333333333,
+      "median_P_4": 0.016666666666666666,
+      "median_P_8": 0.025,
+      "median_P_thetaS_001": 0.016666666666666666,
+      "median_P_thetaS_005": 0.025,
+      "median_P_thetaS_010": 0.10833333333333334,
+      "median_Q_ratio": 0.1258268367587999,
+      "median_kappa_max": 1.0357142857142858,
+      "median_kappa_q90": 0.8378378378378378,
+      "median_kappa_q99": 0.95,
+      "median_max_abs_rho": 3.0,
+      "median_score": 204.0,
+      "median_score_per_p": 1.221556886227545,
+      "median_support_fraction": 0.6506024096385542,
+      "median_support_pair_count": 54.0,
+      "method_distribution": {
+        "coherent_multiswap": 8,
+        "ilp": 1
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs15_ -pairs14_ other17": 1,
+        "+pairs16_ -pairs16_ other15": 1,
+        "+pairs18_ -pairs16_ other17": 1,
+        "+pairs18_ -pairs26_ other12": 1,
+        "+pairs19_ -pairs19_ other16": 2,
+        "+pairs21_ -pairs11_ other15": 1,
+        "+pairs22_ -pairs20_ other15": 1,
+        "+pairs24_ -pairs21_ other13": 1
+      },
+      "score": "204",
+      "score_distribution": {
+        "204": 9
+      },
+      "tuple_distribution": {
+        "73,78,79,81": 9
+      }
+    },
+    {
+      "count": 9,
+      "distinct_hashes": 9,
+      "exact_like_indicator_rate": 1.0,
+      "false_like_indicator_rate": 0.0,
+      "lambda_distribution": {
+        "144": 9
+      },
+      "local_dynamics_distribution": {
+        "D<1_P8mid_K>1_Q<10": 9
+      },
+      "median_D_min_ratio": 0.9423076923076923,
+      "median_InitHardness": -19962.690909091383,
+      "median_P_16": 0.11666666666666667,
+      "median_P_32": 0.43333333333333335,
+      "median_P_4": 0.041666666666666664,
+      "median_P_8": 0.058333333333333334,
+      "median_P_thetaS_001": 0.03333333333333333,
+      "median_P_thetaS_005": 0.058333333333333334,
+      "median_P_thetaS_010": 0.16666666666666666,
+      "median_Q_ratio": 0.12468141797961076,
+      "median_kappa_max": 1.1,
+      "median_kappa_q90": 0.8918918918918919,
+      "median_kappa_q99": 1.025,
+      "median_max_abs_rho": 3.0,
+      "median_score": 208.0,
+      "median_score_per_p": 1.2455089820359282,
+      "median_support_fraction": 0.6144578313253012,
+      "median_support_pair_count": 51.0,
+      "method_distribution": {
+        "coherent_multiswap": 5,
+        "filtered_2swap": 4
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs13_ -pairs13_ other17": 1,
+        "+pairs18_ -pairs17_ other16": 1,
+        "+pairs19_ -pairs15_ other12": 1,
+        "+pairs19_ -pairs22_ other12": 1,
+        "+pairs19_ -pairs25_ other15": 1,
+        "+pairs19_ -pairs9_ other19": 1,
+        "+pairs21_ -pairs16_ other13": 1,
+        "+pairs22_ -pairs18_ other16": 1,
+        "+pairs24_ -pairs16_ other16": 1
+      },
+      "score": "208",
+      "score_distribution": {
+        "208": 9
+      },
+      "tuple_distribution": {
+        "73,78,79,81": 9
+      }
+    },
+    {
+      "count": 9,
+      "distinct_hashes": 9,
+      "exact_like_indicator_rate": 1.0,
+      "false_like_indicator_rate": 0.0,
+      "lambda_distribution": {
+        "144": 9
+      },
+      "local_dynamics_distribution": {
+        "D<1_P8high_K>1_Q<10": 3,
+        "D<1_P8low_K>1_Q<10": 1,
+        "D<1_P8mid_K>1_Q<10": 5
+      },
+      "median_D_min_ratio": 0.9056603773584906,
+      "median_InitHardness": -19986.690909091383,
+      "median_P_16": 0.14166666666666666,
+      "median_P_32": 0.5583333333333333,
+      "median_P_4": 0.05,
+      "median_P_8": 0.06666666666666667,
+      "median_P_thetaS_001": 0.03333333333333333,
+      "median_P_thetaS_005": 0.06666666666666667,
+      "median_P_thetaS_010": 0.19166666666666668,
+      "median_Q_ratio": 0.12329506706069561,
+      "median_kappa_max": 1.1923076923076923,
+      "median_kappa_q90": 0.9148936170212766,
+      "median_kappa_q99": 1.024390243902439,
+      "median_max_abs_rho": 3.0,
+      "median_score": 212.0,
+      "median_score_per_p": 1.2694610778443114,
+      "median_support_fraction": 0.5903614457831325,
+      "median_support_pair_count": 49.0,
+      "method_distribution": {
+        "coherent_multiswap": 5,
+        "escapability_aware": 1,
+        "filtered_2swap": 3
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs12_ -pairs18_ other19": 1,
+        "+pairs15_ -pairs14_ other18": 1,
+        "+pairs16_ -pairs14_ other19": 1,
+        "+pairs16_ -pairs16_ other13": 1,
+        "+pairs18_ -pairs20_ other17": 1,
+        "+pairs19_ -pairs25_ other10": 1,
+        "+pairs19_ -pairs25_ other13": 1,
+        "+pairs20_ -pairs12_ other13": 1,
+        "+pairs22_ -pairs22_ other13": 1
+      },
+      "score": "212",
+      "score_distribution": {
+        "212": 9
+      },
+      "tuple_distribution": {
+        "73,78,79,81": 9
+      }
+    },
+    {
+      "count": 9,
+      "distinct_hashes": 9,
+      "exact_like_indicator_rate": 0.7777777777777778,
+      "false_like_indicator_rate": 0.1111111111111111,
+      "lambda_distribution": {
+        "144": 9
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P8mid_K0.9-1_Q<10": 1,
+        "D<1_P8high_K>1_Q<10": 3,
+        "D<1_P8mid_K>1_Q<10": 4,
+        "D=1_P8mid_K0.9-1_Q<10": 1
+      },
+      "median_D_min_ratio": 0.9122807017543859,
+      "median_InitHardness": -20154.690909091383,
+      "median_P_16": 0.13333333333333333,
+      "median_P_32": 0.5583333333333333,
+      "median_P_4": 0.041666666666666664,
+      "median_P_8": 0.058333333333333334,
+      "median_P_thetaS_001": 0.025,
+      "median_P_thetaS_005": 0.058333333333333334,
+      "median_P_thetaS_010": 0.19166666666666668,
+      "median_Q_ratio": 0.112714013950539,
+      "median_kappa_max": 1.1379310344827587,
+      "median_kappa_q90": 0.8947368421052632,
+      "median_kappa_q99": 1.0,
+      "median_max_abs_rho": 3.0,
+      "median_score": 228.0,
+      "median_score_per_p": 1.3652694610778444,
+      "median_support_fraction": 0.6506024096385542,
+      "median_support_pair_count": 54.0,
+      "method_distribution": {
+        "coherent_multiswap": 5,
+        "escapability_aware": 4
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs13_ -pairs12_ other16": 1,
+        "+pairs13_ -pairs20_ other19": 1,
+        "+pairs19_ -pairs25_ other15": 1,
+        "+pairs21_ -pairs16_ other15": 1,
+        "+pairs22_ -pairs16_ other19": 1,
+        "+pairs22_ -pairs17_ other15": 1,
+        "+pairs23_ -pairs15_ other14": 1,
+        "+pairs24_ -pairs14_ other19": 1,
+        "+pairs27_ -pairs14_ other17": 1
+      },
+      "score": "228",
+      "score_distribution": {
+        "228": 9
+      },
+      "tuple_distribution": {
+        "73,78,79,81": 9
+      }
+    },
+    {
+      "count": 8,
+      "distinct_hashes": 8,
+      "exact_like_indicator_rate": 0.875,
+      "false_like_indicator_rate": 0.0,
+      "lambda_distribution": {
+        "144": 8
+      },
+      "local_dynamics_distribution": {
+        "D<1_P8high_K>1_Q<10": 3,
+        "D<1_P8mid_K>1_Q<10": 4,
+        "D=1_P8mid_K0.9-1_Q<10": 1
+      },
+      "median_D_min_ratio": 0.9224137931034483,
+      "median_InitHardness": -21086.690909091383,
+      "median_P_16": 0.17916666666666664,
+      "median_P_32": 0.6416666666666667,
+      "median_P_4": 0.0625,
+      "median_P_8": 0.0875,
+      "median_P_thetaS_001": 0.0375,
+      "median_P_thetaS_005": 0.0875,
+      "median_P_thetaS_010": 0.25,
+      "median_Q_ratio": 0.1139514956377233,
+      "median_kappa_max": 1.1575682382133996,
+      "median_kappa_q90": 0.9128787878787878,
+      "median_kappa_q99": 1.0256410256410255,
+      "median_max_abs_rho": 3.0,
+      "median_score": 232.0,
+      "median_score_per_p": 1.3892215568862276,
+      "median_support_fraction": 0.5903614457831325,
+      "median_support_pair_count": 49.0,
+      "method_distribution": {
+        "coherent_multiswap": 4,
+        "escapability_aware": 3,
+        "ilp": 1
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs11_ -pairs16_ other16": 1,
+        "+pairs13_ -pairs17_ other16": 1,
+        "+pairs13_ -pairs19_ other16": 1,
+        "+pairs15_ -pairs18_ other17": 1,
+        "+pairs16_ -pairs10_ other17": 1,
+        "+pairs18_ -pairs21_ other18": 1,
+        "+pairs22_ -pairs19_ other15": 1,
+        "+pairs23_ -pairs19_ other16": 1
+      },
+      "score": "232",
+      "score_distribution": {
+        "232": 8
+      },
+      "tuple_distribution": {
+        "73,78,79,81": 8
+      }
+    },
+    {
+      "count": 7,
+      "distinct_hashes": 7,
+      "exact_like_indicator_rate": 0.7142857142857143,
+      "false_like_indicator_rate": 0.0,
+      "lambda_distribution": {
+        "144": 7
+      },
+      "local_dynamics_distribution": {
+        "D<1_P8high_K>1_Q<10": 1,
+        "D<1_P8low_K>1_Q<10": 1,
+        "D<1_P8mid_K>1_Q<10": 3,
+        "D=1_P8mid_K0.9-1_Q<10": 2
+      },
+      "median_D_min_ratio": 0.96,
+      "median_InitHardness": -19950.690909091383,
+      "median_P_16": 0.09166666666666666,
+      "median_P_32": 0.3333333333333333,
+      "median_P_4": 0.025,
+      "median_P_8": 0.03333333333333333,
+      "median_P_thetaS_001": 0.016666666666666666,
+      "median_P_thetaS_005": 0.03333333333333333,
+      "median_P_thetaS_010": 0.125,
+      "median_Q_ratio": 0.1281024096385542,
+      "median_kappa_max": 1.0833333333333333,
+      "median_kappa_q90": 0.8536585365853658,
+      "median_kappa_q99": 0.9655172413793104,
+      "median_max_abs_rho": 3.0,
+      "median_score": 200.0,
+      "median_score_per_p": 1.1976047904191616,
+      "median_support_fraction": 0.6144578313253012,
+      "median_support_pair_count": 51.0,
+      "method_distribution": {
+        "coherent_multiswap": 3,
+        "escapability_aware": 2,
+        "ilp": 2
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs11_ -pairs20_ other13": 1,
+        "+pairs13_ -pairs11_ other19": 1,
+        "+pairs15_ -pairs23_ other13": 1,
+        "+pairs18_ -pairs17_ other15": 1,
+        "+pairs19_ -pairs24_ other13": 1,
+        "+pairs21_ -pairs18_ other14": 1,
+        "+pairs21_ -pairs24_ other10": 1
+      },
+      "score": "200",
+      "score_distribution": {
+        "200": 7
+      },
+      "tuple_distribution": {
+        "73,78,79,81": 7
+      }
+    },
+    {
+      "count": 6,
+      "distinct_hashes": 6,
+      "exact_like_indicator_rate": 0.16666666666666666,
+      "false_like_indicator_rate": 0.3333333333333333,
+      "lambda_distribution": {
+        "144": 6
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P8mid_K0.9-1_Q<10": 2,
+        "D<1_P8mid_K>1_Q<10": 1,
+        "D=1_P8low_K0.9-1_Q<10": 2,
+        "D=1_P8mid_K0.9-1_Q<10": 1
+      },
+      "median_D_min_ratio": 1.0,
+      "median_InitHardness": -20540.690909091383,
+      "median_P_16": 0.058333333333333334,
+      "median_P_32": 0.25833333333333336,
+      "median_P_4": 0.020833333333333336,
+      "median_P_8": 0.029166666666666667,
+      "median_P_thetaS_001": 0.008333333333333333,
+      "median_P_thetaS_005": 0.029166666666666667,
+      "median_P_thetaS_010": 0.058333333333333334,
+      "median_Q_ratio": 0.1296102778460782,
+      "median_kappa_max": 1.0,
+      "median_kappa_q90": 0.8186090225563909,
+      "median_kappa_q99": 0.9544592030360531,
+      "median_max_abs_rho": 3.0,
+      "median_score": 196.0,
+      "median_score_per_p": 1.1736526946107784,
+      "median_support_fraction": 0.6024096385542168,
+      "median_support_pair_count": 50.0,
+      "method_distribution": {
+        "coherent_multiswap": 5,
+        "escapability_aware": 1
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs16_ -pairs14_ other17": 1,
+        "+pairs16_ -pairs15_ other13": 1,
+        "+pairs17_ -pairs19_ other13": 1,
+        "+pairs18_ -pairs19_ other14": 1,
+        "+pairs23_ -pairs19_ other14": 1,
+        "+pairs23_ -pairs21_ other11": 1
+      },
+      "score": "196",
+      "score_distribution": {
+        "196": 6
+      },
+      "tuple_distribution": {
+        "73,78,79,81": 6
+      }
+    },
+    {
+      "count": 5,
+      "distinct_hashes": 5,
+      "exact_like_indicator_rate": 0.6,
+      "false_like_indicator_rate": 0.4,
+      "lambda_distribution": {
+        "144": 4,
+        "148": 1
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P80_K0.9-1_Q<10": 1,
+        "D1-1.5_P8low_K0.9-1_Q<10": 1,
+        "D<1_P8mid_K>1_Q<10": 3
+      },
+      "median_D_min_ratio": 0.9583333333333334,
+      "median_InitHardness": -20942.690909091383,
+      "median_P_16": 0.09166666666666666,
+      "median_P_32": 0.325,
+      "median_P_4": 0.025,
+      "median_P_8": 0.03333333333333333,
+      "median_P_thetaS_001": 0.016666666666666666,
+      "median_P_thetaS_005": 0.03333333333333333,
+      "median_P_thetaS_010": 0.09166666666666666,
+      "median_Q_ratio": 0.13579317269076305,
+      "median_kappa_max": 1.0571428571428572,
+      "median_kappa_q90": 0.8529411764705882,
+      "median_kappa_q99": 0.972972972972973,
+      "median_max_abs_rho": 2.0,
+      "median_score": 192.0,
+      "median_score_per_p": 1.1497005988023952,
+      "median_support_fraction": 0.6144578313253012,
+      "median_support_pair_count": 51.0,
+      "method_distribution": {
+        "coherent_multiswap": 1,
+        "escapability_aware": 1,
+        "ilp": 3
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs15_ -pairs16_ other15": 1,
+        "+pairs15_ -pairs24_ other8": 1,
+        "+pairs21_ -pairs15_ other15": 1,
+        "+pairs24_ -pairs24_ other12": 1,
+        "+pairs25_ -pairs11_ other15": 1
+      },
+      "score": "192",
+      "score_distribution": {
+        "192": 5
+      },
+      "tuple_distribution": {
+        "73,76,83,83": 1,
+        "73,78,79,81": 4
+      }
+    },
+    {
+      "count": 4,
+      "distinct_hashes": 4,
+      "exact_like_indicator_rate": 0.5,
+      "false_like_indicator_rate": 0.5,
+      "lambda_distribution": {
+        "144": 4
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P80_K0.9-1_Q<10": 1,
+        "D1-1.5_P8low_K0.9-1_Q<10": 1,
+        "D<1_P8low_K>1_Q<10": 1,
+        "D<1_P8mid_K>1_Q<10": 1
+      },
+      "median_D_min_ratio": 1.0,
+      "median_InitHardness": -19788.690909091383,
+      "median_P_16": 0.0375,
+      "median_P_32": 0.25,
+      "median_P_4": 0.004166666666666667,
+      "median_P_8": 0.0125,
+      "median_P_thetaS_001": 0.004166666666666667,
+      "median_P_thetaS_005": 0.0125,
+      "median_P_thetaS_010": 0.0375,
+      "median_Q_ratio": 0.14526286966046004,
+      "median_kappa_max": 0.9990530303030303,
+      "median_kappa_q90": 0.8293269230769231,
+      "median_kappa_q99": 0.8838383838383839,
+      "median_max_abs_rho": 3.0,
+      "median_score": 176.0,
+      "median_score_per_p": 1.0538922155688624,
+      "median_support_fraction": 0.5662650602409639,
+      "median_support_pair_count": 47.0,
+      "method_distribution": {
+        "coherent_multiswap": 2,
+        "escapability_aware": 1,
+        "seed": 1
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs18_ -pairs15_ other10": 1,
+        "+pairs20_ -pairs19_ other11": 1,
+        "+pairs21_ -pairs18_ other11": 1,
+        "+pairs8_ -pairs23_ other13": 1
+      },
+      "score": "176",
+      "score_distribution": {
+        "176": 4
+      },
+      "tuple_distribution": {
+        "73,78,79,81": 4
+      }
+    },
+    {
+      "count": 4,
+      "distinct_hashes": 4,
+      "exact_like_indicator_rate": 0.5,
+      "false_like_indicator_rate": 0.5,
+      "lambda_distribution": {
+        "144": 2,
+        "148": 2
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P8low_K0.9-1_Q<10": 2,
+        "D<1_P8mid_K>1_Q<10": 2
+      },
+      "median_D_min_ratio": 1.011111111111111,
+      "median_InitHardness": -23292.509090909734,
+      "median_P_16": 0.037500000000000006,
+      "median_P_32": 0.22916666666666669,
+      "median_P_4": 0.008333333333333333,
+      "median_P_8": 0.016666666666666666,
+      "median_P_thetaS_001": 0.008333333333333333,
+      "median_P_thetaS_005": 0.016666666666666666,
+      "median_P_thetaS_010": 0.037500000000000006,
+      "median_Q_ratio": 0.14046184738955825,
+      "median_kappa_max": 0.9845238095238096,
+      "median_kappa_q90": 0.8145424836601307,
+      "median_kappa_q99": 0.9150326797385621,
+      "median_max_abs_rho": 3.0,
+      "median_score": 180.0,
+      "median_score_per_p": 1.0778443113772456,
+      "median_support_fraction": 0.608433734939759,
+      "median_support_pair_count": 50.5,
+      "method_distribution": {
+        "beam": 2,
+        "ilp": 2
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs18_ -pairs19_ other12": 1,
+        "+pairs19_ -pairs14_ other13": 1,
+        "+pairs22_ -pairs19_ other11": 2
+      },
+      "score": "180",
+      "score_distribution": {
+        "180": 4
+      },
+      "tuple_distribution": {
+        "73,76,83,83": 2,
+        "73,78,79,81": 2
+      }
+    },
+    {
+      "count": 3,
+      "distinct_hashes": 3,
+      "exact_like_indicator_rate": 0.0,
+      "false_like_indicator_rate": 1.0,
+      "lambda_distribution": {
+        "144": 3
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P80_K0.9-1_Q<10": 1,
+        "D1-1.5_P8low_K0.9-1_Q<10": 2
+      },
+      "median_D_min_ratio": 1.048780487804878,
+      "median_InitHardness": -19190.690909091383,
+      "median_P_16": 0.016666666666666666,
+      "median_P_32": 0.10833333333333334,
+      "median_P_4": 0.0,
+      "median_P_8": 0.008333333333333333,
+      "median_P_thetaS_001": 0.0,
+      "median_P_thetaS_005": 0.008333333333333333,
+      "median_P_thetaS_010": 0.016666666666666666,
+      "median_Q_ratio": 0.15045548045841906,
+      "median_kappa_max": 0.9354838709677419,
+      "median_kappa_q90": 0.75,
+      "median_kappa_q99": 0.8095238095238095,
+      "median_max_abs_rho": 3.0,
+      "median_score": 164.0,
+      "median_score_per_p": 0.9820359281437125,
+      "median_support_fraction": 0.6024096385542169,
+      "median_support_pair_count": 50.0,
+      "method_distribution": {
+        "beam": 1,
+        "escapability_aware": 1,
+        "ilp": 1
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs20_ -pairs20_ other8": 1,
+        "+pairs21_ -pairs20_ other9": 1,
+        "+pairs24_ -pairs17_ other9": 1
+      },
+      "score": "164",
+      "score_distribution": {
+        "164": 3
+      },
+      "tuple_distribution": {
+        "73,78,79,81": 3
+      }
+    },
+    {
+      "count": 3,
+      "distinct_hashes": 3,
+      "exact_like_indicator_rate": 0.3333333333333333,
+      "false_like_indicator_rate": 0.6666666666666666,
+      "lambda_distribution": {
+        "144": 2,
+        "148": 1
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P80_K0.9-1_Q<10": 2,
+        "D<1_P8low_K>1_Q<10": 1
+      },
+      "median_D_min_ratio": 1.0714285714285714,
+      "median_InitHardness": -23962.327272728086,
+      "median_P_16": 0.016666666666666666,
+      "median_P_32": 0.15,
+      "median_P_4": 0.0,
+      "median_P_8": 0.0,
+      "median_P_thetaS_001": 0.0,
+      "median_P_thetaS_005": 0.0,
+      "median_P_thetaS_010": 0.016666666666666666,
+      "median_Q_ratio": 0.1522518646012622,
+      "median_kappa_max": 0.9285714285714286,
+      "median_kappa_q90": 0.7674418604651163,
+      "median_kappa_q99": 0.8571428571428571,
+      "median_max_abs_rho": 3.0,
+      "median_score": 168.0,
+      "median_score_per_p": 1.0059880239520957,
+      "median_support_fraction": 0.5903614457831325,
+      "median_support_pair_count": 49.0,
+      "method_distribution": {
+        "seed": 2,
+        "steepest": 1
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs17_ -pairs22_ other10": 1,
+        "+pairs19_ -pairs20_ other10": 2
+      },
+      "score": "168",
+      "score_distribution": {
+        "168": 3
+      },
+      "tuple_distribution": {
+        "73,76,83,83": 1,
+        "73,78,79,81": 2
+      }
+    },
+    {
+      "count": 3,
+      "distinct_hashes": 3,
+      "exact_like_indicator_rate": 1.0,
+      "false_like_indicator_rate": 0.0,
+      "lambda_distribution": {
+        "144": 1,
+        "148": 2
+      },
+      "local_dynamics_distribution": {
+        "D<1_P8mid_K>1_Q<10": 3
+      },
+      "median_D_min_ratio": 0.9574468085106383,
+      "median_InitHardness": -25142.327272728086,
+      "median_P_16": 0.06666666666666667,
+      "median_P_32": 0.26666666666666666,
+      "median_P_4": 0.025,
+      "median_P_8": 0.03333333333333333,
+      "median_P_thetaS_001": 0.016666666666666666,
+      "median_P_thetaS_005": 0.03333333333333333,
+      "median_P_thetaS_010": 0.06666666666666667,
+      "median_Q_ratio": 0.1357664701358626,
+      "median_kappa_max": 1.064516129032258,
+      "median_kappa_q90": 0.8205128205128205,
+      "median_kappa_q99": 0.9714285714285714,
+      "median_max_abs_rho": 3.0,
+      "median_score": 188.0,
+      "median_score_per_p": 1.125748502994012,
+      "median_support_fraction": 0.5421686746987951,
+      "median_support_pair_count": 45.0,
+      "method_distribution": {
+        "ilp": 3
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs13_ -pairs19_ other13": 1,
+        "+pairs14_ -pairs11_ other16": 1,
+        "+pairs18_ -pairs18_ other12": 1
+      },
+      "score": "188",
+      "score_distribution": {
+        "188": 3
+      },
+      "tuple_distribution": {
+        "73,76,83,83": 2,
+        "73,78,79,81": 1
+      }
+    },
+    {
+      "count": 2,
+      "distinct_hashes": 2,
+      "exact_like_indicator_rate": 0.0,
+      "false_like_indicator_rate": 1.0,
+      "lambda_distribution": {
+        "148": 2
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P80_K0.9-1_Q<10": 1,
+        "D1-1.5_P8low_K0.9-1_Q<10": 1
+      },
+      "median_D_min_ratio": 1.058139534883721,
+      "median_InitHardness": -25046.327272728086,
+      "median_P_16": 0.025,
+      "median_P_32": 0.10833333333333334,
+      "median_P_4": 0.0,
+      "median_P_8": 0.004166666666666667,
+      "median_P_thetaS_001": 0.0,
+      "median_P_thetaS_005": 0.004166666666666667,
+      "median_P_thetaS_010": 0.025,
+      "median_Q_ratio": 0.14457831325301204,
+      "median_kappa_max": 0.9258928571428571,
+      "median_kappa_q90": 0.7596153846153846,
+      "median_kappa_q99": 0.8696943972835314,
+      "median_max_abs_rho": 2.5,
+      "median_score": 172.0,
+      "median_score_per_p": 1.029940119760479,
+      "median_support_fraction": 0.6265060240963856,
+      "median_support_pair_count": 52.0,
+      "method_distribution": {
+        "beam": 1,
+        "ilp": 1
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs16_ -pairs25_ other10": 1,
+        "+pairs20_ -pairs22_ other11": 1
+      },
+      "score": "172",
+      "score_distribution": {
+        "172": 2
+      },
+      "tuple_distribution": {
+        "73,76,83,83": 2
+      }
+    },
+    {
+      "count": 2,
+      "distinct_hashes": 2,
+      "exact_like_indicator_rate": 0.0,
+      "false_like_indicator_rate": 0.5,
+      "lambda_distribution": {
+        "144": 1,
+        "148": 1
+      },
+      "local_dynamics_distribution": {
+        "D1-1.5_P8mid_K0.9-1_Q<10": 1,
+        "D=1_P8low_K0.9-1_Q<10": 1
+      },
+      "median_D_min_ratio": 1.0108695652173914,
+      "median_InitHardness": -22914.509090909734,
+      "median_P_16": 0.05,
+      "median_P_32": 0.21666666666666667,
+      "median_P_4": 0.008333333333333333,
+      "median_P_8": 0.016666666666666666,
+      "median_P_thetaS_001": 0.004166666666666667,
+      "median_P_thetaS_005": 0.016666666666666666,
+      "median_P_thetaS_010": 0.05,
+      "median_Q_ratio": 0.13758839706652698,
+      "median_kappa_max": 0.9864864864864865,
+      "median_kappa_q90": 0.8245614035087719,
+      "median_kappa_q99": 0.909982174688057,
+      "median_max_abs_rho": 2.5,
+      "median_score": 184.0,
+      "median_score_per_p": 1.1017964071856288,
+      "median_support_fraction": 0.5240963855421688,
+      "median_support_pair_count": 43.5,
+      "method_distribution": {
+        "ilp": 2
+      },
+      "rho_value_pattern_distribution": {
+        "+pairs12_ -pairs14_ other14": 1,
+        "+pairs17_ -pairs15_ other15": 1
+      },
+      "score": "184",
+      "score_distribution": {
+        "184": 2
+      },
+      "tuple_distribution": {
+        "73,76,83,83": 1,
+        "73,78,79,81": 1
+      }
+    }
+  ]
+}

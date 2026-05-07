@@ -1,0 +1,15 @@
+{
+  "exact_json": "outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json",
+  "include_p167_nearhits": true,
+  "ks": "13,16,18,18",
+  "lam": 28,
+  "max_668_candidates": 160,
+  "max_trap_candidates": 200,
+  "nearhit_dir": "outputs/candidates/near_hits",
+  "no_external_validation": false,
+  "out_dir": "outputs/explorations/20260507_1955_p167_nearhit_trap_catalog_validation",
+  "p": 37,
+  "p167_diagnostic_max_moves": 120,
+  "p167_max_per_score": 12,
+  "p167_max_score": 232
+}
