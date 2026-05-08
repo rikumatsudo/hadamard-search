@@ -1556,12 +1556,61 @@ def parse_args():
     parser.add_argument("--config", required=True)
     parser.add_argument("--out-dir", default=None)
     parser.add_argument("--seeds", type=int, default=None)
+    parser.add_argument("--seed-start", type=int, default=None)
+    parser.add_argument("--seed-count", type=int, default=None)
+    parser.add_argument("--total-seeds", type=int, default=None)
+    parser.add_argument("--shard-index", type=int, default=None)
+    parser.add_argument("--shard-count", type=int, default=None)
     parser.add_argument("--steps", type=int, default=None)
     parser.add_argument("--snapshot-interval", type=int, default=None)
     parser.add_argument("--candidates-per-family", type=int, default=None)
     parser.add_argument("--selected-per-family", type=int, default=None)
     parser.add_argument("--max-repair-candidates", type=int, default=20)
     return parser.parse_args()
+
+
+def resolve_seed_indices(args, cfg):
+    configured_count = int(get_in(cfg, ("run", "seeds"), 5))
+    requested_count = int(args.seeds) if args.seeds is not None else configured_count
+    if args.seed_count is not None:
+        requested_count = int(args.seed_count)
+    if requested_count <= 0:
+        raise ValueError("seed count must be positive")
+
+    has_shard_args = args.shard_index is not None or args.shard_count is not None
+    if has_shard_args:
+        if args.seed_start is not None or args.seed_count is not None:
+            raise ValueError("--seed-start/--seed-count cannot be combined with shard arguments")
+        if args.shard_index is None or args.shard_count is None:
+            raise ValueError("--shard-index and --shard-count must be provided together")
+        shard_index = int(args.shard_index)
+        shard_count = int(args.shard_count)
+        total_seeds = int(args.total_seeds) if args.total_seeds is not None else requested_count
+        if shard_count <= 0:
+            raise ValueError("--shard-count must be positive")
+        if total_seeds < shard_count:
+            raise ValueError("--total-seeds must be greater than or equal to --shard-count")
+        if shard_index < 0 or shard_index >= shard_count:
+            raise ValueError("--shard-index must satisfy 0 <= shard_index < shard_count")
+        start = (total_seeds * shard_index) // shard_count
+        end = (total_seeds * (shard_index + 1)) // shard_count
+        return list(range(start, end)), {
+            "mode": "shard",
+            "total_seeds": int(total_seeds),
+            "shard_index": int(shard_index),
+            "shard_count": int(shard_count),
+            "seed_start": int(start),
+            "seed_count": int(end - start),
+        }
+
+    start = int(args.seed_start) if args.seed_start is not None else 0
+    if start < 0:
+        raise ValueError("--seed-start must be nonnegative")
+    return list(range(start, start + requested_count)), {
+        "mode": "range",
+        "seed_start": int(start),
+        "seed_count": int(requested_count),
+    }
 
 
 def main():
@@ -1579,6 +1628,10 @@ def main():
             cfg.setdefault("initialization", {})["candidates_per_family"] = int(args.candidates_per_family)
         if args.selected_per_family is not None:
             cfg.setdefault("initialization", {})["selected_per_family"] = int(args.selected_per_family)
+        seed_indices, seed_partition = resolve_seed_indices(args, cfg)
+        cfg.setdefault("run", {})["seeds"] = int(len(seed_indices))
+        cfg.setdefault("run", {})["seed_indices"] = [int(x) for x in seed_indices]
+        cfg.setdefault("run", {})["seed_partition"] = seed_partition
 
         target = cfg["target"]
         p = int(target["p"])
@@ -1614,12 +1667,11 @@ def main():
         print("Initial candidates:", len(initial_rows))
 
         modes = [mode for mode in get_in(cfg, ("run", "modes"), ["score_only"]) if mode in SUPPORTED_MODES]
-        seeds = int(get_in(cfg, ("run", "seeds"), 5))
         run_summaries = []
         snapshot_rows = []
         diagnostic_rows = list(initial_rows)
         for mode in modes:
-            for seed_index in range(seeds):
+            for seed_index in seed_indices:
                 initial = select_initial(initial_rows, seed_index)
                 result = run_trajectory(mode, seed_index, initial, cfg, p, ks, lam, baseline, powers)
                 run_summaries.append(result)

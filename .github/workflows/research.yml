@@ -18,6 +18,31 @@ on:
         required: false
         default: "1"
         type: string
+      seed_start:
+        description: "First seed index for a direct seed range. Leave blank for 0."
+        required: false
+        default: ""
+        type: string
+      seed_count:
+        description: "Number of seeds for a direct seed range. Leave blank to use seeds."
+        required: false
+        default: ""
+        type: string
+      total_seeds:
+        description: "Total seed count to split across shards."
+        required: false
+        default: ""
+        type: string
+      shard_index:
+        description: "Zero-based shard index for seed fan-out."
+        required: false
+        default: ""
+        type: string
+      shard_count:
+        description: "Shard count for seed fan-out, e.g. 20 or 40."
+        required: false
+        default: ""
+        type: string
       steps:
         description: "Override run.steps. Leave blank to use config."
         required: false
@@ -110,6 +135,11 @@ jobs:
           CONFIG: ${{ inputs.config }}
           OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
           SEEDS: ${{ inputs.seeds }}
+          SEED_START: ${{ inputs.seed_start }}
+          SEED_COUNT: ${{ inputs.seed_count }}
+          TOTAL_SEEDS: ${{ inputs.total_seeds }}
+          SHARD_INDEX: ${{ inputs.shard_index }}
+          SHARD_COUNT: ${{ inputs.shard_count }}
           STEPS: ${{ inputs.steps }}
           SNAPSHOT_INTERVAL: ${{ inputs.snapshot_interval }}
           CANDIDATES_PER_FAMILY: ${{ inputs.candidates_per_family }}
@@ -124,6 +154,11 @@ jobs:
           )
 
           if [ -n "$SEEDS" ]; then args+=(--seeds "$SEEDS"); fi
+          if [ -n "$SEED_START" ]; then args+=(--seed-start "$SEED_START"); fi
+          if [ -n "$SEED_COUNT" ]; then args+=(--seed-count "$SEED_COUNT"); fi
+          if [ -n "$TOTAL_SEEDS" ]; then args+=(--total-seeds "$TOTAL_SEEDS"); fi
+          if [ -n "$SHARD_INDEX" ]; then args+=(--shard-index "$SHARD_INDEX"); fi
+          if [ -n "$SHARD_COUNT" ]; then args+=(--shard-count "$SHARD_COUNT"); fi
           if [ -n "$STEPS" ]; then args+=(--steps "$STEPS"); fi
           if [ -n "$SNAPSHOT_INTERVAL" ]; then args+=(--snapshot-interval "$SNAPSHOT_INTERVAL"); fi
           if [ -n "$CANDIDATES_PER_FAMILY" ]; then args+=(--candidates-per-family "$CANDIDATES_PER_FAMILY"); fi

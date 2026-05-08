@@ -46,12 +46,15 @@
 public repositoryでstandard GitHub-hosted runnerを使う場合は、独立したproduction runを
 GitHub Actionsの現在の並列上限まで並列化します。GitHub Freeのstandard runnerでは、
 GitHubの現在の制限が変わっていない限り、20 concurrent jobsを上限の目安にします。
+GitHub Proでは40 concurrent jobsを上限の目安にします。
 
 fan-out戦略を変える前には、GitHub Actionsの現在のlimitを確認します。
 larger runnerはコストが発生するため、ユーザーの明示承認なしに使いません。
 
 production workはseed、parameter tuple、config file単位で分割します。
 各shardは再現可能にし、artifact名と `run_label` で内容が分かるようにします。
+seed分割では `total_seeds`, `shard_index`, `shard_count` を使い、
+20等分または40等分のように均等なshardへ分割します。
 
 1つの長大なrunよりも、時間上限のあるrunを複数並べる方を優先します。
 その方が失敗時の損失が小さく、Slack通知とartifact確認も早くなります。

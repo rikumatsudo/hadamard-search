@@ -103,6 +103,9 @@ Slack通知、artifact、production runの詳しい手順は
 GitHub Actionsの現在の並列上限まで独立runを並列化します。
 GitHub Freeのstandard runnerでは、現時点では20並列が目安です。
 
+Proの場合は40並列が目安です。本番runはseedを20等分または40等分し、
+各shardに一意な `run_label` を付けて実行します。
+
 各runには別々の `run_label` を付けます。同じ `run_label` を使うと、
 workflowのconcurrency groupにより独立runが直列化される可能性があります。
 
