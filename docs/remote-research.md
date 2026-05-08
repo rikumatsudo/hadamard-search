@@ -1,12 +1,12 @@
 # Remote Research Runs
 
-This repository can run SageMath experiments on GitHub Actions through
-`.github/workflows/research.yml`.
+このリポジトリでは、`.github/workflows/research.yml` を使って
+SageMath実験をGitHub Actions上で実行できます。
 
-## Local Smoke First
+## まずLocal Smoke
 
-Before pushing workflow/config changes or dispatching a production run, run the
-minimal local `N=1` smoke test:
+workflowやconfigをpushする前、本番runをdispatchする前に、
+最小のlocal `N=1` smoke testを実行します。
 
 ```bash
 DOT_SAGE=${TMPDIR:-/tmp}/sage-dot \
@@ -21,9 +21,9 @@ sage sage/62_exactlike_guided_generator_validation.sage \
   --max-repair-candidates 0
 ```
 
-Do not push or dispatch heavier remote work until this passes.
+これが通るまでは、重いremote runを起動しません。
 
-## Start a Remote Smoke Run
+## Remote Smoke Runを起動する
 
 ```bash
 env -u GITHUB_TOKEN gh workflow run research.yml \
@@ -37,56 +37,56 @@ env -u GITHUB_TOKEN gh workflow run research.yml \
   -f max_repair_candidates=0
 ```
 
-Watch the run:
+実行状況を見る:
 
 ```bash
 env -u GITHUB_TOKEN gh run watch
 ```
 
-Artifacts are uploaded as `research-<run_label>-<run_id>` and include the
-experiment output directory, `runner.log`, `actions_summary.md`, and the Slack
-payload used for notification.
+artifactは `research-<run_label>-<run_id>` という名前でアップロードされます。
+中には実験出力ディレクトリ、`runner.log`, `actions_summary.md`,
+Slack通知payloadが含まれます。
 
-## Slack Notification
+## Slack通知
 
-Create a Slack incoming webhook and store it as a repository secret:
+Slack incoming webhookを作成し、repository secretとして保存します。
 
 ```bash
 env -u GITHUB_TOKEN gh secret set SLACK_WEBHOOK_URL --repo rikumatsudo/hadamard-search
 ```
 
-If `SLACK_WEBHOOK_URL` is not set, the workflow still runs and uploads artifacts;
-only the Slack notification step is skipped.
+`SLACK_WEBHOOK_URL` が未設定でもworkflowは実行され、artifactもuploadされます。
+その場合、Slack通知stepだけskipされます。
 
-## Production Runs
+## 本番run
 
-Use the workflow only after local and remote smoke tests pass.
+GitHub Actionsで本番探索を走らせるのは、local smokeとremote smokeが通った後だけです。
 
-Production run order:
+本番runの順番:
 
-1. Run the local `N=1` smoke test.
-2. Push the reviewed change.
-3. Run the remote smoke workflow.
-4. Fan out production runs.
+1. local `N=1` smoke testを実行する。
+2. レビュー済みの変更をpushする。
+3. remote smoke workflowを実行する。
+4. production runをfan-outする。
 
-For production searches, split the work by seed ranges, parameter tuples, or
-config files. Use unique `run_label` values for each shard because the workflow
-concurrency group includes the label.
+本番探索では、seed range、parameter tuple、config file単位でworkを分割します。
+各shardには一意な `run_label` を付けます。workflowのconcurrency groupには
+`run_label` が含まれるため、同じlabelを使うとrunが直列化される可能性があります。
 
-On public repositories with standard GitHub-hosted runners, use GitHub Actions
-parallelism up to the current account limit. For GitHub Free standard runners,
-that is currently 20 concurrent jobs. Verify the current limit before increasing
-fan-out, and do not use larger runners unless cost has been approved.
+public repositoryでstandard GitHub-hosted runnerを使う場合は、
+GitHub Actionsの現在の並列上限まで並列化します。
+GitHub Freeのstandard runnerでは、現時点では20 concurrent jobsが目安です。
 
-## Notes
+fan-out数を増やす前には、GitHub Actionsの現在のlimitを確認します。
+larger runnerはpublic repoでも有料なので、コスト承認なしには使いません。
 
-- The workflow only accepts config paths under `configs/experiments/*.yaml`.
-- Use `configs/experiments/p167_tuple_A_actions_smoke.yaml` for fast
-  workflow checks. Use `configs/experiments/p167_tuple_A_exactlike_smoke.yaml`
-  or larger configs when you intentionally want heavier diagnostics.
-- The workflow pins the SageMath Docker image to `sagemath/sagemath:10.8`,
-  matching the local SageMath version used in this repository.
-- Large raw outputs remain ignored by git and should be consumed from Actions
-  artifacts, releases, or external research storage.
-- A `score=0` candidate is still only accepted when the existing Sage validation
-  records the exact SDS and Hadamard checks as passing.
+## 注意
+
+- workflowは `configs/experiments/*.yaml` 配下のconfigだけを受け付けます。
+- 速い疎通確認には `configs/experiments/p167_tuple_A_actions_smoke.yaml` を使います。
+- より重い診断を意図的に走らせる場合は、
+  `configs/experiments/p167_tuple_A_exactlike_smoke.yaml` や大きめのconfigを使います。
+- workflowのSageMath Docker imageは `sagemath/sagemath:10.8` に固定しています。
+- 大きなraw outputはgitにcommitせず、Actions artifact、release、
+  または外部研究ストレージで管理します。
+- `score=0` 候補も、SDS検証とHadamard検証が通るまでは成功扱いしません。

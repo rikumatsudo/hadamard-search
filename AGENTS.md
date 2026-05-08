@@ -1,13 +1,12 @@
 # AGENTS.md
 
-These rules apply to the whole repository.
+このルールはリポジトリ全体に適用します。
 
-## Research Workflow
+## 研究ワークフロー
 
-- Treat `score = 0` as a lead only. A result is successful only after the SDS
-  condition and the exact Goethals-Seidel Hadamard identity are verified by
-  SageMath.
-- Before pushing workflow or experiment changes, run the local `N=1` smoke test:
+- `score = 0` はあくまで有力候補です。SDS条件とGoethals-Seidel Hadamard恒等式を
+  SageMathで厳密に検証できた場合だけ成功とします。
+- workflowや実験configをpushする前に、必ずlocal `N=1` smoke testを実行します。
 
   ```bash
   DOT_SAGE=${TMPDIR:-/tmp}/sage-dot \
@@ -22,46 +21,45 @@ These rules apply to the whole repository.
     --max-repair-candidates 0
   ```
 
-- If the local smoke test fails, stop and fix the local issue before pushing or
-  dispatching GitHub Actions.
-- After changing `.github/workflows/research.yml`, also run YAML validation and a
-  remote smoke test before production runs.
+- local smokeが失敗した場合は、pushやGitHub Actions dispatchを行わず、localの問題を先に直します。
+- `.github/workflows/research.yml` を変更した場合は、YAML検証とremote smoke testも行います。
 
-## GitHub Actions Operation
+## GitHub Actions運用
 
-- Use `env -u GITHUB_TOKEN gh ...` in this local environment so the GitHub CLI
-  uses the authenticated keychain account instead of a stale environment token.
-- Do not print or commit Slack webhook URLs, tokens, or other secrets.
-- Store Slack notification webhooks only as the repository secret
-  `SLACK_WEBHOOK_URL`.
-- Use `configs/experiments/p167_tuple_A_actions_smoke.yaml` for fast remote
-  workflow checks.
-- Use unique `run_label` values for independent remote runs. The workflow
-  concurrency group includes `run_label`, so reusing a label can serialize runs.
+- このlocal環境では `env -u GITHUB_TOKEN gh ...` を使います。
+  これにより、古い環境変数tokenではなく、keychain上の認証済みGitHub CLIアカウントを使えます。
+- Slack webhook URL、token、secret類は表示・commitしません。
+- Slack通知用webhookは、repository secret `SLACK_WEBHOOK_URL` にだけ保存します。
+- 速いremote確認には `configs/experiments/p167_tuple_A_actions_smoke.yaml` を使います。
+- 独立したremote runには別々の `run_label` を使います。
+  workflowのconcurrency groupには `run_label` が含まれるため、同じlabelを使うと直列化される可能性があります。
 
-## Production Parallelism
+## 本番runの並列化
 
-- For production searches, run in this order:
-  1. local `N=1` smoke test,
-  2. push the reviewed change,
-  3. remote smoke test,
-  4. production fan-out.
-- On public repositories using standard GitHub-hosted runners, parallelize
-  independent production runs up to the current GitHub Actions concurrency limit
-  for the account. For GitHub Free standard runners, use up to 20 concurrent jobs
-  unless GitHub's current limits say otherwise.
-- Verify current GitHub Actions limits before changing fan-out strategy. Do not
-  use larger runners unless the user explicitly approves cost.
-- Split production work by seeds, parameter tuples, or config files. Keep each
-  shard independently reproducible and label artifacts clearly.
-- Prefer many bounded runs over one very long run so failures lose less work and
-  Slack/artifact feedback arrives sooner.
+本番探索は必ず次の順番で進めます。
 
-## Data Hygiene
+1. local `N=1` smoke test
+2. 変更をpush
+3. remote smoke test
+4. production fan-out
 
-- Do not commit bulk generated data: `outputs/artifacts/`, `outputs/logs/`,
-  large JSONL/CSV diagnostics, caches, or temporary files.
-- Commit source, configs, exact validation fixtures, and concise markdown/JSON
-  summaries when they are useful for review.
-- Keep local-only paths and machine-specific settings out of committed docs.
-- Keep public-facing documentation concise; put operational detail in `docs/`.
+public repositoryでstandard GitHub-hosted runnerを使う場合は、独立したproduction runを
+GitHub Actionsの現在の並列上限まで並列化します。GitHub Freeのstandard runnerでは、
+GitHubの現在の制限が変わっていない限り、20 concurrent jobsを上限の目安にします。
+
+fan-out戦略を変える前には、GitHub Actionsの現在のlimitを確認します。
+larger runnerはコストが発生するため、ユーザーの明示承認なしに使いません。
+
+production workはseed、parameter tuple、config file単位で分割します。
+各shardは再現可能にし、artifact名と `run_label` で内容が分かるようにします。
+
+1つの長大なrunよりも、時間上限のあるrunを複数並べる方を優先します。
+その方が失敗時の損失が小さく、Slack通知とartifact確認も早くなります。
+
+## データ管理
+
+- bulk生成物はcommitしません。
+  例: `outputs/artifacts/`, `outputs/logs/`, 大きなJSONL/CSV diagnostics, cache, temp file。
+- source、config、厳密検証fixture、reviewしやすい短いmarkdown/JSON summaryはcommitしてよいです。
+- local pathやマシン固有設定をdocsに残しません。
+- public向けREADMEは短く保ち、運用詳細は `docs/` に置きます。

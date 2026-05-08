@@ -1,49 +1,52 @@
 # Hadamard Search for n = 668
 
-This repository contains SageMath scripts, experiment configs, and GitHub
-Actions automation for searching for a Hadamard matrix of order `668 = 4 * 167`.
+このリポジトリは、位数 `668 = 4 * 167` のHadamard行列を探すための
+SageMathスクリプト、実験config、GitHub Actions自動実行基盤をまとめたものです。
 
-The search is based on supplementary difference sets (SDS), not a brute-force
-search over all `+1/-1` matrices.
+全ての `+1/-1` 行列を総当たりするのではなく、補助差集合
+SDS、supplementary difference sets を探索します。
 
-## Approach
+## 探索方針
 
-1. Search for four SDS blocks over `Z_167`.
-2. Convert the blocks into four circulant `+1/-1` matrices.
-3. Build the Goethals-Seidel array of order `668`.
-4. Accept a candidate only when SageMath verifies the exact identity
-   `H * H.transpose() == 668 * identity_matrix(ZZ, 668)`.
+1. `Z_167` 上で4つのSDSブロックを探す。
+2. 各ブロックから4つの巡回 `+1/-1` 行列を作る。
+3. Goethals-Seidel配列で位数668の行列を組む。
+4. SageMathで次の厳密な恒等式を確認できた場合だけ成功とする。
 
-Unverified near-hits are research artifacts, not successes.
+```python
+H * H.transpose() == 668 * identity_matrix(ZZ, 668)
+```
 
-## Repository Layout
+near-hitや低スコア候補は研究用の途中成果です。検証前の候補は成功扱いしません。
+
+## リポジトリ構成
 
 ```text
 .
-  .github/workflows/research.yml       GitHub Actions remote runner
-  configs/experiments/                 Experiment configs
-  docs/remote-research.md              Remote run and Slack notification guide
-  sage/                                SageMath and Python research scripts
-  scripts/actions_summary.py           Actions artifact and Slack summary builder
-  outputs/                             Lightweight tracked summaries and ignored run data
+  .github/workflows/research.yml       GitHub Actionsのremote実行workflow
+  configs/experiments/                 実験config
+  docs/remote-research.md              remote実行とSlack通知の手順
+  sage/                                SageMath/Pythonの研究スクリプト
+  scripts/actions_summary.py           Actions artifactとSlack通知のsummary生成
+  outputs/                             軽量summaryと、git管理外の実行生成物
 ```
 
-Generated artifacts, logs, large JSONL/CSV files, and local caches are ignored by
-git. Remote run outputs should be consumed from GitHub Actions artifacts.
+ログ、大きなJSONL/CSV、Actions artifact、cache類はgit管理しません。
+remote実行の結果はGitHub Actionsのartifactから確認します。
 
-## Requirements
+## 必要なもの
 
-- SageMath `10.8` for local runs
-- Python 3 for helper scripts
-- GitHub CLI `gh` for remote runs
-- Docker only if you want to reproduce the GitHub Actions Sage environment
+- local実行用のSageMath `10.8`
+- 補助スクリプト用のPython 3
+- remote実行用のGitHub CLI `gh`
+- GitHub ActionsのSage環境をlocalで再現したい場合のみDocker
 
-The GitHub Actions workflow uses `sagemath/sagemath:10.8`.
+GitHub Actionsでは `sagemath/sagemath:10.8` を使います。
 
 ## Local Smoke Test
 
-Run the minimal `N=1` smoke test locally before pushing workflow or experiment
-changes and before dispatching production remote runs:
+workflowや実験configをpushする前、本番remote実行を始める前に、
+必ずlocalで最小の `N=1` smoke testを通します。
 
 ```bash
 DOT_SAGE=${TMPDIR:-/tmp}/sage-dot \
@@ -58,13 +61,13 @@ sage sage/62_exactlike_guided_generator_validation.sage \
   --max-repair-candidates 0
 ```
 
-This checks that the current config, imports, Sage environment, output writing,
-and summary inputs are still compatible. The command writes its main output under
-the temporary directory and may write an ignored log under `outputs/logs/`.
+このテストでは、config、import、Sage環境、出力処理、summary生成の入力が
+壊れていないことを確認します。主な出力は一時ディレクトリに出ます。
+`outputs/logs/` にもログが出ることがありますが、そこは `.gitignore` 対象です。
 
-## Remote GitHub Actions Runs
+## GitHub ActionsでのRemote実行
 
-Remote SageMath experiments are launched manually with `workflow_dispatch`:
+remote実験は `workflow_dispatch` で手動起動します。
 
 ```bash
 env -u GITHUB_TOKEN gh workflow run research.yml \
@@ -78,55 +81,54 @@ env -u GITHUB_TOKEN gh workflow run research.yml \
   -f max_repair_candidates=0
 ```
 
-Watch the run:
+実行状況を見る:
 
 ```bash
 env -u GITHUB_TOKEN gh run watch
 ```
 
-See [docs/remote-research.md](docs/remote-research.md) for Slack setup,
-artifact layout, and production run guidance.
+Slack通知、artifact、production runの詳しい手順は
+[docs/remote-research.md](docs/remote-research.md) にあります。
 
-## Production Run Policy
+## 本番実行ルール
 
-For production searches, first pass the local `N=1` smoke test, then push the
-change, then run a remote smoke test. Only after that should heavier production
-runs be dispatched.
+本番探索は次の順番で行います。
 
-When the repository is public and standard GitHub-hosted runners are used,
-parallelize independent runs up to the current GitHub Actions concurrency limit
-for the account. On GitHub Free standard runners, that limit is currently 20
-concurrent jobs. Use unique `run_label` values so the workflow concurrency group
-does not serialize independent runs.
+1. local `N=1` smoke testを通す。
+2. 変更をpushする。
+3. remote smoke testを通す。
+4. 本番runをfan-outする。
 
-Do not use GitHub larger runners unless cost has been explicitly approved.
+リポジトリがpublicで、standard GitHub-hosted runnerを使う場合は、
+GitHub Actionsの現在の並列上限まで独立runを並列化します。
+GitHub Freeのstandard runnerでは、現時点では20並列が目安です。
 
-## Success Criteria
+各runには別々の `run_label` を付けます。同じ `run_label` を使うと、
+workflowのconcurrency groupにより独立runが直列化される可能性があります。
 
-A candidate is successful only if all of the following hold:
+larger runnerはコストが発生するため、明示的な承認なしには使いません。
 
-- The candidate JSON contains `v = 167`, `n = 668`, four block sizes, `lambda`,
-  and four blocks over `Z_167`.
-- The SDS difference condition is verified for every nonzero shift.
-- The Goethals-Seidel matrix is generated from those blocks.
-- SageMath verifies `H * H.transpose() == 668 * identity_matrix(ZZ, 668)`.
-- The JSON records `verify_sds = true`, `generated_hadamard = true`, and
-  `hh_t = true`.
+## 成功条件
 
-## Key Scripts
+候補が成功と見なされるのは、次の全てを満たした場合だけです。
 
-- `sage/04_build_gs_from_sds.sage`: build and verify a Goethals-Seidel matrix
-  from a candidate JSON.
-- `sage/05_validate_candidate_json.sage`: validate SDS JSON shape and
-  difference conditions.
-- `sage/06_known_sds_regression.sage`: small known-SDS regression checks.
-- `sage/07_guided_sds_search_668.sage`: guided local search for `Z_167`.
-- `sage/62_exactlike_guided_generator_validation.sage`: config-driven
-  exact-like guided generator used by GitHub Actions.
-- `sage/sds_repair_utils.py`: shared validation, metrics, and repair helpers.
+- candidate JSONに `v = 167`, `n = 668`, 4つのblock size, `lambda`,
+  `Z_167` 上の4つのblockが入っている。
+- 全ての非ゼロshiftについてSDS差条件が検証されている。
+- そのblockからGoethals-Seidel行列が生成されている。
+- SageMathが `H * H.transpose() == 668 * identity_matrix(ZZ, 668)` を確認している。
+- JSONに `verify_sds = true`, `generated_hadamard = true`, `hh_t = true` が記録されている。
 
-## Data Hygiene
+## 主要スクリプト
 
-Keep the public repository focused on source code, configs, lightweight
-summaries, and exact validation fixtures. Keep bulk run outputs in GitHub
-Actions artifacts, releases, or external research storage.
+- `sage/04_build_gs_from_sds.sage`: candidate JSONからGoethals-Seidel行列を構築して検証する。
+- `sage/05_validate_candidate_json.sage`: SDS JSONの形式と差条件を検証する。
+- `sage/06_known_sds_regression.sage`: 小さい既知SDSで回帰テストを行う。
+- `sage/07_guided_sds_search_668.sage`: `Z_167` 上のguided local search。
+- `sage/62_exactlike_guided_generator_validation.sage`: GitHub Actionsで使うconfig駆動の探索スクリプト。
+- `sage/sds_repair_utils.py`: 検証、metric、repair用の共通helper。
+
+## データ管理方針
+
+public repoには、ソースコード、config、軽量summary、厳密検証fixtureだけを置きます。
+大きな実行結果はGitHub Actions artifact、release、または外部研究ストレージで管理します。
