@@ -405,7 +405,7 @@ jobs:
           SHARD_COUNT: ${{ inputs.shard_count || '1' }}
         run: |
           set -euo pipefail
-          out_dir="$(find outputs/artifacts -maxdepth 1 -type d -name '*aggregate*-${GITHUB_RUN_ID}' | head -n 1)"
+          out_dir="$(find outputs/artifacts -maxdepth 1 -type d -name "*aggregate*-${GITHUB_RUN_ID}" | head -n 1)"
           if [ -z "$out_dir" ]; then
             echo "::error::aggregate output directory not found"
             exit 2
