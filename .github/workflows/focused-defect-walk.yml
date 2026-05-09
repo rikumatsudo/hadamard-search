@@ -1,0 +1,210 @@
+name: Focused defect random walk
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Short label for artifact and Slack messages"
+        required: false
+        default: "focused-smoke"
+        type: string
+      max_parent_candidates:
+        description: "Maximum p37 parent candidates"
+        required: false
+        default: "6"
+        type: string
+      steps:
+        description: "Focused walk steps per mode/restart"
+        required: false
+        default: "40"
+        type: string
+      restarts:
+        description: "Restarts per parent/mode"
+        required: false
+        default: "1"
+        type: string
+      sample_swaps:
+        description: "Candidate swaps sampled per step"
+        required: false
+        default: "80"
+        type: string
+      snapshot_interval:
+        description: "Snapshot interval"
+        required: false
+        default: "20"
+        type: string
+      artifact_retention_days:
+        description: "Artifact retention, 1-90 days"
+        required: false
+        default: "14"
+        type: string
+  pull_request:
+    paths:
+      - "sage/65_focused_defect_random_walk_validation.sage"
+      - ".github/workflows/focused-defect-walk.yml"
+      - "sage/06_known_sds_regression.sage"
+      - "sage/62_exactlike_guided_generator_validation.sage"
+      - "sage/63_dynamic_defect_weighting_validation.sage"
+      - "sage/sds_repair_utils.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: focused-defect-walk-${{ github.ref }}-${{ inputs.run_label || github.event_name }}
+  cancel-in-progress: false
+
+env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  focused-walk:
+    name: Run p37 focused walk smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    outputs:
+      out_dir: ${{ steps.prepare.outputs.out_dir }}
+      safe_label: ${{ steps.prepare.outputs.safe_label }}
+      retention_days: ${{ steps.prepare.outputs.retention_days }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Prepare run
+        id: prepare
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'focused-pr' }}
+          RETENTION_DAYS: ${{ inputs.artifact_retention_days || '14' }}
+        run: |
+          set -euo pipefail
+
+          if ! [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] || [ "$RETENTION_DAYS" -lt 1 ] || [ "$RETENTION_DAYS" -gt 90 ]; then
+            echo "::error::artifact_retention_days must be an integer from 1 to 90"
+            exit 2
+          fi
+
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          safe_label="${safe_label:-focused-smoke}"
+          out_dir="outputs/artifacts/${safe_label}-${GITHUB_RUN_ID}"
+          mkdir -p "$out_dir"
+
+          {
+            echo "safe_label=$safe_label"
+            echo "out_dir=$out_dir"
+            echo "retention_days=$RETENTION_DAYS"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run focused defect random walk
+        id: focused
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+          MAX_PARENT_CANDIDATES: ${{ inputs.max_parent_candidates || '6' }}
+          STEPS: ${{ inputs.steps || '40' }}
+          RESTARTS: ${{ inputs.restarts || '1' }}
+          SAMPLE_SWAPS: ${{ inputs.sample_swaps || '80' }}
+          SNAPSHOT_INTERVAL: ${{ inputs.snapshot_interval || '20' }}
+        run: |
+          set -euo pipefail
+
+          args=(
+            sage sage/65_focused_defect_random_walk_validation.sage
+            --max-parent-candidates "$MAX_PARENT_CANDIDATES"
+            --steps "$STEPS"
+            --restarts "$RESTARTS"
+            --sample-swaps "$SAMPLE_SWAPS"
+            --snapshot-interval "$SNAPSHOT_INTERVAL"
+            --out-dir "$OUT_DIR"
+          )
+          sage_command="$(printf '%q ' "${args[@]}")"
+
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            "$sage_command" \
+            2>&1 | tee "$OUT_DIR/runner.log"
+
+      - name: Build GitHub summary
+        if: always()
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## p37 focused defect random walk"
+            echo
+            if [ -f "$OUT_DIR/p37_focused_defect_random_walk_summary.md" ]; then
+              sed -n '1,220p' "$OUT_DIR/p37_focused_defect_random_walk_summary.md"
+            else
+              echo "Summary was not generated."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build Slack payload
+        if: always()
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+          RUN_LABEL: ${{ inputs.run_label || 'focused-pr' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+
+          out_dir = os.environ["OUT_DIR"]
+          label = os.environ["RUN_LABEL"]
+          status = os.environ["JOB_STATUS"].upper()
+          run_url = os.environ["RUN_URL"]
+          hypo_path = os.path.join(out_dir, "hypothesis_evaluation.json")
+          hypo = {}
+          if os.path.exists(hypo_path):
+              with open(hypo_path) as f:
+                  hypo = json.load(f)
+          payload = {
+              "text": "p37 focused defect random walk GitHub Actions run",
+              "blocks": [
+                  {
+                      "type": "section",
+                      "text": {
+                          "type": "mrkdwn",
+                          "text": f"*p37 focused defect random walk* <{run_url}|GitHub Actions run>",
+                      },
+                  },
+                  {
+                      "type": "section",
+                      "fields": [
+                          {"type": "mrkdwn", "text": f"*Status*\\n{status}"},
+                          {"type": "mrkdwn", "text": f"*Label*\\n{label}"},
+                          {"type": "mrkdwn", "text": f"*H-FRW1*\\n{hypo.get('H_FRW1', 'n/a')}"},
+                          {"type": "mrkdwn", "text": f"*H-FRW2*\\n{hypo.get('H_FRW2', 'n/a')}"},
+                          {"type": "mrkdwn", "text": f"*H-FRW3*\\n{hypo.get('H_FRW3', 'n/a')}"},
+                          {"type": "mrkdwn", "text": f"*H-FRW4*\\n{hypo.get('H_FRW4', 'n/a')}"},
+                      ],
+                  },
+              ],
+          }
+          with open(os.path.join(out_dir, "slack_payload.json"), "w") as f:
+              json.dump(payload, f)
+          PY
+
+      - name: Upload focused walk artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: focused-defect-walk-${{ steps.prepare.outputs.safe_label }}-${{ github.run_id }}
+          path: ${{ steps.prepare.outputs.out_dir }}
+          if-no-files-found: warn
+          retention-days: ${{ steps.prepare.outputs.retention_days }}
+
+      - name: Notify Slack
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v3.0.2
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: ${{ steps.prepare.outputs.out_dir }}/slack_payload.json
