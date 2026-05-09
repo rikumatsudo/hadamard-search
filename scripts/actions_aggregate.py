@@ -27,6 +27,32 @@ def fmt(value):
     return "n/a" if value is None else str(value)
 
 
+def aggregate_metrics(shards):
+    successful = sum(1 for shard in shards if shard["comparison_present"])
+    score0_total = sum(int(shard["score0_count"]) for shard in shards)
+    sds_verified_total = sum(
+        int(shard["sds_ok_count"])
+        for shard in shards
+        if isinstance(shard["sds_ok_count"], int)
+    )
+    hadamard_verified_total = sum(
+        int(shard["hadamard_ok_count"])
+        for shard in shards
+        if isinstance(shard["hadamard_ok_count"], int)
+    )
+    best_values = [shard["best_score"] for shard in shards if isinstance(shard["best_score"], (int, float))]
+    engines = sorted(set(shard["engine"] for shard in shards))
+    return {
+        "artifacts_discovered": len(shards),
+        "shards_with_comparison_summary": successful,
+        "score0_candidates_total": score0_total,
+        "sage_verified_sds_total": sds_verified_total,
+        "sage_verified_hadamard_total": hadamard_verified_total,
+        "best_score_overall": min(best_values) if best_values else None,
+        "engines": engines,
+    }
+
+
 def verification_counts(comparison):
     verification = comparison.get("verification", {}) if comparison else {}
     return (
@@ -69,30 +95,23 @@ def discover_shards(artifacts_dir):
 
 
 def build_markdown(args, shards):
-    successful = sum(1 for shard in shards if shard["comparison_present"])
-    score0_total = sum(int(shard["score0_count"]) for shard in shards)
-    verified_total = sum(
-        int(shard["hadamard_ok_count"])
-        for shard in shards
-        if isinstance(shard["hadamard_ok_count"], int)
-    )
-    best_values = [shard["best_score"] for shard in shards if isinstance(shard["best_score"], (int, float))]
-    best = min(best_values) if best_values else None
-    engines = sorted(set(shard["engine"] for shard in shards))
+    metrics = aggregate_metrics(shards)
+    engine_text = ", ".join(metrics["engines"]) if metrics["engines"] else "n/a"
     lines = [
         "# Research Aggregate Summary",
         "",
         "- status: `{}`".format(args.status),
         "- label: `{}`".format(args.run_label),
         "- run: {}".format(args.run_url),
-        "- engine(s): `{}`".format(", ".join(engines) if engines else "n/a"),
+        "- engine(s): `{}`".format(engine_text),
         "- fanout: `{}`".format(args.fanout),
         "- expected shards: `{}`".format(args.expected_shards),
-        "- artifacts discovered: `{}`".format(len(shards)),
-        "- shards with comparison summary: `{}`".format(successful),
-        "- score0 candidates total: `{}`".format(score0_total),
-        "- Sage verified Hadamard total: `{}`".format(verified_total),
-        "- best score overall: `{}`".format(fmt(best)),
+        "- artifacts discovered: `{}`".format(metrics["artifacts_discovered"]),
+        "- shards with comparison summary: `{}`".format(metrics["shards_with_comparison_summary"]),
+        "- score0 candidates total: `{}`".format(metrics["score0_candidates_total"]),
+        "- Sage verified SDS total: `{}`".format(metrics["sage_verified_sds_total"]),
+        "- Sage verified Hadamard total: `{}`".format(metrics["sage_verified_hadamard_total"]),
+        "- best score overall: `{}`".format(fmt(metrics["best_score_overall"])),
         "",
         "## Shards",
         "",
@@ -120,27 +139,18 @@ def build_markdown(args, shards):
 
 
 def build_slack_payload(args, shards):
-    successful = sum(1 for shard in shards if shard["comparison_present"])
-    score0_total = sum(int(shard["score0_count"]) for shard in shards)
-    verified_total = sum(
-        int(shard["hadamard_ok_count"])
-        for shard in shards
-        if isinstance(shard["hadamard_ok_count"], int)
-    )
-    best_values = [shard["best_score"] for shard in shards if isinstance(shard["best_score"], (int, float))]
-    best = min(best_values) if best_values else None
-    engines = sorted(set(shard["engine"] for shard in shards))
-    engine_text = ", ".join(engines) if engines else "n/a"
+    metrics = aggregate_metrics(shards)
+    engine_text = ", ".join(metrics["engines"]) if metrics["engines"] else "n/a"
     status = args.status.upper()
     text = "Research aggregate {}: {} ({} shards)".format(status, args.run_label, len(shards))
     fields = [
         {"type": "mrkdwn", "text": "*Status*\n{}".format(status)},
         {"type": "mrkdwn", "text": "*Label*\n{}".format(args.run_label)},
         {"type": "mrkdwn", "text": "*Engine(s)*\n{}".format(engine_text)},
-        {"type": "mrkdwn", "text": "*Shards*\n{}/{}".format(successful, args.expected_shards)},
-        {"type": "mrkdwn", "text": "*Score0 candidates*\n{}".format(score0_total)},
-        {"type": "mrkdwn", "text": "*Sage verified*\n{}".format(verified_total)},
-        {"type": "mrkdwn", "text": "*Best score*\n{}".format(fmt(best))},
+        {"type": "mrkdwn", "text": "*Shards*\n{}/{}".format(metrics["shards_with_comparison_summary"], args.expected_shards)},
+        {"type": "mrkdwn", "text": "*Score0 candidates*\n{}".format(metrics["score0_candidates_total"])},
+        {"type": "mrkdwn", "text": "*Sage verified*\nSDS {} / HH^T {}".format(metrics["sage_verified_sds_total"], metrics["sage_verified_hadamard_total"])},
+        {"type": "mrkdwn", "text": "*Best score*\n{}".format(fmt(metrics["best_score_overall"]))},
         {"type": "mrkdwn", "text": "*Fanout*\n{}".format(args.fanout)},
     ]
     blocks = [
@@ -167,6 +177,18 @@ def build_slack_payload(args, shards):
     return {"text": text, "blocks": blocks}
 
 
+def build_json_summary(args, shards):
+    return {
+        "status": args.status,
+        "run_label": args.run_label,
+        "run_url": args.run_url,
+        "fanout": args.fanout,
+        "expected_shards": args.expected_shards,
+        "metrics": aggregate_metrics(shards),
+        "shards": shards,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--artifacts-dir", required=True)
@@ -177,6 +199,7 @@ def main():
     parser.add_argument("--fanout", required=True)
     parser.add_argument("--payload", required=True)
     parser.add_argument("--summary", required=True)
+    parser.add_argument("--json-summary", default=None)
     parser.add_argument("--github-summary", default=None)
     args = parser.parse_args()
 
@@ -186,6 +209,8 @@ def main():
 
     Path(args.summary).write_text(markdown)
     Path(args.payload).write_text(json.dumps(payload, indent=2) + "\n")
+    if args.json_summary:
+        Path(args.json_summary).write_text(json.dumps(build_json_summary(args, shards), indent=2) + "\n")
     if args.github_summary:
         with Path(args.github_summary).open("a") as f:
             f.write(markdown)

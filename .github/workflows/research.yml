@@ -375,6 +375,7 @@ jobs:
             --fanout "$FANOUT" \
             --payload aggregate_slack_payload.json \
             --summary aggregate_summary.md \
+            --json-summary aggregate_summary.json \
             --github-summary "$GITHUB_STEP_SUMMARY"
 
       - name: Upload aggregate summary
@@ -384,6 +385,7 @@ jobs:
           name: research-aggregate-${{ github.run_id }}
           path: |
             aggregate_summary.md
+            aggregate_summary.json
             aggregate_slack_payload.json
           if-no-files-found: warn
           retention-days: ${{ inputs.artifact_retention_days }}

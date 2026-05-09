@@ -58,6 +58,15 @@
 - 20 shard smoke、40 shard productionの推奨コマンドを固定する。
 - artifact retention、summary粒度、Slack通知内容を本番向けに調整する。
 
+実装メモ:
+
+- Rust本番探索用configは `configs/experiments/p167_tuple_A_rust_production.yaml` に固定する。
+- dispatchは `scripts/dispatch_research_run.py` のdry-run確認後に `--execute` する。
+- 20 shard fan-out smokeは `total_seeds=40`, `steps=100` を目安にする。
+- GitHub Proでの40 shard productionは `total_seeds=400`, `steps=10000`,
+  `max_parallel=40`, `artifact_retention_days=30` を初期値にする。
+- aggregate artifactにはMarkdownに加えて `aggregate_summary.json` を残す。
+
 ## 言語選定
 
 探索エンジンはRustを第一候補にする。
