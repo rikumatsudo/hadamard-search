@@ -26,8 +26,11 @@ near-hitや低スコア候補は研究用の途中成果です。検証前の候
   .github/workflows/research.yml       GitHub Actionsのremote実行workflow
   configs/experiments/                 実験config
   docs/remote-research.md              remote実行とSlack通知の手順
+  docs/optimization-roadmap.md          探索基盤の最適化roadmap
   sage/                                SageMath/Pythonの研究スクリプト
   scripts/actions_summary.py           Actions artifactとSlack通知のsummary生成
+  scripts/actions_aggregate.py         shard artifactの集約summary生成
+  scripts/actions_shard_matrix.py      Actions matrixのshard生成
   outputs/                             軽量summaryと、git管理外の実行生成物
 ```
 
@@ -104,12 +107,15 @@ GitHub Actionsの現在の並列上限まで独立runを並列化します。
 GitHub Freeのstandard runnerでは、現時点では20並列が目安です。
 
 Proの場合は40並列が目安です。本番runはseedを20等分または40等分し、
-各shardに一意な `run_label` を付けて実行します。
+`shard_count` と `max_parallel` を指定して1つのworkflow run内でfan-outします。
 
 各runには別々の `run_label` を付けます。同じ `run_label` を使うと、
 workflowのconcurrency groupにより独立runが直列化される可能性があります。
 
 larger runnerはコストが発生するため、明示的な承認なしには使いません。
+
+探索基盤の最適化方針は
+[docs/optimization-roadmap.md](docs/optimization-roadmap.md) にあります。
 
 ## 成功条件
 
