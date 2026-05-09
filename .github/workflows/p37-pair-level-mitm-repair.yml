@@ -157,11 +157,47 @@ jobs:
           print(f"fanout={'true' if shard_count > 1 else 'false'}")
           PY
 
+  prepare-prior-artifacts:
+    name: Prepare prior artifacts
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download prior p37 focused artifacts once
+        if: github.event_name == 'workflow_dispatch' && inputs.download_prior_artifacts == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id || '25601586976' }}
+        run: |
+          set -euo pipefail
+          mkdir -p prior-artifacts
+          for attempt in 1 2 3; do
+            if gh run download "$ARTIFACT_RUN_ID" --repo "$GITHUB_REPOSITORY" --dir prior-artifacts; then
+              exit 0
+            fi
+            sleep $((attempt * 10))
+          done
+          echo "::error::failed to download prior artifacts from run $ARTIFACT_RUN_ID"
+          exit 2
+
+      - name: Create empty prior artifact placeholder
+        if: github.event_name != 'workflow_dispatch' || inputs.download_prior_artifacts != true
+        run: |
+          set -euo pipefail
+          mkdir -p prior-artifacts
+          touch prior-artifacts/.keep
+
+      - name: Upload prepared prior artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: p37-pair-mitm-prior-artifacts-${{ github.run_id }}
+          path: prior-artifacts
+          retention-days: 1
+
   pair-mitm-repair:
     name: Run p37 pair MITM repair (${{ matrix.shard_suffix }})
     needs:
       - known-regression
       - define-shards
+      - prepare-prior-artifacts
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     strategy:
@@ -176,15 +212,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Download prior p37 focused artifacts
-        if: github.event_name == 'workflow_dispatch' && inputs.download_prior_artifacts == true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id || '25601586976' }}
-        run: |
-          set -euo pipefail
-          mkdir -p prior-artifacts
-          gh run download "$ARTIFACT_RUN_ID" --repo "$GITHUB_REPOSITORY" --dir prior-artifacts
+      - name: Download prepared prior artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: p37-pair-mitm-prior-artifacts-${{ github.run_id }}
+          path: prior-artifacts
 
       - name: Prepare run
         id: prepare
