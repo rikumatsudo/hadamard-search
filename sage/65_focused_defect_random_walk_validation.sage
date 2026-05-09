@@ -321,7 +321,8 @@ def select_parent_payloads(raw_payloads, max_total, exact_blocks, p, ks, lam, se
     by_hash = {item["canonical_hash"]: item for item in raw_payloads}
     exact_existing = [item for item in by_hash.values() if item.get("origin_type") == "exact_derived"]
     if len(exact_existing) < 20:
-        for item in S63["generate_exact_controls"](exact_blocks, p, ks, lam, 20 - len(exact_existing), seed + 991):
+        control_seed = int(int(seed) + 991)
+        for item in S63["generate_exact_controls"](exact_blocks, p, ks, lam, 20 - len(exact_existing), control_seed):
             by_hash.setdefault(item["canonical_hash"], item)
     items = list(by_hash.values())
     score4_search = [item for item in items if item["score"] == 4 and item.get("origin_type") != "exact_derived"]
