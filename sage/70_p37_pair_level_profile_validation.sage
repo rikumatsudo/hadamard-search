@@ -394,9 +394,7 @@ def infer_origin(payload, source_file, score):
         )
     ).lower()
     source = str(source_file or "").lower()
-    if has_prefix(payload.get("canonical_hash"), SUCCESS_CHILD_PREFIXES):
-        return "focused_success_child"
-    if int(score) == 0 and ("score0_candidate" in source or "focused" in source):
+    if has_prefix(payload.get("canonical_hash"), SUCCESS_CHILD_PREFIXES) or has_prefix(payload.get("parent_hash"), REPAIRABLE_PARENT_PREFIXES):
         return "focused_success_child"
     if int(score) == 0:
         return "exact"
@@ -434,9 +432,9 @@ def candidate_group(row):
     origin = str(row.get("origin") or "")
     label = str(row.get("label") or "").lower()
     source = str(row.get("source_file") or "").lower()
-    if has_prefix(h, SUCCESS_CHILD_PREFIXES):
+    if has_prefix(h, SUCCESS_CHILD_PREFIXES) or (score == 0 and has_prefix(row.get("parent_hash"), REPAIRABLE_PARENT_PREFIXES)):
         return "focused_success_child"
-    if score == 0 and ("score0_candidate" in source or origin == "focused_success_child"):
+    if score == 0 and origin == "focused_success_child":
         return "focused_success_child"
     if score == 0:
         return "exact"
@@ -457,7 +455,7 @@ def candidate_preference(row):
     h = str(row.get("candidate_hash") or "")
     source = str(row.get("source_file") or "").lower()
     group = row.get("candidate_group")
-    if has_prefix(h, SUCCESS_CHILD_PREFIXES):
+    if has_prefix(h, SUCCESS_CHILD_PREFIXES) or (int(row.get("score", 999999)) == 0 and has_prefix(row.get("parent_hash"), REPAIRABLE_PARENT_PREFIXES)):
         return 100
     if "exact_v37_djokovic_2009_g_matrices_order37.json" in source:
         return 95
