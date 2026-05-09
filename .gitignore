@@ -10,6 +10,7 @@ Thumbs.db
 .venv/
 venv/
 env/
+target/
 
 # Python/Sage cache and local runtime noise.
 __pycache__/
