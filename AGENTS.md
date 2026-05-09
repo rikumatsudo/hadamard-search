@@ -58,6 +58,8 @@ seed分割では `total_seeds`, `shard_index`, `shard_count` を使い、
 複数shardをまとめて起動できる場合は、個別に40回dispatchするのではなく、
 `shard_count` と `max_parallel` によるmatrix fan-outを優先します。
 Slack通知はaggregate jobから1回だけ送ります。
+本番runのdispatchは、まず `scripts/dispatch_research_run.py` のdry-run出力を確認し、
+内容が正しい場合だけ `--execute` を付けて起動します。
 
 1つの長大なrunよりも、時間上限のあるrunを複数並べる方を優先します。
 その方が失敗時の損失が小さく、Slack通知とartifact確認も早くなります。
