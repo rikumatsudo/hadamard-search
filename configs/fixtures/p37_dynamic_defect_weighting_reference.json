@@ -1,0 +1,15 @@
+{
+  "H_DW1": "not_supported",
+  "H_DW2": "not_supported",
+  "H_DW3": "supported_label_only",
+  "H_DW4": "supported",
+  "baseline_escape_rate": 0.0,
+  "baseline_false_like_final_rate": 0.4166666666666667,
+  "baseline_persistent_defect_fraction": 1.0,
+  "baseline_score_improvement_rate": 0.375,
+  "best_weighted_escape_rate": 0.0,
+  "best_weighted_false_like_final_rate": 0.3541666666666667,
+  "best_weighted_persistent_defect_fraction": 1.0,
+  "best_weighted_score_improvement_rate": 0.375,
+  "weighted_false_basin_risk_rate_max": 0.4791666666666667
+}

@@ -25,6 +25,7 @@ MODES = (
 )
 POWERS_DEFAULT = (2, 4, 6, 8, 10, 12)
 DYNAMIC_REFERENCE = "outputs/explorations/20260507_0100_p37_dynamic_defect_weighting_validation/hypothesis_evaluation.json"
+DYNAMIC_REFERENCE_FALLBACK = "configs/fixtures/p37_dynamic_defect_weighting_reference.json"
 
 
 def load_sage_namespace(filename, name):
@@ -235,6 +236,7 @@ def candidate_origin(payload, source_path):
 
 def candidate_search_paths():
     return [
+        "configs/fixtures/p37_focused_defect_random_walk_parents.jsonl",
         "outputs/explorations/20260506_0915_small_p_escapability_validation",
         "outputs/explorations/20260506_1125_small_p_defect_targeted_lns_validation",
         "outputs/explorations/20260506_1200_p37_score4_false_basin_anatomy",
@@ -1146,13 +1148,18 @@ def summarize_score4(attempts):
 
 
 def load_dynamic_reference(path):
-    if not path or not os.path.exists(path):
-        return None
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except Exception:
-        return None
+    for candidate in (path, DYNAMIC_REFERENCE_FALLBACK):
+        if not candidate or not os.path.exists(candidate):
+            continue
+        try:
+            with open(candidate) as f:
+                payload = json.load(f)
+            if isinstance(payload, dict):
+                payload["_reference_path"] = candidate
+            return payload
+        except Exception:
+            continue
+    return None
 
 
 def evaluate_hypotheses(mode_rows, defect_summary, attempts, dynamic_reference):
@@ -1234,7 +1241,7 @@ def evaluate_hypotheses(mode_rows, defect_summary, attempts, dynamic_reference):
         "best_focused_defect_support_turnover": best_turnover,
         "best_focused_target_defect_improvement_rate": best_target,
         "target_only_shift_rate": target_only_rate,
-        "dynamic_reference_path": DYNAMIC_REFERENCE if dynamic_reference else None,
+        "dynamic_reference_path": dynamic_reference.get("_reference_path") if dynamic_reference else None,
         "dynamic_best_weighted_score_improvement_rate": dyn_best_score,
         "dynamic_best_weighted_escape_rate": dyn_best_escape,
     }
@@ -1411,6 +1418,7 @@ def main():
         "modes": list(MODES),
         "candidate_search_paths": candidate_search_paths(),
         "dynamic_reference": DYNAMIC_REFERENCE,
+        "dynamic_reference_fallback": DYNAMIC_REFERENCE_FALLBACK,
     }
     write_json(os.path.join(out_dir, "run_config.json"), config)
     with open(os.path.join(out_dir, "run_log.md"), "w") as f:

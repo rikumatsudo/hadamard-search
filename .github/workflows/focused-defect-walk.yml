@@ -42,6 +42,8 @@ on:
     paths:
       - "sage/65_focused_defect_random_walk_validation.sage"
       - ".github/workflows/focused-defect-walk.yml"
+      - "configs/fixtures/p37_focused_defect_random_walk_parents.jsonl"
+      - "configs/fixtures/p37_dynamic_defect_weighting_reference.json"
       - "sage/06_known_sds_regression.sage"
       - "sage/62_exactlike_guided_generator_validation.sage"
       - "sage/63_dynamic_defect_weighting_validation.sage"
