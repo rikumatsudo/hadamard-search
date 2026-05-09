@@ -93,7 +93,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Prepare run
         id: prepare
@@ -200,7 +200,7 @@ jobs:
 
       - name: Upload run artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: research-${{ steps.prepare.outputs.safe_label }}-${{ github.run_id }}
           path: ${{ steps.prepare.outputs.out_dir }}
