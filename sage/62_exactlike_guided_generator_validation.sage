@@ -321,6 +321,13 @@ def score_counts(counts, lam):
     return int(metrics_from_counts(counts, lam)[0])
 
 
+def apply_sparse_delta(counts, delta):
+    out = list(counts)
+    for d, value in delta.items():
+        out[int(d)] += int(value)
+    return out
+
+
 def rho_vector(counts, lam):
     rho = [0] * len(counts)
     for d in range(1, len(counts)):
@@ -466,23 +473,63 @@ def apply_moves_copy(blocks, moves):
     return out
 
 
-def full_diagnostic(blocks, counts, lam, p, baseline, powers=POWERS_DEFAULT):
+def diagnostic_enabled(diagnostics_cfg, key, default=True):
+    if diagnostics_cfg is None:
+        return bool(default)
+    return bool(diagnostics_cfg.get(key, default))
+
+
+def empty_moment_payload(powers):
+    out = {}
+    for power in set(tuple(powers) + POWERS_DEFAULT):
+        out["T{}".format(int(power))] = None
+    out.update(
+        {
+            "padic_moments": {},
+            "moment_zero_count_3": None,
+            "moment_zero_count_6": None,
+            "higher_moment_norm": None,
+        }
+    )
+    return out
+
+
+def full_diagnostic(blocks, counts, lam, p, baseline, powers=POWERS_DEFAULT, diagnostics_cfg=None):
     p = int(p)
     score, l1_error, max_abs_error, nonzero = [int(x) for x in metrics_from_counts(counts, lam)]
-    max_moves = None if p <= 67 else 2500
-    moves = one_swap_library(blocks, counts, lam, p, max_moves=max_moves)
+    full_1swap = diagnostic_enabled(diagnostics_cfg, "full_1swap", True)
+    compute_dmin1 = diagnostic_enabled(diagnostics_cfg, "compute_dmin1", True)
+    compute_p_tau = diagnostic_enabled(diagnostics_cfg, "compute_p_tau", True)
+    compute_kappa = diagnostic_enabled(diagnostics_cfg, "compute_kappa", True)
+    compute_q_ratio = diagnostic_enabled(diagnostics_cfg, "compute_q_ratio", True)
+    compute_init_hardness = diagnostic_enabled(diagnostics_cfg, "compute_init_hardness", True)
+    compute_moments = diagnostic_enabled(diagnostics_cfg, "compute_moments", True)
+    need_moves = full_1swap or compute_dmin1 or compute_p_tau or compute_kappa or compute_q_ratio
+    moves = []
+    if need_moves:
+        max_moves = None if p <= 67 else 2500
+        moves = one_swap_library(blocks, counts, lam, p, max_moves=max_moves)
+
     h_values = [int(move["h"]) for move in moves]
     q_values = [int(move["q"]) for move in moves]
     kappas = [float(move["kappa"]) for move in moves if move["kappa"] is not None]
-    improving = [move for move in moves if int(move["h"]) < 0]
-    near = {threshold: sum(1 for move in moves if int(move["h"]) <= threshold) for threshold in (0, 4, 8, 16)}
-    theta = {
-        frac: sum(1 for move in moves if score > 0 and int(move["h"]) <= float(frac) * float(score))
-        for frac in (0.01, 0.05, 0.10)
-    }
-    h_min = min(h_values) if h_values else None
+    improving = [move for move in moves if int(move["h"]) < 0] if (full_1swap or compute_dmin1) else []
+    near = (
+        {threshold: sum(1 for move in moves if int(move["h"]) <= threshold) for threshold in (0, 4, 8, 16)}
+        if compute_p_tau
+        else {}
+    )
+    theta = (
+        {
+            frac: sum(1 for move in moves if score > 0 and int(move["h"]) <= float(frac) * float(score))
+            for frac in (0.01, 0.05, 0.10)
+        }
+        if compute_p_tau
+        else {}
+    )
+    h_min = min(h_values) if h_values and compute_dmin1 else None
     d_min = None if h_min is None else int(score + h_min)
-    structure = block_structure_payload(p, blocks, baseline)
+    structure = block_structure_payload(p, blocks, baseline) if compute_init_hardness else None
     q_threshold = int(4 * (p - 1) * score)
     out = {
         "score": int(score),
@@ -492,28 +539,28 @@ def full_diagnostic(blocks, counts, lam, p, baseline, powers=POWERS_DEFAULT):
         "h_min": int(h_min) if h_min is not None else None,
         "D_min_1": int(d_min) if d_min is not None else None,
         "D_min_ratio": float(d_min) / float(score) if score > 0 and d_min is not None else None,
-        "improving_swap_count": int(len(improving)),
-        "P_<0": float(len(improving)) / float(len(moves)) if moves else None,
-        "P_0": float(near[0]) / float(len(moves)) if moves else None,
-        "P_4": float(near[4]) / float(len(moves)) if moves else None,
-        "P_8": float(near[8]) / float(len(moves)) if moves else None,
-        "P_16": float(near[16]) / float(len(moves)) if moves else None,
-        "P_thetaS_001": float(theta[0.01]) / float(len(moves)) if moves else None,
-        "P_thetaS_005": float(theta[0.05]) / float(len(moves)) if moves else None,
-        "P_thetaS_010": float(theta[0.10]) / float(len(moves)) if moves else None,
-        "kappa_max": max(kappas) if kappas else None,
-        "kappa_q90": quantile(kappas, 0.90),
-        "kappa_q99": quantile(kappas, 0.99),
-        "Q_tot": int(sum(q_values)),
-        "Q_ratio": float(sum(q_values)) / float(q_threshold) if q_threshold > 0 else None,
-        "InitHardness": float(structure["InitHardness"]),
-        "E_total": int(structure["E_total"]),
-        "AP_total": int(structure["AP_total"]),
-        "E_excess_total": float(structure["E_excess_total"]),
-        "AP_excess_total": float(structure["AP_excess_total"]),
+        "improving_swap_count": int(len(improving)) if (full_1swap or compute_dmin1) else None,
+        "P_<0": float(len(improving)) / float(len(moves)) if compute_p_tau and moves else None,
+        "P_0": float(near[0]) / float(len(moves)) if compute_p_tau and moves else None,
+        "P_4": float(near[4]) / float(len(moves)) if compute_p_tau and moves else None,
+        "P_8": float(near[8]) / float(len(moves)) if compute_p_tau and moves else None,
+        "P_16": float(near[16]) / float(len(moves)) if compute_p_tau and moves else None,
+        "P_thetaS_001": float(theta[0.01]) / float(len(moves)) if compute_p_tau and moves else None,
+        "P_thetaS_005": float(theta[0.05]) / float(len(moves)) if compute_p_tau and moves else None,
+        "P_thetaS_010": float(theta[0.10]) / float(len(moves)) if compute_p_tau and moves else None,
+        "kappa_max": max(kappas) if compute_kappa and kappas else None,
+        "kappa_q90": quantile(kappas, 0.90) if compute_kappa else None,
+        "kappa_q99": quantile(kappas, 0.99) if compute_kappa else None,
+        "Q_tot": int(sum(q_values)) if compute_q_ratio else None,
+        "Q_ratio": float(sum(q_values)) / float(q_threshold) if compute_q_ratio and q_threshold > 0 else None,
+        "InitHardness": float(structure["InitHardness"]) if structure else None,
+        "E_total": int(structure["E_total"]) if structure else None,
+        "AP_total": int(structure["AP_total"]) if structure else None,
+        "E_excess_total": float(structure["E_excess_total"]) if structure else None,
+        "AP_excess_total": float(structure["AP_excess_total"]) if structure else None,
         "num_swaps_diagnosed": int(len(moves)),
     }
-    out.update(moment_payload(counts, lam, p, powers=powers))
+    out.update(moment_payload(counts, lam, p, powers=powers) if compute_moments else empty_moment_payload(powers))
     return out
 
 
@@ -593,9 +640,9 @@ def random_swap(rng, blocks, p):
     return {"block": int(block_idx), "removed": int(removed), "added": int(added)}
 
 
-def candidate_record(blocks, p, ks, lam, baseline, origin, mode=None, seed=None, step=None, family=None, extra=None, powers=POWERS_DEFAULT):
+def candidate_record(blocks, p, ks, lam, baseline, origin, mode=None, seed=None, step=None, family=None, extra=None, powers=POWERS_DEFAULT, diagnostics_cfg=None):
     counts = total_diff_counts(p, blocks)
-    diag = full_diagnostic(blocks, counts, lam, p, baseline, powers=powers)
+    diag = full_diagnostic(blocks, counts, lam, p, baseline, powers=powers, diagnostics_cfg=diagnostics_cfg)
     h = canonical_hash(blocks, ks, p)
     row = {
         "candidate_id": "{}_{}_{}_{}".format(h[:12], mode or "init", "na" if seed is None else seed, "na" if step is None else step),
@@ -629,7 +676,7 @@ def quick_score(blocks, p, lam):
     return score_counts(total_diff_counts(p, blocks), lam)
 
 
-def initial_candidates(cfg, p, ks, lam, baseline, exact_blocks, powers):
+def initial_candidates(cfg, p, ks, lam, baseline, exact_blocks, powers, diagnostics_cfg):
     init_cfg = cfg.get("initialization", {})
     families = init_cfg.get("families", ["pure_random"])
     candidates_per_family = int(init_cfg.get("candidates_per_family", 20))
@@ -701,6 +748,7 @@ def initial_candidates(cfg, p, ks, lam, baseline, exact_blocks, powers):
                 family=family,
                 extra=extra,
                 powers=powers,
+                diagnostics_cfg=diagnostics_cfg,
             )
             rows.append(row)
     return rows
@@ -855,7 +903,7 @@ def choose_move(mode, blocks, counts, lam, p, rng, visited):
     return None
 
 
-def run_trajectory(mode, seed_index, initial_row, cfg, p, ks, lam, baseline, powers):
+def run_trajectory(mode, seed_index, initial_row, cfg, p, ks, lam, baseline, powers, diagnostics_cfg):
     run_cfg = cfg.get("run", {})
     seed_base = int(get_in(cfg, ("experiment", "random_seed_base"), 0))
     rng = random.Random(int(seed_base + 100000 * (seed_index + 1) + sum(ord(c) for c in mode)))
@@ -885,6 +933,7 @@ def run_trajectory(mode, seed_index, initial_row, cfg, p, ks, lam, baseline, pow
             family=initial_row.get("origin_family"),
             extra={"accepted_moves": int(accepted), "initial_hash": initial_row["canonical_hash"]},
             powers=powers,
+            diagnostics_cfg=diagnostics_cfg,
         )
         snapshots.append(row)
 
@@ -899,7 +948,7 @@ def run_trajectory(mode, seed_index, initial_row, cfg, p, ks, lam, baseline, pow
         if next_blocks is None:
             break
         blocks = next_blocks
-        counts = total_diff_counts(p, blocks)
+        counts = apply_sparse_delta(counts, move["delta"]) if move.get("delta") is not None else total_diff_counts(p, blocks)
         accepted += 1
         visited.add(canonical_hash(blocks, ks, p))
         score = score_counts(counts, lam)
@@ -924,6 +973,7 @@ def run_trajectory(mode, seed_index, initial_row, cfg, p, ks, lam, baseline, pow
         family=initial_row.get("origin_family"),
         extra={"accepted_moves": int(accepted), "initial_hash": initial_row["canonical_hash"], "final": True},
         powers=powers,
+        diagnostics_cfg=diagnostics_cfg,
     )
     best_row = candidate_record(
         best_blocks,
@@ -938,6 +988,7 @@ def run_trajectory(mode, seed_index, initial_row, cfg, p, ks, lam, baseline, pow
         family=initial_row.get("origin_family"),
         extra={"accepted_moves": int(accepted), "initial_hash": initial_row["canonical_hash"], "best_in_run": True},
         powers=powers,
+        diagnostics_cfg=diagnostics_cfg,
     )
     return {
         "run_id": "{}_{}".format(mode, seed_index),
@@ -1161,7 +1212,7 @@ def repair_moment(parent, cfg, p, ks, lam, baseline, rng, powers):
     return best["blocks"], {"eta": best["eta"], "objective": best["objective"], "moment_penalty": best.get("moment_penalty"), "selected_moves": [] if best["move"] is None else [compact_move(best["move"])]}
 
 
-def repair_candidate(parent, repair_mode, cfg, p, ks, lam, baseline, rng, powers):
+def repair_candidate(parent, repair_mode, cfg, p, ks, lam, baseline, rng, powers, diagnostics_cfg):
     if repair_mode == "sparse_vector_cancellation_beam":
         after_blocks, details = repair_sparse(parent, cfg, p, ks, lam, baseline, rng, powers)
     elif repair_mode == "pair_level_partial_defect_repair":
@@ -1185,6 +1236,7 @@ def repair_candidate(parent, repair_mode, cfg, p, ks, lam, baseline, rng, powers
         family=parent.get("origin_family"),
         extra={"parent_hash": parent["canonical_hash"], "repair_parent_mode": parent.get("mode")},
         powers=powers,
+        diagnostics_cfg=diagnostics_cfg,
     )
     row = {
         "parent_hash": parent["canonical_hash"],
@@ -1656,12 +1708,13 @@ def main():
         write_json_safe(os.path.join(out_dir, "exact_validation.json"), exact_validation)
 
         baseline = random_baseline_tuple(p, ks)
+        diagnostics_cfg = cfg.get("diagnostics", {})
         powers = tuple(int(x) for x in get_in(cfg, ("diagnostics", "moment_orders"), POWERS_DEFAULT))
         exact_blocks = None
         if target.get("has_known_exact") and target.get("exact_json"):
             _data, _v, _n, _ks, _lam, exact_blocks = load_candidate(target.get("exact_json"))
 
-        initial_rows = initial_candidates(cfg, p, ks, lam, baseline, exact_blocks, powers)
+        initial_rows = initial_candidates(cfg, p, ks, lam, baseline, exact_blocks, powers, diagnostics_cfg)
         apply_exactlike_scores(initial_rows, cfg)
         write_jsonl(os.path.join(out_dir, "initial_candidates.jsonl"), initial_rows)
         print("Initial candidates:", len(initial_rows))
@@ -1673,7 +1726,7 @@ def main():
         for mode in modes:
             for seed_index in seed_indices:
                 initial = select_initial(initial_rows, seed_index)
-                result = run_trajectory(mode, seed_index, initial, cfg, p, ks, lam, baseline, powers)
+                result = run_trajectory(mode, seed_index, initial, cfg, p, ks, lam, baseline, powers, diagnostics_cfg)
                 run_summaries.append(result)
                 snapshot_rows.extend(result["_snapshots"])
                 diagnostic_rows.extend(result["_snapshots"])
@@ -1732,7 +1785,7 @@ def main():
             rng = random.Random(int(int(get_in(cfg, ("experiment", "random_seed_base"), 0)) + 620000))
             for parent in repair_candidates:
                 for repair_mode in repair_modes:
-                    attempt = repair_candidate(parent, repair_mode, cfg, p, ks, lam, baseline, rng, powers)
+                    attempt = repair_candidate(parent, repair_mode, cfg, p, ks, lam, baseline, rng, powers, diagnostics_cfg)
                     repair_rows.append(attempt)
                     after = attempt["_after_row"]
                     if after["score"] == 0:
