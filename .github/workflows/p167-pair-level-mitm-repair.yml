@@ -11,7 +11,7 @@ on:
       candidate_roots:
         description: "Comma-separated candidate files/directories"
         required: false
-        default: "outputs/candidates/near_hits"
+        default: "configs/fixtures/p167_focused_nearhit_candidates.jsonl,outputs/candidates/near_hits"
         type: string
       artifact_run_id:
         description: "Optional prior GitHub Actions run id whose artifacts contain extra p167 near-hit candidates"
@@ -103,6 +103,7 @@ on:
       - "sage/72_p167_pair_level_mitm_repair_diagnostic.sage"
       - ".github/workflows/p167-pair-level-mitm-repair.yml"
       - "sage/06_known_sds_regression.sage"
+      - "configs/fixtures/p167_focused_nearhit_candidates.jsonl"
       - "outputs/candidates/near_hits/**"
 
 permissions:
@@ -276,7 +277,7 @@ jobs:
       - name: Run p167 pair-level MITM repair diagnostic
         env:
           OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
-          CANDIDATE_ROOTS: ${{ inputs.candidate_roots || 'outputs/candidates/near_hits' }}
+          CANDIDATE_ROOTS: ${{ inputs.candidate_roots || 'configs/fixtures/p167_focused_nearhit_candidates.jsonl,outputs/candidates/near_hits' }}
           MAX_CANDIDATES: ${{ inputs.max_candidates || '2' }}
           MAX_SCORE: ${{ inputs.max_score || '232' }}
           SCORE_SET: ${{ inputs.score_set || '164,176,180,184,188,192,200,216,228,232' }}

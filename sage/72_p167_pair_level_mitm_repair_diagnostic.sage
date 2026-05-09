@@ -313,7 +313,7 @@ def blocks_from_payload(payload):
 
 def params_from_payload(payload):
     p = payload.get("p", payload.get("v"))
-    ks = payload.get("ks")
+    ks = payload.get("ks", payload.get("tuple"))
     lam = payload.get("lambda", payload.get("lam"))
     try:
         p = int(p) if p is not None else None
@@ -1795,9 +1795,16 @@ def run(args):
     ensure_dir(args.out_dir)
     if args.aggregate_roots:
         candidates, attempts, generated, snapshots = aggregate_roots(args)
+        if not candidates and not attempts and not generated:
+            raise RuntimeError("No aggregate p167 pair-level MITM outputs were found in --aggregate-roots")
     else:
         roots = file_roots(args.candidate_roots)
         candidates_all = collect_candidates(args, roots)
+        if not candidates_all:
+            raise RuntimeError(
+                "No p167 near-hit candidates matched the input roots. "
+                "Use configs/fixtures/p167_focused_nearhit_candidates.jsonl or provide prior artifact roots."
+            )
         candidates = shard_filter(candidates_all, args.shard_index, args.shard_count)
         exact_by_split = reference_profiles(args.reference_json, args.p, args.ks, args.lam)
         selected_splits = split_by_name(args.splits)
