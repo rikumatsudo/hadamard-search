@@ -1631,9 +1631,16 @@ def build_hypotheses(score_band_summary, mode_summary, split_summary, source_sum
     source_gap = (max(source_rates) - min(source_rates)) if source_rates else 0.0
     h6 = "supported" if split_gap >= 0.05 or source_gap >= 0.10 else ("inconclusive" if not split_rates and not source_rates else "not_supported")
 
-    gen_total = sum(int(row.get("generated_count") or 0) for row in generated_summary)
-    gen_improve = sum(int(row.get("score_improvement_count") or 0) for row in generated_summary)
-    gen_score0 = sum(int(row.get("score0_count") or 0) for row in generated_summary)
+    generated_overall = None
+    for row in generated_summary:
+        if row.get("mode") == "sketch_mitm_pair_generation":
+            generated_overall = row
+            break
+    if generated_overall is None and generated_summary:
+        generated_overall = max(generated_summary, key=lambda row: int(row.get("generated_count") or 0))
+    gen_total = int((generated_overall or {}).get("generated_count") or 0)
+    gen_improve = int((generated_overall or {}).get("score_improvement_count") or 0)
+    gen_score0 = int((generated_overall or {}).get("score0_count") or 0)
     h7 = "supported" if gen_improve > 0 or gen_score0 > 0 else ("not_supported" if gen_total > 0 else "inconclusive")
 
     return {
@@ -1746,24 +1753,47 @@ def write_summary(path, args, candidates, attempts, score_band_summary, mode_sum
         f.write("\nscore=0 candidate は出たか: `{}`。score=0 以外を success とは呼ばない。\n".format(score0_count > 0))
 
 
+def is_aggregate_output_path(path):
+    return any(part.startswith("p167-pair-mitm-aggregate-") for part in path.split(os.sep))
+
+
 def aggregate_roots(args):
     roots = file_roots(args.aggregate_roots)
     candidates = []
     attempts = []
     generated = []
     snapshots = []
+    configs = []
     for root in roots:
+        for path in glob.glob(os.path.join(root, "**", "run_config.json"), recursive=True):
+            if is_aggregate_output_path(path):
+                continue
+            try:
+                with open(path) as f:
+                    config = json.load(f)
+                if config.get("script") == SCRIPT_NAME and not str(config.get("shard_index", "")).startswith("aggregate"):
+                    configs.append(config)
+            except Exception:
+                pass
         for path in glob.glob(os.path.join(root, "**", "input_p167_pair_mitm_candidates.jsonl"), recursive=True):
+            if is_aggregate_output_path(path):
+                continue
             candidates.extend(read_jsonl(path))
         for path in glob.glob(os.path.join(root, "**", "p167_pair_mitm_attempts.jsonl"), recursive=True):
+            if is_aggregate_output_path(path):
+                continue
             attempts.extend(read_jsonl(path))
         for path in glob.glob(os.path.join(root, "**", "p167_pair_mitm_generated_candidates.jsonl"), recursive=True):
+            if is_aggregate_output_path(path):
+                continue
             generated.extend(read_jsonl(path))
         for path in glob.glob(os.path.join(root, "**", "p167_pair_mitm_snapshots.jsonl"), recursive=True):
+            if is_aggregate_output_path(path):
+                continue
             snapshots.extend(read_jsonl(path))
     candidates = dedupe_rows(candidates, "candidate_hash")
     generated = dedupe_rows(generated, "candidate_hash")
-    return candidates, attempts, generated, snapshots
+    return candidates, attempts, generated, snapshots, configs
 
 
 def read_jsonl(path):
@@ -1793,8 +1823,9 @@ def dedupe_rows(rows, key):
 
 def run(args):
     ensure_dir(args.out_dir)
+    aggregate_configs = []
     if args.aggregate_roots:
-        candidates, attempts, generated, snapshots = aggregate_roots(args)
+        candidates, attempts, generated, snapshots, aggregate_configs = aggregate_roots(args)
         if not candidates and not attempts and not generated:
             raise RuntimeError("No aggregate p167 pair-level MITM outputs were found in --aggregate-roots")
     else:
@@ -1833,7 +1864,12 @@ def run(args):
     score_band_summary, mode_summary, split_summary, source_summary, candidate_summary, generated_summary = build_summaries(attempts, generated)
     hypotheses = build_hypotheses(score_band_summary, mode_summary, split_summary, source_summary, generated_summary)
 
-    run_config = vars(args).copy()
+    run_config = aggregate_configs[0].copy() if aggregate_configs else vars(args).copy()
+    if aggregate_configs:
+        run_config["aggregate_roots"] = args.aggregate_roots
+        run_config["aggregate_input_config_count"] = len(aggregate_configs)
+        run_config["out_dir"] = args.out_dir
+        run_config["shard_index"] = "aggregate"
     run_config["script"] = SCRIPT_NAME
     run_config["candidate_count"] = len(candidates)
     run_config["attempt_count"] = len(attempts)
