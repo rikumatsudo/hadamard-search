@@ -16,7 +16,7 @@ on:
       seeds:
         description: "Override run.seeds. Leave blank to use config."
         required: false
-        default: "1"
+        default: ""
         type: string
       seed_start:
         description: "First seed index for a direct seed range. Leave blank for 0."
@@ -46,27 +46,32 @@ on:
       steps:
         description: "Override run.steps. Leave blank to use config."
         required: false
-        default: "1"
+        default: ""
         type: string
       snapshot_interval:
         description: "Override run.snapshot_interval. Leave blank to use config."
         required: false
-        default: "1"
+        default: ""
         type: string
       candidates_per_family:
         description: "Override initialization.candidates_per_family. Leave blank to use config."
         required: false
-        default: "1"
+        default: ""
         type: string
       selected_per_family:
         description: "Override initialization.selected_per_family. Leave blank to use config."
         required: false
-        default: "1"
+        default: ""
         type: string
       max_repair_candidates:
         description: "Maximum routed repair candidates."
         required: false
-        default: "0"
+        default: ""
+        type: string
+      max_parallel:
+        description: "Maximum parallel shard jobs for matrix fan-out."
+        required: false
+        default: "40"
         type: string
       artifact_retention_days:
         description: "Artifact retention, 1-90 days."
@@ -86,10 +91,37 @@ env:
   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
 jobs:
+  define-shards:
+    name: Define shard matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      shard_jobs: ${{ steps.matrix.outputs.shard_jobs }}
+      fanout: ${{ steps.matrix.outputs.fanout }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build matrix
+        id: matrix
+        env:
+          SHARD_INDEX: ${{ inputs.shard_index }}
+          SHARD_COUNT: ${{ inputs.shard_count }}
+          MAX_PARALLEL: ${{ inputs.max_parallel }}
+        run: |
+          set -euo pipefail
+          python3 scripts/actions_shard_matrix.py
+
   run:
-    name: Run Sage experiment
-    runs-on: ubuntu-latest
+    name: Run Sage experiment (${{ matrix.shard_suffix }})
+    needs: define-shards
+    runs-on: ubuntu-24.04
     timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.define-shards.outputs.max_parallel) }}
+      matrix: ${{ fromJSON(needs.define-shards.outputs.matrix) }}
 
     steps:
       - name: Checkout
@@ -100,6 +132,7 @@ jobs:
         env:
           CONFIG: ${{ inputs.config }}
           RUN_LABEL: ${{ inputs.run_label }}
+          SHARD_SUFFIX: ${{ matrix.shard_suffix }}
           RETENTION_DAYS: ${{ inputs.artifact_retention_days }}
         run: |
           set -euo pipefail
@@ -118,12 +151,18 @@ jobs:
             exit 2
           fi
 
-          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          raw_label="$RUN_LABEL"
+          if [ "$SHARD_SUFFIX" != "single" ]; then
+            raw_label="${RUN_LABEL}-${SHARD_SUFFIX}"
+          fi
+
+          safe_label="$(printf '%s' "$raw_label" | tr -c 'A-Za-z0-9_.-' '-')"
           safe_label="${safe_label:-manual}"
           out_dir="outputs/artifacts/${safe_label}-${GITHUB_RUN_ID}"
           mkdir -p "$out_dir"
 
           {
+            echo "raw_label=$raw_label"
             echo "safe_label=$safe_label"
             echo "out_dir=$out_dir"
             echo "retention_days=$RETENTION_DAYS"
@@ -138,7 +177,7 @@ jobs:
           SEED_START: ${{ inputs.seed_start }}
           SEED_COUNT: ${{ inputs.seed_count }}
           TOTAL_SEEDS: ${{ inputs.total_seeds }}
-          SHARD_INDEX: ${{ inputs.shard_index }}
+          SHARD_INDEX: ${{ matrix.shard_index }}
           SHARD_COUNT: ${{ inputs.shard_count }}
           STEPS: ${{ inputs.steps }}
           SNAPSHOT_INTERVAL: ${{ inputs.snapshot_interval }}
@@ -184,7 +223,7 @@ jobs:
         env:
           OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
           CONFIG: ${{ inputs.config }}
-          RUN_LABEL: ${{ inputs.run_label }}
+          RUN_LABEL: ${{ steps.prepare.outputs.raw_label }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           JOB_STATUS: ${{ job.status }}
         run: |
@@ -207,10 +246,58 @@ jobs:
           if-no-files-found: warn
           retention-days: ${{ steps.prepare.outputs.retention_days }}
 
+  aggregate:
+    name: Aggregate shard results
+    if: always()
+    needs:
+      - define-shards
+      - run
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download shard artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          path: downloaded-artifacts
+
+      - name: Build aggregate summary
+        env:
+          RUN_LABEL: ${{ inputs.run_label }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ needs.run.result }}
+          SHARD_JOBS: ${{ needs.define-shards.outputs.shard_jobs }}
+          FANOUT: ${{ needs.define-shards.outputs.fanout }}
+        run: |
+          set -euo pipefail
+          python3 scripts/actions_aggregate.py \
+            --artifacts-dir downloaded-artifacts \
+            --run-label "$RUN_LABEL" \
+            --run-url "$RUN_URL" \
+            --status "$JOB_STATUS" \
+            --expected-shards "$SHARD_JOBS" \
+            --fanout "$FANOUT" \
+            --payload aggregate_slack_payload.json \
+            --summary aggregate_summary.md \
+            --github-summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload aggregate summary
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: research-aggregate-${{ github.run_id }}
+          path: |
+            aggregate_summary.md
+            aggregate_slack_payload.json
+          if-no-files-found: warn
+          retention-days: ${{ inputs.artifact_retention_days }}
+
       - name: Notify Slack
         if: always() && env.SLACK_WEBHOOK_URL != ''
         uses: slackapi/slack-github-action@v3.0.2
         with:
           webhook: ${{ env.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
-          payload-file-path: ${{ steps.prepare.outputs.out_dir }}/slack_payload.json
+          payload-file-path: aggregate_slack_payload.json
