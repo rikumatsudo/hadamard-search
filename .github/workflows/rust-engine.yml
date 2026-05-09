@@ -1,0 +1,48 @@
+name: Rust search engine
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/rust-engine.yml"
+      - "engines/rust-search/**"
+      - "configs/experiments/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build and smoke test Rust search
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Rust version
+        run: rustc --version && cargo --version
+
+      - name: Test
+        run: cargo test --manifest-path engines/rust-search/Cargo.toml
+
+      - name: Smoke run
+        run: |
+          set -euo pipefail
+          cargo run --release --manifest-path engines/rust-search/Cargo.toml -- \
+            --config configs/experiments/p167_tuple_A_actions_smoke.yaml \
+            --out-dir rust-engine-smoke \
+            --seeds 1 \
+            --steps 1 \
+            --candidates-per-family 1 \
+            --selected-per-family 1
+          test -f rust-engine-smoke/candidates.jsonl
+          test -f rust-engine-smoke/engine_summary.json
+
+      - name: Convert score0 candidates for Sage
+        run: |
+          set -euo pipefail
+          python3 scripts/rust_candidates_to_sage.py \
+            --candidates rust-engine-smoke/candidates.jsonl \
+            --out-dir rust-engine-smoke/score0_candidates \
+            --summary rust-engine-smoke/score0_candidates.json
+          test -f rust-engine-smoke/score0_candidates.json
