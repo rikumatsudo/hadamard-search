@@ -1391,6 +1391,8 @@ def main():
     parser.add_argument("--snapshot-interval", type=int, default=50)
     parser.add_argument("--update-interval", type=int, default=50)
     parser.add_argument("--no-move-patience", type=int, default=80)
+    parser.add_argument("--shard-index", type=int, default=0)
+    parser.add_argument("--shard-count", type=int, default=1)
     parser.add_argument("--seed-base", type=int, default=20260507)
     parser.add_argument("--out-dir", default=None)
     parser.add_argument("--no-external-validation", action="store_true")
@@ -1399,6 +1401,12 @@ def main():
     p = int(args.p)
     ks = parse_ks(args.ks)
     lam = int(args.lam)
+    shard_index = int(args.shard_index)
+    shard_count = int(args.shard_count)
+    if shard_count < 1:
+        raise ValueError("--shard-count must be >= 1")
+    if shard_index < 0 or shard_index >= shard_count:
+        raise ValueError("--shard-index must satisfy 0 <= shard_index < shard_count")
     baseline = S62["random_baseline_tuple"](p, ks)
     out_dir = args.out_dir or os.path.join("outputs", "explorations", "{}_p37_focused_defect_random_walk_validation".format(now_stamp()))
     ensure_dir(out_dir)
@@ -1415,6 +1423,8 @@ def main():
         "restarts": int(args.restarts),
         "sample_swaps": int(args.sample_swaps),
         "snapshot_interval": int(args.snapshot_interval),
+        "shard_index": shard_index,
+        "shard_count": shard_count,
         "modes": list(MODES),
         "candidate_search_paths": candidate_search_paths(),
         "dynamic_reference": DYNAMIC_REFERENCE,
@@ -1434,25 +1444,81 @@ def main():
     write_jsonl(os.path.join(out_dir, "input_focused_walk_candidates.jsonl"), parent_rows)
     print("Parents:", len(parent_rows))
 
+    attempt_plan = []
+    attempt_id = 0
+    for parent_idx, parent in enumerate(parent_rows):
+        for mode in MODES:
+            for restart in range(int(args.restarts)):
+                if attempt_id % shard_count == shard_index:
+                    attempt_plan.append(
+                        {
+                            "attempt_id": int(attempt_id),
+                            "parent_idx": int(parent_idx),
+                            "parent": parent,
+                            "mode": mode,
+                            "restart": int(restart),
+                        }
+                    )
+                attempt_id += 1
+    config.update(
+        {
+            "attempt_count_total": int(attempt_id),
+            "attempt_count_shard": int(len(attempt_plan)),
+        }
+    )
+    write_json(os.path.join(out_dir, "run_config.json"), config)
+    write_jsonl(
+        os.path.join(out_dir, "focused_walk_shard_plan.jsonl"),
+        [
+            {
+                "attempt_id": item["attempt_id"],
+                "parent_idx": item["parent_idx"],
+                "parent_hash": item["parent"]["canonical_hash"],
+                "parent_score": item["parent"]["score"],
+                "mode": item["mode"],
+                "restart": item["restart"],
+                "shard_index": shard_index,
+                "shard_count": shard_count,
+            }
+            for item in attempt_plan
+        ],
+    )
+    print("Shard:", shard_index, "/", shard_count, "attempts", len(attempt_plan), "of", attempt_id)
+
     attempts = []
     snapshots = []
     dynamics = []
     score0_paths = []
-    for parent_idx, parent in enumerate(parent_rows):
-        print("parent", parent_idx, "score", parent["score"], "label", parent.get("label"), parent["canonical_hash"][:12])
-        for mode in MODES:
-            for restart in range(int(args.restarts)):
-                attempt, run_snapshots = run_focused_attempt(parent, mode, restart, args, p, ks, lam, baseline, POWERS_DEFAULT)
-                attempts.append(attempt)
-                snapshots.extend(run_snapshots)
-                dynamics.append(defect_dynamics_for_attempt(attempt))
-                best_row = attempt["_best_row"]
-                if int(best_row["score"]) == 0:
-                    path = save_score0(out_dir, best_row, "{}_r{}".format(mode, restart), p, ks, lam)
-                    if path and path not in score0_paths:
-                        score0_paths.append(path)
-                print("  ", mode, restart, "accepted", attempt["accepted_moves"], "best", attempt["best_S"], "final", attempt["final_S"])
-                sys.stdout.flush()
+    for item in attempt_plan:
+        parent_idx = item["parent_idx"]
+        parent = item["parent"]
+        mode = item["mode"]
+        restart = item["restart"]
+        print(
+            "attempt",
+            item["attempt_id"],
+            "parent",
+            parent_idx,
+            "score",
+            parent["score"],
+            "label",
+            parent.get("label"),
+            parent["canonical_hash"][:12],
+        )
+        attempt, run_snapshots = run_focused_attempt(parent, mode, restart, args, p, ks, lam, baseline, POWERS_DEFAULT)
+        attempt["attempt_id"] = int(item["attempt_id"])
+        attempt["shard_index"] = shard_index
+        attempt["shard_count"] = shard_count
+        attempts.append(attempt)
+        snapshots.extend(run_snapshots)
+        dynamics.append(defect_dynamics_for_attempt(attempt))
+        best_row = attempt["_best_row"]
+        if int(best_row["score"]) == 0:
+            path = save_score0(out_dir, best_row, "{}_r{}".format(mode, restart), p, ks, lam)
+            if path and path not in score0_paths:
+                score0_paths.append(path)
+        print("  ", mode, restart, "accepted", attempt["accepted_moves"], "best", attempt["best_S"], "final", attempt["final_S"])
+        sys.stdout.flush()
 
     write_jsonl(os.path.join(out_dir, "focused_walk_attempts.jsonl"), attempts)
     write_jsonl(os.path.join(out_dir, "focused_walk_snapshots.jsonl"), snapshots)

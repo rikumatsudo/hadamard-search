@@ -33,6 +33,16 @@ on:
         required: false
         default: "20"
         type: string
+      shard_count:
+        description: "Shard count for production fan-out"
+        required: false
+        default: "1"
+        type: string
+      max_parallel:
+        description: "Maximum parallel shard jobs"
+        required: false
+        default: "1"
+        type: string
       artifact_retention_days:
         description: "Artifact retention, 1-90 days"
         required: false
@@ -61,10 +71,56 @@ env:
   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
 jobs:
-  focused-walk:
-    name: Run p37 focused walk smoke
+  define-shards:
+    name: Define shard matrix
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      shard_jobs: ${{ steps.matrix.outputs.shard_jobs }}
+      fanout: ${{ steps.matrix.outputs.fanout }}
+    steps:
+      - name: Build matrix
+        id: matrix
+        env:
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          shard_count = int(os.environ.get("SHARD_COUNT") or "1")
+          max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
+          if shard_count < 1:
+              raise SystemExit("shard_count must be >= 1")
+          if max_parallel < 1:
+              raise SystemExit("max_parallel must be >= 1")
+          max_parallel = min(max_parallel, shard_count)
+          width = max(2, len(str(shard_count - 1)))
+          matrix = [
+              {
+                  "shard_index": idx,
+                  "shard_suffix": "single" if shard_count == 1 else f"s{idx:0{width}d}",
+              }
+              for idx in range(shard_count)
+          ]
+          print(f"matrix={json.dumps({'include': matrix}, separators=(',', ':'))}")
+          print(f"max_parallel={max_parallel}")
+          print(f"shard_jobs={shard_count}")
+          print(f"fanout={'true' if shard_count > 1 else 'false'}")
+          PY
+
+  focused-walk:
+    name: Run p37 focused walk (${{ matrix.shard_suffix }})
+    needs: define-shards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.define-shards.outputs.max_parallel) }}
+      matrix: ${{ fromJSON(needs.define-shards.outputs.matrix) }}
     outputs:
       out_dir: ${{ steps.prepare.outputs.out_dir }}
       safe_label: ${{ steps.prepare.outputs.safe_label }}
@@ -78,6 +134,7 @@ jobs:
         env:
           RUN_LABEL: ${{ inputs.run_label || 'focused-pr' }}
           RETENTION_DAYS: ${{ inputs.artifact_retention_days || '14' }}
+          SHARD_SUFFIX: ${{ matrix.shard_suffix }}
         run: |
           set -euo pipefail
 
@@ -86,7 +143,12 @@ jobs:
             exit 2
           fi
 
-          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          raw_label="$RUN_LABEL"
+          if [ "$SHARD_SUFFIX" != "single" ]; then
+            raw_label="${RUN_LABEL}-${SHARD_SUFFIX}"
+          fi
+
+          safe_label="$(printf '%s' "$raw_label" | tr -c 'A-Za-z0-9_.-' '-')"
           safe_label="${safe_label:-focused-smoke}"
           out_dir="outputs/artifacts/${safe_label}-${GITHUB_RUN_ID}"
           mkdir -p "$out_dir"
@@ -106,6 +168,8 @@ jobs:
           RESTARTS: ${{ inputs.restarts || '1' }}
           SAMPLE_SWAPS: ${{ inputs.sample_swaps || '80' }}
           SNAPSHOT_INTERVAL: ${{ inputs.snapshot_interval || '20' }}
+          SHARD_INDEX: ${{ matrix.shard_index }}
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
         run: |
           set -euo pipefail
 
@@ -116,6 +180,8 @@ jobs:
             --restarts "$RESTARTS"
             --sample-swaps "$SAMPLE_SWAPS"
             --snapshot-interval "$SNAPSHOT_INTERVAL"
+            --shard-index "$SHARD_INDEX"
+            --shard-count "$SHARD_COUNT"
             --out-dir "$OUT_DIR"
           )
           sage_command="$(printf '%q ' "${args[@]}")"
@@ -203,10 +269,134 @@ jobs:
           if-no-files-found: warn
           retention-days: ${{ steps.prepare.outputs.retention_days }}
 
+  aggregate:
+    name: Aggregate focused walk shards
+    if: always()
+    needs:
+      - define-shards
+      - focused-walk
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download shard artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          path: downloaded-artifacts
+
+      - name: Build aggregate summary
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'focused-pr' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ needs.focused-walk.result }}
+          EXPECTED_SHARDS: ${{ needs.define-shards.outputs.shard_jobs }}
+          FANOUT: ${{ needs.define-shards.outputs.fanout }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import csv
+          import glob
+          import json
+          import os
+
+          rows = []
+          attempts = 0
+          score0 = 0
+          for path in glob.glob("downloaded-artifacts/*/hypothesis_evaluation.json"):
+              with open(path) as f:
+                  payload = json.load(f)
+              payload["artifact"] = path.split(os.sep)[1]
+              rows.append(payload)
+          for path in glob.glob("downloaded-artifacts/*/focused_walk_attempts.jsonl"):
+              with open(path) as f:
+                  for line in f:
+                      if not line.strip():
+                          continue
+                      attempts += 1
+                      try:
+                          row = json.loads(line)
+                      except Exception:
+                          continue
+                      if row.get("score0_seen"):
+                          score0 += 1
+
+          status = os.environ["JOB_STATUS"].upper()
+          expected = int(os.environ.get("EXPECTED_SHARDS") or "0")
+          summary = {
+              "status": status,
+              "run_label": os.environ["RUN_LABEL"],
+              "run_url": os.environ["RUN_URL"],
+              "expected_shards": expected,
+              "observed_shards": len(rows),
+              "fanout": os.environ.get("FANOUT") == "true",
+              "attempt_count": attempts,
+              "score0_attempt_count": score0,
+              "H_FRW1_counts": {},
+              "H_FRW2_counts": {},
+              "H_FRW3_counts": {},
+              "H_FRW4_counts": {},
+          }
+          for key in ("H_FRW1", "H_FRW2", "H_FRW3", "H_FRW4"):
+              counts = summary[f"{key}_counts"]
+              for row in rows:
+                  value = str(row.get(key, "missing"))
+                  counts[value] = counts.get(value, 0) + 1
+
+          with open("aggregate_summary.json", "w") as f:
+              json.dump(summary, f, indent=2, sort_keys=True)
+              f.write("\n")
+
+          with open("aggregate_summary.md", "w") as f:
+              f.write("# p37 focused defect random walk aggregate\n\n")
+              for key in ("status", "run_label", "expected_shards", "observed_shards", "attempt_count", "score0_attempt_count"):
+                  f.write(f"- {key}: `{summary[key]}`\n")
+              f.write("\n```json\n")
+              json.dump(summary, f, indent=2, sort_keys=True)
+              f.write("\n```\n")
+
+          payload = {
+              "text": "p37 focused defect random walk aggregate",
+              "blocks": [
+                  {
+                      "type": "section",
+                      "text": {
+                          "type": "mrkdwn",
+                          "text": f"*p37 focused defect random walk* <{summary['run_url']}|GitHub Actions run>",
+                      },
+                  },
+                  {
+                      "type": "section",
+                      "fields": [
+                          {"type": "mrkdwn", "text": f"*Status*\\n{summary['status']}"},
+                          {"type": "mrkdwn", "text": f"*Label*\\n{summary['run_label']}"},
+                          {"type": "mrkdwn", "text": f"*Shards*\\n{summary['observed_shards']}/{summary['expected_shards']}"},
+                          {"type": "mrkdwn", "text": f"*Attempts*\\n{summary['attempt_count']}"},
+                          {"type": "mrkdwn", "text": f"*Score0 attempts*\\n{summary['score0_attempt_count']}"},
+                          {"type": "mrkdwn", "text": f"*H-FRW1*\\n{summary['H_FRW1_counts']}"},
+                      ],
+                  },
+              ],
+          }
+          with open("aggregate_slack_payload.json", "w") as f:
+              json.dump(payload, f)
+          PY
+          cat aggregate_summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload aggregate summary
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: focused-defect-walk-aggregate-${{ github.run_id }}
+          path: |
+            aggregate_summary.md
+            aggregate_summary.json
+            aggregate_slack_payload.json
+          if-no-files-found: warn
+          retention-days: ${{ inputs.artifact_retention_days || '14' }}
+
       - name: Notify Slack
         if: always() && env.SLACK_WEBHOOK_URL != ''
         uses: slackapi/slack-github-action@v3.0.2
         with:
           webhook: ${{ env.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
-          payload-file-path: ${{ steps.prepare.outputs.out_dir }}/slack_payload.json
+          payload-file-path: aggregate_slack_payload.json
