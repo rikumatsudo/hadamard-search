@@ -1,0 +1,407 @@
+name: p37 pair-level profile validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Short label for artifact and Slack messages"
+        required: false
+        default: "p37-pair-profile-smoke"
+        type: string
+      candidate_roots:
+        description: "Comma-separated candidate files/directories"
+        required: false
+        default: "outputs/candidates/small_p,prior-artifacts"
+        type: string
+      artifact_run_id:
+        description: "Optional prior GitHub Actions run id whose artifacts contain p37 focused candidates"
+        required: false
+        default: "25601586976"
+        type: string
+      download_prior_artifacts:
+        description: "Download prior p37 focused run artifacts before analysis"
+        required: false
+        default: true
+        type: boolean
+      max_candidates:
+        description: "Maximum selected p37 candidates"
+        required: false
+        default: "2"
+        type: string
+      score_set:
+        description: "Comma-separated scores to include"
+        required: false
+        default: "0,4,8,12,16,24,32"
+        type: string
+      shard_count:
+        description: "Shard count for production fan-out"
+        required: false
+        default: "1"
+        type: string
+      max_parallel:
+        description: "Maximum parallel shard jobs"
+        required: false
+        default: "1"
+        type: string
+      artifact_retention_days:
+        description: "Artifact retention, 1-90 days"
+        required: false
+        default: "14"
+        type: string
+  pull_request:
+    paths:
+      - "sage/70_p37_pair_level_profile_validation.sage"
+      - ".github/workflows/p37-pair-level-profile.yml"
+      - "sage/06_known_sds_regression.sage"
+      - "outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: p37-pair-profile-${{ github.ref }}-${{ inputs.run_label || github.event_name }}
+  cancel-in-progress: false
+
+env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  known-regression:
+    name: Known SDS regression
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run known SDS regression
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            "sage sage/06_known_sds_regression.sage"
+
+  define-shards:
+    name: Define shard matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      shard_jobs: ${{ steps.matrix.outputs.shard_jobs }}
+      fanout: ${{ steps.matrix.outputs.fanout }}
+    steps:
+      - name: Build matrix
+        id: matrix
+        env:
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          shard_count = int(os.environ.get("SHARD_COUNT") or "1")
+          max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
+          if shard_count < 1:
+              raise SystemExit("shard_count must be >= 1")
+          if max_parallel < 1:
+              raise SystemExit("max_parallel must be >= 1")
+          max_parallel = min(max_parallel, shard_count)
+          width = max(2, len(str(shard_count - 1)))
+          matrix = [
+              {
+                  "shard_index": idx,
+                  "shard_suffix": "single" if shard_count == 1 else f"s{idx:0{width}d}",
+              }
+              for idx in range(shard_count)
+          ]
+          print(f"matrix={json.dumps({'include': matrix}, separators=(',', ':'))}")
+          print(f"max_parallel={max_parallel}")
+          print(f"shard_jobs={shard_count}")
+          print(f"fanout={'true' if shard_count > 1 else 'false'}")
+          PY
+
+  pair-profile:
+    name: Run p37 pair profile (${{ matrix.shard_suffix }})
+    needs:
+      - known-regression
+      - define-shards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.define-shards.outputs.max_parallel) }}
+      matrix: ${{ fromJSON(needs.define-shards.outputs.matrix) }}
+    outputs:
+      out_dir: ${{ steps.prepare.outputs.out_dir }}
+      safe_label: ${{ steps.prepare.outputs.safe_label }}
+      retention_days: ${{ steps.prepare.outputs.retention_days }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download prior p37 focused artifacts
+        if: github.event_name == 'workflow_dispatch' && inputs.download_prior_artifacts == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id || '25601586976' }}
+        run: |
+          set -euo pipefail
+          mkdir -p prior-artifacts
+          gh run download "$ARTIFACT_RUN_ID" --repo "$GITHUB_REPOSITORY" --dir prior-artifacts
+
+      - name: Prepare run
+        id: prepare
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p37-pair-profile-smoke' }}
+          RETENTION_DAYS: ${{ inputs.artifact_retention_days || '14' }}
+          SHARD_SUFFIX: ${{ matrix.shard_suffix }}
+        run: |
+          set -euo pipefail
+
+          if ! [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] || [ "$RETENTION_DAYS" -lt 1 ] || [ "$RETENTION_DAYS" -gt 90 ]; then
+            echo "::error::artifact_retention_days must be an integer from 1 to 90"
+            exit 2
+          fi
+
+          raw_label="$RUN_LABEL"
+          if [ "$SHARD_SUFFIX" != "single" ]; then
+            raw_label="${RUN_LABEL}-${SHARD_SUFFIX}"
+          fi
+
+          safe_label="$(printf '%s' "$raw_label" | tr -c 'A-Za-z0-9_.-' '-')"
+          safe_label="${safe_label:-p37-pair-profile-smoke}"
+          out_dir="outputs/artifacts/${safe_label}-${GITHUB_RUN_ID}"
+          mkdir -p "$out_dir"
+
+          {
+            echo "safe_label=$safe_label"
+            echo "out_dir=$out_dir"
+            echo "retention_days=$RETENTION_DAYS"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run p37 pair-level profile validation
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+          CANDIDATE_ROOTS: ${{ inputs.candidate_roots || 'outputs/candidates/small_p' }}
+          MAX_CANDIDATES: ${{ inputs.max_candidates || '2' }}
+          SCORE_SET: ${{ inputs.score_set || '0,4,8,12,16,24,32' }}
+          SHARD_INDEX: ${{ matrix.shard_index }}
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+        run: |
+          set -euo pipefail
+
+          args=(
+            sage sage/70_p37_pair_level_profile_validation.sage
+            --candidate-roots "$CANDIDATE_ROOTS"
+            --max-candidates "$MAX_CANDIDATES"
+            --score-set "$SCORE_SET"
+            --shard-index "$SHARD_INDEX"
+            --shard-count "$SHARD_COUNT"
+            --out-dir "$OUT_DIR"
+          )
+          sage_command="$(printf '%q ' "${args[@]}")"
+
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            "$sage_command" \
+            2>&1 | tee "$OUT_DIR/runner.log"
+
+      - name: Build GitHub summary
+        if: always()
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## p37 pair-level profile validation"
+            echo
+            if [ -f "$OUT_DIR/p37_pair_level_profile_validation_summary.md" ]; then
+              sed -n '1,220p' "$OUT_DIR/p37_pair_level_profile_validation_summary.md"
+            else
+              echo "Summary was not generated."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build Slack payload
+        if: always()
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+          RUN_LABEL: ${{ inputs.run_label || 'p37-pair-profile-smoke' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+
+          out_dir = os.environ["OUT_DIR"]
+          label = os.environ["RUN_LABEL"]
+          status = os.environ["JOB_STATUS"].upper()
+          run_url = os.environ["RUN_URL"]
+          hypo_path = os.path.join(out_dir, "hypothesis_evaluation.json")
+          hypo = {}
+          if os.path.exists(hypo_path):
+              with open(hypo_path) as f:
+                  hypo = json.load(f)
+          payload = {
+              "text": "p37 pair-level profile validation GitHub Actions run",
+              "blocks": [
+                  {
+                      "type": "section",
+                      "text": {
+                          "type": "mrkdwn",
+                          "text": f"*p37 pair-level profile validation* <{run_url}|GitHub Actions run>",
+                      },
+                  },
+                  {
+                      "type": "section",
+                      "fields": [
+                          {"type": "mrkdwn", "text": f"*Status*\\n{status}"},
+                          {"type": "mrkdwn", "text": f"*Label*\\n{label}"},
+                          {"type": "mrkdwn", "text": f"*H-PAIR1*\\n{hypo.get('H_PAIR1', {}).get('status', 'n/a')}"},
+                          {"type": "mrkdwn", "text": f"*H-PAIR2*\\n{hypo.get('H_PAIR2', {}).get('status', 'n/a')}"},
+                      ],
+                  },
+              ],
+          }
+          with open(os.path.join(out_dir, "slack_payload.json"), "w") as f:
+              json.dump(payload, f)
+          PY
+
+      - name: Upload p37 pair profile artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p37-pair-profile-${{ steps.prepare.outputs.safe_label }}-${{ github.run_id }}
+          path: ${{ steps.prepare.outputs.out_dir }}
+          if-no-files-found: warn
+          retention-days: ${{ steps.prepare.outputs.retention_days }}
+
+  aggregate:
+    name: Aggregate p37 pair profile shards
+    if: always()
+    needs:
+      - define-shards
+      - pair-profile
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download shard artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          path: downloaded-artifacts
+
+      - name: Build aggregate outputs
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p37-pair-profile-smoke' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ needs.pair-profile.result }}
+          EXPECTED_SHARDS: ${{ needs.define-shards.outputs.shard_jobs }}
+          FANOUT: ${{ needs.define-shards.outputs.fanout }}
+        run: |
+          set -euo pipefail
+          mkdir -p aggregate-output
+
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            "sage sage/70_p37_pair_level_profile_validation.sage --aggregate-roots downloaded-artifacts --out-dir aggregate-output"
+
+          python3 - <<'PY'
+          import json
+          import os
+
+          out_dir = "aggregate-output"
+          config_path = os.path.join(out_dir, "run_config.json")
+          hypo_path = os.path.join(out_dir, "hypothesis_evaluation.json")
+          config = {}
+          hypo = {}
+          if os.path.exists(config_path):
+              with open(config_path) as f:
+                  config = json.load(f)
+          if os.path.exists(hypo_path):
+              with open(hypo_path) as f:
+                  hypo = json.load(f)
+          summary = {
+              "status": os.environ["JOB_STATUS"].upper(),
+              "run_label": os.environ["RUN_LABEL"],
+              "run_url": os.environ["RUN_URL"],
+              "expected_shards": int(os.environ.get("EXPECTED_SHARDS") or "0"),
+              "fanout": os.environ.get("FANOUT") == "true",
+              "observed_candidate_count": int(config.get("candidate_count") or 0),
+              "feature_row_count": int(config.get("feature_row_count") or 0),
+              "hypotheses": {key: value.get("status") for key, value in hypo.items() if isinstance(value, dict)},
+          }
+          with open(os.path.join(out_dir, "aggregate_summary.json"), "w") as f:
+              json.dump(summary, f, indent=2, sort_keys=True)
+              f.write("\n")
+          with open(os.path.join(out_dir, "aggregate_summary.md"), "w") as f:
+              f.write("# p37 pair-level profile aggregate\n\n")
+              for key in ("status", "run_label", "expected_shards", "observed_candidate_count", "feature_row_count"):
+                  f.write(f"- {key}: `{summary[key]}`\n")
+              f.write("\n```json\n")
+              json.dump(summary, f, indent=2, sort_keys=True)
+              f.write("\n```\n")
+          payload = {
+              "text": "p37 pair-level profile aggregate",
+              "blocks": [
+                  {
+                      "type": "section",
+                      "text": {
+                          "type": "mrkdwn",
+                          "text": f"*p37 pair-level profile validation* <{summary['run_url']}|GitHub Actions run>",
+                      },
+                  },
+                  {
+                      "type": "section",
+                      "fields": [
+                          {"type": "mrkdwn", "text": f"*Status*\\n{summary['status']}"},
+                          {"type": "mrkdwn", "text": f"*Label*\\n{summary['run_label']}"},
+                          {"type": "mrkdwn", "text": f"*Candidates*\\n{summary['observed_candidate_count']}"},
+                          {"type": "mrkdwn", "text": f"*Feature rows*\\n{summary['feature_row_count']}"},
+                          {"type": "mrkdwn", "text": f"*H-PAIR1*\\n{summary['hypotheses'].get('H_PAIR1', 'n/a')}"},
+                          {"type": "mrkdwn", "text": f"*H-PAIR2*\\n{summary['hypotheses'].get('H_PAIR2', 'n/a')}"},
+                      ],
+                  },
+              ],
+          }
+          with open(os.path.join(out_dir, "aggregate_slack_payload.json"), "w") as f:
+              json.dump(payload, f)
+          PY
+
+          cat aggregate-output/aggregate_summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload aggregate summary
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p37-pair-profile-aggregate-${{ github.run_id }}
+          path: aggregate-output
+          if-no-files-found: warn
+          retention-days: ${{ inputs.artifact_retention_days || '14' }}
+
+      - name: Notify Slack
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v3.0.2
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: aggregate-output/aggregate_slack_payload.json
