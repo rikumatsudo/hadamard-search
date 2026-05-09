@@ -44,6 +44,14 @@
 - aggregate jobはSage/Rustどちらのsummaryも読めるようにする。
 - p37 known SDSでRust出力とSage検証の一致テストを追加する。
 
+実装メモ:
+
+- `engine=rust` はRust探索、score0 candidate変換、Sage厳密検証を同一shard内で実行する。
+- `sage/64_verify_score0_candidates.sage` が `comparison_summary.json` を生成するため、
+  既存のartifact集約とSlack通知はSage/Rust共通で読める。
+- Rust CIでは既知p37 exact candidateをRust風JSONLに変換し、Sage verifierで
+  SDS条件と `HH^T = 148I` を確認する。
+
 ### PR 5: 本番運用チューニング
 
 - p167向けのproduction configを整理する。

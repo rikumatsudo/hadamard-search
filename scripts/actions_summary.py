@@ -26,9 +26,18 @@ def best_score(mode_rows):
     return min(values) if values else None
 
 
+def verification_counts(comparison):
+    verification = comparison.get("verification", {}) if comparison else {}
+    return (
+        verification.get("sds_ok_count"),
+        verification.get("hadamard_ok_count"),
+    )
+
+
 def build_summary(args, comparison):
     mode_rows = comparison.get("mode_summary", []) if comparison else []
     score0_paths = comparison.get("score0_candidate_paths", []) if comparison else []
+    sds_ok, hadamard_ok = verification_counts(comparison)
     summary_path = Path(args.out_dir) / "experiment_summary.md"
 
     lines = [
@@ -36,10 +45,13 @@ def build_summary(args, comparison):
         "",
         "- status: `{}`".format(args.status),
         "- label: `{}`".format(args.run_label),
+        "- engine: `{}`".format(args.engine),
         "- config: `{}`".format(args.config),
         "- run: {}".format(args.run_url),
         "- output: `{}`".format(args.out_dir),
         "- score0 candidates: `{}`".format(len(score0_paths)),
+        "- Sage verified SDS: `{}`".format(fmt_value(sds_ok)),
+        "- Sage verified Hadamard: `{}`".format(fmt_value(hadamard_ok)),
         "- best score overall: `{}`".format(fmt_value(best_score(mode_rows))),
     ]
     if summary_path.exists():
@@ -54,6 +66,7 @@ def build_summary(args, comparison):
 def build_slack_payload(args, comparison):
     mode_rows = comparison.get("mode_summary", []) if comparison else []
     score0_paths = comparison.get("score0_candidate_paths", []) if comparison else []
+    sds_ok, hadamard_ok = verification_counts(comparison)
     best = fmt_value(best_score(mode_rows))
     status = args.status.upper()
     text = "Research experiment {}: {} ({})".format(status, args.run_label, args.config)
@@ -61,7 +74,9 @@ def build_slack_payload(args, comparison):
     fields = [
         {"type": "mrkdwn", "text": "*Status*\n{}".format(status)},
         {"type": "mrkdwn", "text": "*Label*\n{}".format(args.run_label)},
+        {"type": "mrkdwn", "text": "*Engine*\n{}".format(args.engine)},
         {"type": "mrkdwn", "text": "*Score0 candidates*\n{}".format(len(score0_paths))},
+        {"type": "mrkdwn", "text": "*Sage verified*\nSDS {} / HH^T {}".format(fmt_value(sds_ok), fmt_value(hadamard_ok))},
         {"type": "mrkdwn", "text": "*Best score*\n{}".format(best)},
         {"type": "mrkdwn", "text": "*Config*\n`{}`".format(args.config)},
         {"type": "mrkdwn", "text": "*Output*\n`{}`".format(args.out_dir)},
@@ -96,6 +111,7 @@ def main():
     parser.add_argument("--run-label", required=True)
     parser.add_argument("--run-url", required=True)
     parser.add_argument("--status", required=True)
+    parser.add_argument("--engine", default="sage")
     parser.add_argument("--payload", required=True)
     parser.add_argument("--github-summary", default=None)
     args = parser.parse_args()
@@ -113,6 +129,7 @@ def main():
         json.dumps(
             {
                 "status": args.status,
+                "engine": args.engine,
                 "config": args.config,
                 "run_label": args.run_label,
                 "run_url": args.run_url,
