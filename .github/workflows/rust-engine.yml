@@ -6,10 +6,16 @@ on:
       - ".github/workflows/rust-engine.yml"
       - "engines/rust-search/**"
       - "configs/experiments/**"
+      - "outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json"
+      - "sage/64_verify_score0_candidates.sage"
+      - "scripts/rust_candidates_to_sage.py"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
 
 jobs:
   test:
@@ -46,3 +52,81 @@ jobs:
             --out-dir rust-engine-smoke/score0_candidates \
             --summary rust-engine-smoke/score0_candidates.json
           test -f rust-engine-smoke/score0_candidates.json
+
+      - name: Build p37 Rust-shaped score0 fixture
+        run: |
+          set -euo pipefail
+          mkdir -p rust-engine-smoke/p37-fixture
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          src = Path("outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json")
+          out_dir = Path("rust-engine-smoke/p37-fixture")
+          row = json.loads(src.read_text())
+          row.update(
+              {
+                  "search_method": "rust_search_fixture",
+                  "source_engine": "rust_search_fixture",
+                  "p": row["v"],
+                  "seed": 0,
+                  "step": 0,
+                  "score": 0,
+                  "is_score0": True,
+              }
+          )
+          (out_dir / "candidates.jsonl").write_text(json.dumps(row) + "\n")
+          (out_dir / "engine_summary.json").write_text(
+              json.dumps(
+                  {
+                      "engine": "rust_search_fixture",
+                      "run_count": 1,
+                      "best_score": 0,
+                      "score0_count": 1,
+                  },
+                  indent=2,
+              )
+              + "\n"
+          )
+          PY
+
+      - name: Convert p37 fixture for Sage
+        run: |
+          set -euo pipefail
+          python3 scripts/rust_candidates_to_sage.py \
+            --candidates rust-engine-smoke/p37-fixture/candidates.jsonl \
+            --out-dir rust-engine-smoke/p37-fixture/score0_candidates \
+            --summary rust-engine-smoke/p37-fixture/score0_candidates.json
+          test -f rust-engine-smoke/p37-fixture/score0_candidates.json
+
+      - name: Verify p37 fixture with Sage
+        run: |
+          set -euo pipefail
+
+          verify_args=(
+            sage sage/64_verify_score0_candidates.sage
+            --score0-summary rust-engine-smoke/p37-fixture/score0_candidates.json
+            --engine-summary rust-engine-smoke/p37-fixture/engine_summary.json
+            --out-dir rust-engine-smoke/p37-fixture
+            --comparison-summary rust-engine-smoke/p37-fixture/comparison_summary.json
+            --require-success
+          )
+          verify_command="$(printf '%q ' "${verify_args[@]}")"
+
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            "$verify_command"
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          comparison = json.loads(Path("rust-engine-smoke/p37-fixture/comparison_summary.json").read_text())
+          assert comparison["verification"]["score0_count"] == 1
+          assert comparison["verification"]["sds_ok_count"] == 1
+          assert comparison["verification"]["hadamard_ok_count"] == 1
+          PY

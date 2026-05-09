@@ -42,7 +42,9 @@ cargo run --release --manifest-path engines/rust-search/Cargo.toml -- \
 - `run_config.json`: 実行時に解決されたtarget/run情報。
 
 `scripts/rust_candidates_to_sage.py` で `candidates.jsonl` からscore0候補だけを
-Sage検証用candidate JSONへ変換できます。
+Sage検証用candidate JSONへ変換できます。その後、
+`sage/64_verify_score0_candidates.sage` がSDS条件とGoethals-Seidel Hadamard条件を
+厳密に検証し、GitHub Actions集約用の `comparison_summary.json` を作ります。
 
 ```bash
 python3 scripts/rust_candidates_to_sage.py \
@@ -51,9 +53,20 @@ python3 scripts/rust_candidates_to_sage.py \
   --summary /tmp/hadamard-rust-smoke/score0_candidates.json
 ```
 
+```bash
+sage sage/64_verify_score0_candidates.sage \
+  --score0-summary /tmp/hadamard-rust-smoke/score0_candidates.json \
+  --engine-summary /tmp/hadamard-rust-smoke/engine_summary.json \
+  --out-dir /tmp/hadamard-rust-smoke \
+  --comparison-summary /tmp/hadamard-rust-smoke/comparison_summary.json
+```
+
+remote実行では `research.yml` の `engine=rust` を指定すると、Rust探索、score0変換、
+Sage検証、artifact集約、Slack通知まで同じworkflow内で実行されます。
+
 ## 制限
 
 - YAML parserはこのrepoのexperiment configに必要なキーだけを読む軽量実装です。
 - exact-like scoring、repair、frontier管理はまだSage runner側にあります。
-- score=0候補の厳密検証は、変換されたcandidate JSONをSage verifierへ渡して行います。
-  workflow内での自動接続は次PRで行います。
+- score=0候補が出た場合だけSage verifierを通すため、score0が多いconfigでは
+  検証jobの時間も増えます。

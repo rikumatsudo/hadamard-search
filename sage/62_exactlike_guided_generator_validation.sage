@@ -1090,6 +1090,25 @@ def save_score0_candidate(out_dir, row, source_mode, p, ks, lam):
     return path
 
 
+def candidate_verification_counts(paths):
+    counts = {
+        "score0_count": int(len(paths)),
+        "sds_ok_count": 0,
+        "hadamard_ok_count": 0,
+    }
+    for path in paths:
+        try:
+            with open(path) as f:
+                payload = json.load(f)
+        except Exception:
+            continue
+        if payload.get("verify_sds") is True:
+            counts["sds_ok_count"] += 1
+        if payload.get("verify_sds") is True and payload.get("hh_t") is True:
+            counts["hadamard_ok_count"] += 1
+    return counts
+
+
 def evaluate_moves(blocks, moves, p, lam):
     if not moves_compatible(moves, blocks):
         return None, None
@@ -1861,7 +1880,9 @@ def main():
         write_csv(os.path.join(out_dir, "repair_routing_analysis.csv"), repair_routing_rows, repair_routing_fields)
         write_json_safe(os.path.join(out_dir, "repair_routing_analysis.json"), {"rows": repair_routing_rows})
 
+        verification_counts = candidate_verification_counts(score0_paths)
         comparison = {
+            "engine": "sage_exactlike_runner",
             "config_driven_runner_ok": True,
             "exact_validation": exact_validation,
             "initial_candidate_count": len(initial_rows),
@@ -1872,6 +1893,7 @@ def main():
             "repair_routed_count": len(repair_candidates),
             "repair_attempt_count": len(repair_rows),
             "score0_candidate_paths": score0_paths,
+            "verification": verification_counts,
             "mode_summary": mode_rows,
             "frontier_analysis": frontier_rows,
             "archive_analysis": archive_rows,
