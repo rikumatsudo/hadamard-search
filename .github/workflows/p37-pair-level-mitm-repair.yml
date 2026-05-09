@@ -183,7 +183,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p prior-artifacts
-          touch prior-artifacts/.keep
+          touch prior-artifacts/EMPTY
 
       - name: Upload prepared prior artifacts
         uses: actions/upload-artifact@v6
