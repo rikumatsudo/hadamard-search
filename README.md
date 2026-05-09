@@ -30,6 +30,7 @@ near-hitや低スコア候補は研究用の途中成果です。検証前の候
   docs/rust-search-engine.md           Rust探索エンジンMVPの説明
   engines/rust-search/                 高速探索エンジンMVP
   sage/                                SageMath/Pythonの研究スクリプト
+  scripts/rust_candidates_to_sage.py   Rust出力のscore0候補をSage検証用JSONへ変換
   scripts/actions_summary.py           Actions artifactとSlack通知のsummary生成
   scripts/actions_aggregate.py         shard artifactの集約summary生成
   scripts/actions_shard_matrix.py      Actions matrixのshard生成

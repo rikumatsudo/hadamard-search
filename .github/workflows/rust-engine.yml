@@ -37,3 +37,12 @@ jobs:
             --selected-per-family 1
           test -f rust-engine-smoke/candidates.jsonl
           test -f rust-engine-smoke/engine_summary.json
+
+      - name: Convert score0 candidates for Sage
+        run: |
+          set -euo pipefail
+          python3 scripts/rust_candidates_to_sage.py \
+            --candidates rust-engine-smoke/candidates.jsonl \
+            --out-dir rust-engine-smoke/score0_candidates \
+            --summary rust-engine-smoke/score0_candidates.json
+          test -f rust-engine-smoke/score0_candidates.json

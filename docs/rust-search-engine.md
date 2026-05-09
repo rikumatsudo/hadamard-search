@@ -41,8 +41,19 @@ cargo run --release --manifest-path engines/rust-search/Cargo.toml -- \
 - `engine_summary.md`: 人間が読むための短いsummary。
 - `run_config.json`: 実行時に解決されたtarget/run情報。
 
+`scripts/rust_candidates_to_sage.py` で `candidates.jsonl` からscore0候補だけを
+Sage検証用candidate JSONへ変換できます。
+
+```bash
+python3 scripts/rust_candidates_to_sage.py \
+  --candidates /tmp/hadamard-rust-smoke/candidates.jsonl \
+  --out-dir /tmp/hadamard-rust-smoke/score0_candidates \
+  --summary /tmp/hadamard-rust-smoke/score0_candidates.json
+```
+
 ## 制限
 
 - YAML parserはこのrepoのexperiment configに必要なキーだけを読む軽量実装です。
 - exact-like scoring、repair、frontier管理はまだSage runner側にあります。
-- score=0候補の厳密検証は未接続です。次PRでSage verifierと接続します。
+- score=0候補の厳密検証は、変換されたcandidate JSONをSage verifierへ渡して行います。
+  workflow内での自動接続は次PRで行います。
