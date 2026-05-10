@@ -1,0 +1,137 @@
+schema_version: p167_broad_tuple_stage1_scan_v1
+experiment_id: p167-broad-tuple-stage1-scan
+purpose: >
+  Run a broad p=167 tuple trajectory scan to compare tuple, seed-family,
+  and operator response signatures. This is not a Hadamard 668 construction run.
+
+tuple_registry: configs/fixtures/p167_tuple_classes.json
+benchmark_trap_manifest: configs/fixtures/benchmark_traps/p167_score164_176.jsonl
+
+p: 167
+n: 668
+tuple_classes: all
+
+stage: 1
+success_criteria:
+  - all_10_tuple_classes_have_trajectories
+  - run_trajectory_snapshot_layers_are_written
+  - sampled_diagnostic_metadata_is_present
+  - tuple_seed_operator_summaries_are_written
+  - benchmark_traps_are_logged_separately
+  - stage2_survivors_are_extracted
+
+seed_families:
+  - pure_random
+  - mixed_diversity
+  - score_biased_random
+  - closure_shell_biased
+
+stage1_full_seed_families:
+  - pure_random
+  - mixed_diversity
+  - score_biased_random
+  - pair_profile_biased
+  - closure_shell_biased
+  - trap_avoid
+
+operators:
+  - baseline_score_only
+  - random_walk_score_guarded
+  - focused_plus_small_threshold
+  - hybrid_pair_repair_to_closure_shell
+  - pair_profile_plus_movespace_filter
+  - mixed_operator_random
+
+benchmark_trap_operators:
+  - baseline_score_only
+  - random_walk_score_guarded
+  - hybrid_pair_repair_to_closure_shell
+
+benchmark_trap_limit: 7
+restarts: 2
+steps: 300
+sample_swaps: 200
+diagnostic_sample_count: 200
+diagnostic_type: sampled
+
+snapshot_schedule:
+  attempted_steps: [0, 25, 50, 100, 200, 300, 500]
+  accepted_moves: [0, 25, 50, 100, 200]
+  special_states:
+    - best_score_state
+    - best_exactlike_state
+    - best_closure_shell_state
+    - best_alignment_state
+    - final_state
+
+high_resolution_logging:
+  enabled: true
+  followup_accepted_moves: 50
+  triggers:
+    - closure_shell_score_enters_top_5_percent_of_current_run
+    - kappa_q99_improves_by_top_decile
+    - D_min_ratio_improves_by_at_least_20_percent
+    - alignment_to_minus_rho_improves_by_at_least_0_15
+    - best_score_improves_by_score_band
+
+labels:
+  hard_labels: false
+  soft_scores:
+    - exactlike_score
+    - false_basin_score
+    - closure_shell_score
+    - damage_score
+    - hardening_score
+    - support_mixing_score
+  rank_labels:
+    - top_decile_exactlike_candidate
+    - top_decile_closure_shell_candidate
+    - bottom_decile_false_basin_candidate
+    - damage_candidate
+    - hardening_candidate
+    - support_mixing_candidate
+
+stage2_survivor_selection:
+  max_candidates: 50
+  criteria:
+    - top_decile_closure_shell_score
+    - top_decile_exactlike_score
+    - D_min_ratio_delta_negative
+    - kappa_q99_delta_positive
+    - alignment_delta_positive
+    - low_damage
+    - low_hardening
+    - support_mixing
+
+github_actions:
+  shard_count: 40
+  sharding: stratified_by_tuple_seed_operator_restart
+  local_policy: smoke_only
+  local_smoke:
+    max_tasks: 1
+    steps: 5
+    sample_swaps: 10
+    diagnostic_sample_count: 10
+    benchmark_trap_limit: 0
+  stage1_lite:
+    seed_families: pure_random,mixed_diversity,score_biased_random,closure_shell_biased
+    operators: baseline_score_only,random_walk_score_guarded,focused_plus_small_threshold,hybrid_pair_repair_to_closure_shell,pair_profile_plus_movespace_filter,mixed_operator_random
+    restarts: 2
+    steps: 300
+    sample_swaps: 200
+    diagnostic_sample_count: 200
+    shard_count: 40
+  stage1_full:
+    seed_families: pure_random,mixed_diversity,score_biased_random,pair_profile_biased,closure_shell_biased,trap_avoid
+    operators: baseline_score_only,random_walk_score_guarded,focused_plus_small_threshold,hybrid_pair_repair_to_closure_shell,pair_profile_plus_movespace_filter,mixed_operator_random
+    restarts: 3
+    steps: 500
+    sample_swaps: 300
+    diagnostic_sample_count: 300
+    shard_count: 40
+
+notes:
+  - "Stage 1 success is trajectory-signature coverage and survivor extraction, not score=0."
+  - "D_min/S, kappa, and alignment are sampled diagnostics unless diagnostic_type is full."
+  - "score164/176 candidates are benchmark traps, not the main search target."
+  - "score=0 remains only a candidate until strict SDS and Goethals-Seidel validation pass."
