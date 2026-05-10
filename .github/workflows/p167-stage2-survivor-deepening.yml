@@ -13,11 +13,6 @@ on:
         required: false
         default: "configs/experiments/p167_stage2_survivor_deepening.yaml"
         type: string
-      tuple_registry:
-        description: "p167 tuple class registry"
-        required: false
-        default: "configs/fixtures/p167_tuple_classes.json"
-        type: string
       stage1_run_id:
         description: "GitHub Actions run id containing Stage 1 aggregate artifact"
         required: false
@@ -98,6 +93,39 @@ on:
         required: false
         default: false
         type: boolean
+      artifact_mode:
+        description: "Artifact policy"
+        required: false
+        default: "summary_only"
+        type: choice
+        options:
+          - "summary_only"
+          - "summary_plus_raw"
+      snapshot_log_mode:
+        description: "Snapshot log policy for summary artifact"
+        required: false
+        default: "summary_only"
+        type: choice
+        options:
+          - "summary_only"
+          - "scheduled"
+          - "triggered"
+          - "full"
+      operator_reward_log_mode:
+        description: "Operator reward log policy for summary artifact"
+        required: false
+        default: "topk"
+        type: choice
+        options:
+          - "summary_only"
+          - "topk"
+          - "sampled"
+          - "full_compressed"
+      operator_reward_topk:
+        description: "Top-k reward rows per trajectory/operator to keep in summary"
+        required: false
+        default: "50"
+        type: string
       max_tasks:
         description: "Maximum total tasks before sharding; 0 means all"
         required: false
@@ -112,11 +140,6 @@ on:
         description: "Maximum parallel shard jobs"
         required: false
         default: "1"
-        type: string
-      stage3_candidate_limit:
-        description: "Maximum Stage 3 recommendation rows"
-        required: false
-        default: "50"
         type: string
   pull_request:
     paths:
@@ -263,7 +286,7 @@ jobs:
         env:
           OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
           CONFIG: ${{ inputs.config || 'configs/experiments/p167_stage2_survivor_deepening.yaml' }}
-          TUPLE_REGISTRY: ${{ inputs.tuple_registry || 'configs/fixtures/p167_tuple_classes.json' }}
+          TUPLE_REGISTRY: configs/fixtures/p167_tuple_classes.json
           STAGE1_ARTIFACT: stage1-artifact
           BENCHMARK_TRAP_MANIFEST: ${{ inputs.benchmark_trap_manifest || 'configs/fixtures/benchmark_traps/p167_score164_176.jsonl' }}
           NEARHIT_FIXTURE: ${{ inputs.nearhit_fixture || 'configs/fixtures/p167_focused_nearhit_candidates.jsonl' }}
@@ -280,13 +303,23 @@ jobs:
           SNAPSHOT_ATTEMPTED_STEPS: ${{ inputs.snapshot_attempted_steps || '0,1' }}
           SNAPSHOT_ACCEPTED_MOVES: ${{ inputs.snapshot_accepted_moves || '0,1' }}
           HIGH_RESOLUTION_LOGGING: ${{ inputs.high_resolution_logging || 'false' }}
+          HIGH_RESOLUTION_MODE: "triggered"
+          HIGH_RESOLUTION_MAX_WINDOWS_PER_TRAJECTORY: "2"
+          HIGH_RESOLUTION_WINDOW_ACCEPTED_MOVES: "50"
           HIGHRES_FOLLOWUP_ACCEPTED_MOVES: "50"
+          ARTIFACT_MODE: ${{ inputs.artifact_mode || 'summary_only' }}
+          COMPRESS_RAW_LOGS: "true"
+          UPLOAD_RAW_LOGS: "false"
+          SNAPSHOT_LOG_MODE: ${{ inputs.snapshot_log_mode || 'summary_only' }}
+          OPERATOR_REWARD_LOG_MODE: ${{ inputs.operator_reward_log_mode || 'topk' }}
+          OPERATOR_REWARD_TOPK: ${{ inputs.operator_reward_topk || '50' }}
+          OPERATOR_REWARD_SAMPLE_RATE: "0.01"
           MAX_TASKS: ${{ inputs.max_tasks || '1' }}
           SHARD_INDEX: ${{ matrix.shard_index }}
           SHARD_COUNT: ${{ inputs.shard_count || '1' }}
           RUN_LABEL: ${{ inputs.run_label || 'p167-stage2-smoke' }}
           STAGE_NAME: "p167_stage2"
-          STAGE3_CANDIDATE_LIMIT: ${{ inputs.stage3_candidate_limit || '50' }}
+          STAGE3_CANDIDATE_LIMIT: "50"
         run: |
           set -euo pipefail
 
@@ -310,6 +343,14 @@ jobs:
             --snapshot-attempted-steps "$SNAPSHOT_ATTEMPTED_STEPS"
             --snapshot-accepted-moves "$SNAPSHOT_ACCEPTED_MOVES"
             --highres-followup-accepted-moves "$HIGHRES_FOLLOWUP_ACCEPTED_MOVES"
+            --high-resolution-mode "$HIGH_RESOLUTION_MODE"
+            --high-resolution-max-windows-per-trajectory "$HIGH_RESOLUTION_MAX_WINDOWS_PER_TRAJECTORY"
+            --high-resolution-window-accepted-moves "$HIGH_RESOLUTION_WINDOW_ACCEPTED_MOVES"
+            --artifact-mode "$ARTIFACT_MODE"
+            --snapshot-log-mode "$SNAPSHOT_LOG_MODE"
+            --operator-reward-log-mode "$OPERATOR_REWARD_LOG_MODE"
+            --operator-reward-topk "$OPERATOR_REWARD_TOPK"
+            --operator-reward-sample-rate "$OPERATOR_REWARD_SAMPLE_RATE"
             --max-tasks "$MAX_TASKS"
             --shard-index "$SHARD_INDEX"
             --shard-count "$SHARD_COUNT"
@@ -324,6 +365,16 @@ jobs:
             args+=(--high-resolution-logging)
           else
             args+=(--disable-high-resolution-logging)
+          fi
+          if [ "$COMPRESS_RAW_LOGS" = "true" ]; then
+            args+=(--compress-raw-logs)
+          else
+            args+=(--no-compress-raw-logs)
+          fi
+          if [ "$UPLOAD_RAW_LOGS" = "true" ]; then
+            args+=(--upload-raw-logs)
+          else
+            args+=(--disable-raw-log-upload)
           fi
           sage_command="$(printf '%q ' "${args[@]}")"
 
@@ -352,12 +403,23 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload p167 Stage 2 artifacts
+      - name: Upload p167 Stage 2 summary artifact
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: p167-stage2-${{ steps.prepare.outputs.safe_label }}-${{ github.run_id }}
-          path: ${{ steps.prepare.outputs.out_dir }}
+          name: p167-stage2-summary-${{ steps.prepare.outputs.safe_label }}-${{ github.run_id }}
+          path: |
+            ${{ steps.prepare.outputs.out_dir }}
+            !${{ steps.prepare.outputs.out_dir }}/raw_logs/**
+          if-no-files-found: warn
+          retention-days: ${{ steps.prepare.outputs.retention_days }}
+
+      - name: Upload p167 Stage 2 raw/debug logs
+        if: always() && inputs.artifact_mode == 'summary_plus_raw'
+        uses: actions/upload-artifact@v7
+        with:
+          name: p167-stage2-raw-logs-${{ steps.prepare.outputs.safe_label }}-${{ github.run_id }}
+          path: ${{ steps.prepare.outputs.out_dir }}/raw_logs
           if-no-files-found: warn
           retention-days: ${{ steps.prepare.outputs.retention_days }}
 
@@ -377,18 +439,31 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           path: downloaded-artifacts
+          pattern: p167-stage2-summary-*
+          merge-multiple: false
 
       - name: Aggregate shard outputs
         env:
           EXPECTED_SHARDS: ${{ needs.define-shards.outputs.shard_jobs }}
           CONFIG: ${{ inputs.config || 'configs/experiments/p167_stage2_survivor_deepening.yaml' }}
-          TUPLE_REGISTRY: ${{ inputs.tuple_registry || 'configs/fixtures/p167_tuple_classes.json' }}
+          TUPLE_REGISTRY: configs/fixtures/p167_tuple_classes.json
           STAGE1_ARTIFACT: stage1-artifact
           BENCHMARK_TRAP_MANIFEST: ${{ inputs.benchmark_trap_manifest || 'configs/fixtures/benchmark_traps/p167_score164_176.jsonl' }}
           NEARHIT_FIXTURE: ${{ inputs.nearhit_fixture || 'configs/fixtures/p167_focused_nearhit_candidates.jsonl' }}
           RUN_LABEL: ${{ inputs.run_label || 'p167-stage2-smoke' }}
           STAGE_NAME: "p167_stage2"
-          STAGE3_CANDIDATE_LIMIT: ${{ inputs.stage3_candidate_limit || '50' }}
+          STAGE3_CANDIDATE_LIMIT: "50"
+          HIGH_RESOLUTION_LOGGING: ${{ inputs.high_resolution_logging || 'false' }}
+          HIGH_RESOLUTION_MODE: "triggered"
+          HIGH_RESOLUTION_MAX_WINDOWS_PER_TRAJECTORY: "2"
+          HIGH_RESOLUTION_WINDOW_ACCEPTED_MOVES: "50"
+          ARTIFACT_MODE: ${{ inputs.artifact_mode || 'summary_only' }}
+          COMPRESS_RAW_LOGS: "true"
+          UPLOAD_RAW_LOGS: "false"
+          SNAPSHOT_LOG_MODE: ${{ inputs.snapshot_log_mode || 'summary_only' }}
+          OPERATOR_REWARD_LOG_MODE: ${{ inputs.operator_reward_log_mode || 'topk' }}
+          OPERATOR_REWARD_TOPK: ${{ inputs.operator_reward_topk || '50' }}
+          OPERATOR_REWARD_SAMPLE_RATE: "0.01"
         run: |
           set -euo pipefail
           mkdir -p aggregate-output stage1-artifact
@@ -405,8 +480,31 @@ jobs:
             --run-label "$RUN_LABEL"
             --stage-name "$STAGE_NAME"
             --stage3-candidate-limit "$STAGE3_CANDIDATE_LIMIT"
+            --high-resolution-mode "$HIGH_RESOLUTION_MODE"
+            --high-resolution-max-windows-per-trajectory "$HIGH_RESOLUTION_MAX_WINDOWS_PER_TRAJECTORY"
+            --high-resolution-window-accepted-moves "$HIGH_RESOLUTION_WINDOW_ACCEPTED_MOVES"
+            --artifact-mode "$ARTIFACT_MODE"
+            --snapshot-log-mode "$SNAPSHOT_LOG_MODE"
+            --operator-reward-log-mode "$OPERATOR_REWARD_LOG_MODE"
+            --operator-reward-topk "$OPERATOR_REWARD_TOPK"
+            --operator-reward-sample-rate "$OPERATOR_REWARD_SAMPLE_RATE"
             --out-dir aggregate-output
           )
+          if [ "$HIGH_RESOLUTION_LOGGING" = "true" ]; then
+            args+=(--high-resolution-logging)
+          else
+            args+=(--disable-high-resolution-logging)
+          fi
+          if [ "$COMPRESS_RAW_LOGS" = "true" ]; then
+            args+=(--compress-raw-logs)
+          else
+            args+=(--no-compress-raw-logs)
+          fi
+          if [ "$UPLOAD_RAW_LOGS" = "true" ]; then
+            args+=(--upload-raw-logs)
+          else
+            args+=(--disable-raw-log-upload)
+          fi
           sage_command="$(printf '%q ' "${args[@]}")"
 
           docker run --rm \
@@ -493,12 +591,23 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload aggregate summary
+      - name: Upload aggregate summary artifact
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: p167-stage2-aggregate-${{ github.run_id }}
-          path: aggregate-output
+          name: p167-stage2-summary-aggregate-${{ github.run_id }}
+          path: |
+            aggregate-output
+            !aggregate-output/raw_logs/**
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload aggregate raw/debug logs
+        if: always() && inputs.artifact_mode == 'summary_plus_raw'
+        uses: actions/upload-artifact@v7
+        with:
+          name: p167-stage2-raw-logs-aggregate-${{ github.run_id }}
+          path: aggregate-output/raw_logs
           if-no-files-found: warn
           retention-days: 30
 
