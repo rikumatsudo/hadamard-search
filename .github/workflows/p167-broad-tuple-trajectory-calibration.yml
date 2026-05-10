@@ -1,0 +1,447 @@
+name: p167 broad tuple trajectory calibration
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Short label for artifact and Slack messages"
+        required: false
+        default: "p167-broad-stage0-smoke"
+        type: string
+      config:
+        description: "Stage 0 calibration config"
+        required: false
+        default: "configs/experiments/p167_broad_tuple_stage0_calibration.yaml"
+        type: string
+      tuple_registry:
+        description: "p167 tuple class registry"
+        required: false
+        default: "configs/fixtures/p167_tuple_classes.json"
+        type: string
+      benchmark_trap_manifest:
+        description: "Fixed score164/176 benchmark trap manifest"
+        required: false
+        default: "configs/fixtures/benchmark_traps/p167_score164_176.jsonl"
+        type: string
+      seed_families:
+        description: "Comma-separated seed families"
+        required: false
+        default: "pure_random,mixed_diversity"
+        type: string
+      operators:
+        description: "Comma-separated operators"
+        required: false
+        default: "baseline_score_only,random_walk_score_guarded,focused_plus_small_threshold"
+        type: string
+      restarts:
+        description: "Restarts per tuple/seed/operator"
+        required: false
+        default: "1"
+        type: string
+      steps:
+        description: "Attempted steps per trajectory"
+        required: false
+        default: "1"
+        type: string
+      sample_swaps:
+        description: "Candidate swaps sampled per attempted step"
+        required: false
+        default: "5"
+        type: string
+      diagnostic_sample_count:
+        description: "Sampled 1-swap diagnostics per snapshot"
+        required: false
+        default: "5"
+        type: string
+      snapshot_attempted_steps:
+        description: "Attempted-step snapshot list"
+        required: false
+        default: "0,1"
+        type: string
+      snapshot_accepted_moves:
+        description: "Accepted-move snapshot list"
+        required: false
+        default: "0,1"
+        type: string
+      mixed_diversity_pool:
+        description: "Initial candidates sampled for mixed_diversity"
+        required: false
+        default: "2"
+        type: string
+      high_resolution_logging:
+        description: "Enable event-triggered accepted-move logging"
+        required: false
+        default: false
+        type: boolean
+      highres_followup_accepted_moves:
+        description: "Accepted moves logged after a high-resolution trigger"
+        required: false
+        default: "50"
+        type: string
+      max_tasks:
+        description: "Maximum total tasks before sharding; 0 means all"
+        required: false
+        default: "1"
+        type: string
+      shard_count:
+        description: "Shard count for fan-out"
+        required: false
+        default: "1"
+        type: string
+      max_parallel:
+        description: "Maximum parallel shard jobs"
+        required: false
+        default: "1"
+        type: string
+      artifact_retention_days:
+        description: "Artifact retention, 1-90 days"
+        required: false
+        default: "14"
+        type: string
+  pull_request:
+    paths:
+      - "sage/73_p167_broad_tuple_trajectory_dataset_calibration.sage"
+      - ".github/workflows/p167-broad-tuple-trajectory-calibration.yml"
+      - "configs/experiments/p167_broad_tuple_stage0_calibration.yaml"
+      - "configs/fixtures/p167_tuple_classes.json"
+      - "configs/fixtures/benchmark_traps/p167_score164_176.jsonl"
+      - "sage/06_known_sds_regression.sage"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p167-broad-stage0-${{ github.ref }}-${{ inputs.run_label || github.event_name }}
+  cancel-in-progress: false
+
+env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  known-regression:
+    name: Known SDS regression
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run known SDS regression
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            "sage sage/06_known_sds_regression.sage"
+
+  define-shards:
+    name: Define shard matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      shard_jobs: ${{ steps.matrix.outputs.shard_jobs }}
+      fanout: ${{ steps.matrix.outputs.fanout }}
+    steps:
+      - name: Build matrix
+        id: matrix
+        env:
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          shard_count = int(os.environ.get("SHARD_COUNT") or "1")
+          max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
+          if shard_count < 1:
+              raise SystemExit("shard_count must be >= 1")
+          if max_parallel < 1:
+              raise SystemExit("max_parallel must be >= 1")
+          max_parallel = min(max_parallel, shard_count)
+          width = max(2, len(str(shard_count - 1)))
+          matrix = [
+              {
+                  "shard_index": idx,
+                  "shard_suffix": "single" if shard_count == 1 else f"s{idx:0{width}d}",
+              }
+              for idx in range(shard_count)
+          ]
+          print(f"matrix={json.dumps({'include': matrix}, separators=(',', ':'))}")
+          print(f"max_parallel={max_parallel}")
+          print(f"shard_jobs={shard_count}")
+          print(f"fanout={'true' if shard_count > 1 else 'false'}")
+          PY
+
+  calibrate:
+    name: Run p167 broad tuple calibration (${{ matrix.shard_suffix }})
+    needs:
+      - known-regression
+      - define-shards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.define-shards.outputs.max_parallel) }}
+      matrix: ${{ fromJSON(needs.define-shards.outputs.matrix) }}
+    outputs:
+      out_dir: ${{ steps.prepare.outputs.out_dir }}
+      safe_label: ${{ steps.prepare.outputs.safe_label }}
+      retention_days: ${{ steps.prepare.outputs.retention_days }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Prepare run
+        id: prepare
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-broad-stage0-smoke' }}
+          RETENTION_DAYS: ${{ inputs.artifact_retention_days || '14' }}
+          SHARD_SUFFIX: ${{ matrix.shard_suffix }}
+        run: |
+          set -euo pipefail
+
+          if ! [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] || [ "$RETENTION_DAYS" -lt 1 ] || [ "$RETENTION_DAYS" -gt 90 ]; then
+            echo "::error::artifact_retention_days must be an integer from 1 to 90"
+            exit 2
+          fi
+
+          raw_label="$RUN_LABEL"
+          if [ "$SHARD_SUFFIX" != "single" ]; then
+            raw_label="${RUN_LABEL}-${SHARD_SUFFIX}"
+          fi
+
+          safe_label="$(printf '%s' "$raw_label" | tr -c 'A-Za-z0-9_.-' '-')"
+          safe_label="${safe_label:-p167-broad-stage0-smoke}"
+          out_dir="outputs/artifacts/${safe_label}-${GITHUB_RUN_ID}"
+          mkdir -p "$out_dir"
+
+          {
+            echo "safe_label=$safe_label"
+            echo "out_dir=$out_dir"
+            echo "retention_days=$RETENTION_DAYS"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run p167 broad tuple Stage 0 calibration
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+          CONFIG: ${{ inputs.config || 'configs/experiments/p167_broad_tuple_stage0_calibration.yaml' }}
+          TUPLE_REGISTRY: ${{ inputs.tuple_registry || 'configs/fixtures/p167_tuple_classes.json' }}
+          BENCHMARK_TRAP_MANIFEST: ${{ inputs.benchmark_trap_manifest || 'configs/fixtures/benchmark_traps/p167_score164_176.jsonl' }}
+          SEED_FAMILIES: ${{ inputs.seed_families || 'pure_random,mixed_diversity' }}
+          OPERATORS: ${{ inputs.operators || 'baseline_score_only,random_walk_score_guarded,focused_plus_small_threshold' }}
+          RESTARTS: ${{ inputs.restarts || '1' }}
+          STEPS: ${{ inputs.steps || '1' }}
+          SAMPLE_SWAPS: ${{ inputs.sample_swaps || '5' }}
+          DIAGNOSTIC_SAMPLE_COUNT: ${{ inputs.diagnostic_sample_count || '5' }}
+          SNAPSHOT_ATTEMPTED_STEPS: ${{ inputs.snapshot_attempted_steps || '0,1' }}
+          SNAPSHOT_ACCEPTED_MOVES: ${{ inputs.snapshot_accepted_moves || '0,1' }}
+          MIXED_DIVERSITY_POOL: ${{ inputs.mixed_diversity_pool || '2' }}
+          HIGH_RESOLUTION_LOGGING: ${{ inputs.high_resolution_logging || 'false' }}
+          HIGHRES_FOLLOWUP_ACCEPTED_MOVES: ${{ inputs.highres_followup_accepted_moves || '50' }}
+          MAX_TASKS: ${{ inputs.max_tasks || '1' }}
+          SHARD_INDEX: ${{ matrix.shard_index }}
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+        run: |
+          set -euo pipefail
+
+          args=(
+            sage sage/73_p167_broad_tuple_trajectory_dataset_calibration.sage
+            --config "$CONFIG"
+            --tuple-registry "$TUPLE_REGISTRY"
+            --benchmark-trap-manifest "$BENCHMARK_TRAP_MANIFEST"
+            --seed-families "$SEED_FAMILIES"
+            --operators "$OPERATORS"
+            --restarts "$RESTARTS"
+            --steps "$STEPS"
+            --sample-swaps "$SAMPLE_SWAPS"
+            --diagnostic-sample-count "$DIAGNOSTIC_SAMPLE_COUNT"
+            --snapshot-attempted-steps "$SNAPSHOT_ATTEMPTED_STEPS"
+            --snapshot-accepted-moves "$SNAPSHOT_ACCEPTED_MOVES"
+            --mixed-diversity-pool "$MIXED_DIVERSITY_POOL"
+            --highres-followup-accepted-moves "$HIGHRES_FOLLOWUP_ACCEPTED_MOVES"
+            --max-tasks "$MAX_TASKS"
+            --shard-index "$SHARD_INDEX"
+            --shard-count "$SHARD_COUNT"
+            --github-run-id "$GITHUB_RUN_ID"
+            --out-dir "$OUT_DIR"
+          )
+          if [ "$HIGH_RESOLUTION_LOGGING" = "true" ]; then
+            args+=(--high-resolution-logging)
+          else
+            args+=(--disable-high-resolution-logging)
+          fi
+          sage_command="$(printf '%q ' "${args[@]}")"
+
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            "$sage_command" \
+            2>&1 | tee "$OUT_DIR/runner.log"
+
+      - name: Build GitHub summary
+        if: always()
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## p167 broad tuple trajectory calibration"
+            echo
+            if [ -f "$OUT_DIR/p167_broad_tuple_stage0_calibration_summary.md" ]; then
+              sed -n '1,220p' "$OUT_DIR/p167_broad_tuple_stage0_calibration_summary.md"
+            else
+              echo "Summary was not generated."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload p167 broad calibration artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p167-broad-stage0-${{ steps.prepare.outputs.safe_label }}-${{ github.run_id }}
+          path: ${{ steps.prepare.outputs.out_dir }}
+          if-no-files-found: warn
+          retention-days: ${{ steps.prepare.outputs.retention_days }}
+
+  aggregate:
+    name: Aggregate p167 broad calibration shards
+    if: always()
+    needs:
+      - define-shards
+      - calibrate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download shard artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          path: downloaded-artifacts
+
+      - name: Aggregate shard outputs
+        env:
+          EXPECTED_SHARDS: ${{ needs.define-shards.outputs.shard_jobs }}
+        run: |
+          set -euo pipefail
+          mkdir -p aggregate-output
+          args=(
+            sage sage/73_p167_broad_tuple_trajectory_dataset_calibration.sage
+            --aggregate-roots downloaded-artifacts
+            --shard-count "$EXPECTED_SHARDS"
+            --out-dir aggregate-output
+          )
+          sage_command="$(printf '%q ' "${args[@]}")"
+
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            "$sage_command" \
+            2>&1 | tee aggregate-output/aggregate-runner.log
+
+      - name: Build aggregate Slack payload
+        if: always()
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-broad-stage0-smoke' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ needs.calibrate.result }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+
+          config = {}
+          hypotheses = {}
+          runtime = []
+          for name, target in (
+              ("aggregate-output/run_config.json", config),
+              ("aggregate-output/hypothesis_evaluation.json", hypotheses),
+          ):
+              if os.path.exists(name):
+                  with open(name) as f:
+                      payload = json.load(f)
+                  target.update(payload)
+          if os.path.exists("aggregate-output/runtime_summary.json"):
+              with open("aggregate-output/runtime_summary.json") as f:
+                  runtime = json.load(f)
+
+          status = os.environ["JOB_STATUS"].upper()
+          label = os.environ["RUN_LABEL"]
+          run_url = os.environ["RUN_URL"]
+          tuple_status = hypotheses.get("H_CAL_1_tuple_coverage", {}).get("status", "n/a")
+          layer_status = hypotheses.get("H_CAL_2_dataset_layers", {}).get("status", "n/a")
+          metadata_status = hypotheses.get("H_CAL_4_reproducibility_metadata", {}).get("status", "n/a")
+          runtime_seconds = runtime[0].get("total_runtime_seconds", "n/a") if runtime else "n/a"
+          payload = {
+              "text": "p167 broad tuple trajectory calibration",
+              "blocks": [
+                  {
+                      "type": "section",
+                      "text": {
+                          "type": "mrkdwn",
+                          "text": f"*p167 broad tuple trajectory calibration* <{run_url}|GitHub Actions run>",
+                      },
+                  },
+                  {
+                      "type": "section",
+                      "fields": [
+                          {"type": "mrkdwn", "text": f"*Status*\\n{status}"},
+                          {"type": "mrkdwn", "text": f"*Label*\\n{label}"},
+                          {"type": "mrkdwn", "text": f"*Run rows*\\n{config.get('run_rows', 'n/a')}"},
+                          {"type": "mrkdwn", "text": f"*Snapshots*\\n{config.get('snapshot_rows', 'n/a')}"},
+                          {"type": "mrkdwn", "text": f"*Tuple coverage*\\n{tuple_status}"},
+                          {"type": "mrkdwn", "text": f"*Layers*\\n{layer_status}"},
+                          {"type": "mrkdwn", "text": f"*Metadata*\\n{metadata_status}"},
+                          {"type": "mrkdwn", "text": f"*Runtime s*\\n{runtime_seconds}"},
+                      ],
+                  },
+              ],
+          }
+          with open("aggregate-output/aggregate_slack_payload.json", "w") as f:
+              json.dump(payload, f)
+          PY
+
+      - name: Build aggregate GitHub summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## p167 broad tuple trajectory calibration aggregate"
+            echo
+            if [ -f "aggregate-output/p167_broad_tuple_stage0_calibration_summary.md" ]; then
+              sed -n '1,260p' "aggregate-output/p167_broad_tuple_stage0_calibration_summary.md"
+            else
+              echo "Aggregate summary was not generated."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload aggregate summary
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p167-broad-stage0-aggregate-${{ github.run_id }}
+          path: aggregate-output
+          if-no-files-found: warn
+          retention-days: ${{ inputs.artifact_retention_days || '14' }}
+
+      - name: Notify Slack
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v3.0.2
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: aggregate-output/aggregate_slack_payload.json
