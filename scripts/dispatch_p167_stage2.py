@@ -120,7 +120,6 @@ PRESETS = {
 INPUT_ORDER = [
     "run_label",
     "config",
-    "tuple_registry",
     "stage1_run_id",
     "stage1_artifact_name",
     "benchmark_trap_manifest",
@@ -137,20 +136,13 @@ INPUT_ORDER = [
     "snapshot_attempted_steps",
     "snapshot_accepted_moves",
     "high_resolution_logging",
-    "high_resolution_mode",
-    "high_resolution_max_windows_per_trajectory",
-    "high_resolution_window_accepted_moves",
     "artifact_mode",
-    "compress_raw_logs",
-    "upload_raw_logs",
     "snapshot_log_mode",
     "operator_reward_log_mode",
     "operator_reward_topk",
-    "operator_reward_sample_rate",
     "max_tasks",
     "shard_count",
     "max_parallel",
-    "stage3_candidate_limit",
 ]
 
 

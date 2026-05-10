@@ -53,6 +53,11 @@ Recommended defaults:
 Use `artifact_mode=summary_plus_raw` or `upload_raw_logs=true` only when a run
 needs full debug logs.
 
+GitHub `workflow_dispatch` allows at most 25 inputs. The workflow therefore
+exposes only the common artifact controls; lower-level defaults such as raw log
+compression and high-resolution window caps are recorded in
+`actual_effective_config.json`.
+
 ## Audit Notes
 
 Sampled diagnostics are not full certificates. The artifact manifest records

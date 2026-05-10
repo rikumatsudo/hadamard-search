@@ -13,11 +13,6 @@ on:
         required: false
         default: "configs/experiments/p167_stage2_survivor_deepening.yaml"
         type: string
-      tuple_registry:
-        description: "p167 tuple class registry"
-        required: false
-        default: "configs/fixtures/p167_tuple_classes.json"
-        type: string
       stage1_run_id:
         description: "GitHub Actions run id containing Stage 1 aggregate artifact"
         required: false
@@ -98,25 +93,6 @@ on:
         required: false
         default: false
         type: boolean
-      high_resolution_mode:
-        description: "High-resolution logging mode"
-        required: false
-        default: "triggered"
-        type: choice
-        options:
-          - "off"
-          - "triggered"
-          - "all"
-      high_resolution_max_windows_per_trajectory:
-        description: "Maximum high-resolution windows per trajectory"
-        required: false
-        default: "2"
-        type: string
-      high_resolution_window_accepted_moves:
-        description: "Accepted moves per high-resolution window"
-        required: false
-        default: "50"
-        type: string
       artifact_mode:
         description: "Artifact policy"
         required: false
@@ -125,16 +101,6 @@ on:
         options:
           - "summary_only"
           - "summary_plus_raw"
-      compress_raw_logs:
-        description: "Compress raw logs when raw logs are uploaded"
-        required: false
-        default: true
-        type: boolean
-      upload_raw_logs:
-        description: "Upload raw/debug log artifact"
-        required: false
-        default: false
-        type: boolean
       snapshot_log_mode:
         description: "Snapshot log policy for summary artifact"
         required: false
@@ -160,11 +126,6 @@ on:
         required: false
         default: "50"
         type: string
-      operator_reward_sample_rate:
-        description: "Sample rate for reward log sampling"
-        required: false
-        default: "0.01"
-        type: string
       max_tasks:
         description: "Maximum total tasks before sharding; 0 means all"
         required: false
@@ -179,11 +140,6 @@ on:
         description: "Maximum parallel shard jobs"
         required: false
         default: "1"
-        type: string
-      stage3_candidate_limit:
-        description: "Maximum Stage 3 recommendation rows"
-        required: false
-        default: "50"
         type: string
   pull_request:
     paths:
@@ -330,7 +286,7 @@ jobs:
         env:
           OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
           CONFIG: ${{ inputs.config || 'configs/experiments/p167_stage2_survivor_deepening.yaml' }}
-          TUPLE_REGISTRY: ${{ inputs.tuple_registry || 'configs/fixtures/p167_tuple_classes.json' }}
+          TUPLE_REGISTRY: configs/fixtures/p167_tuple_classes.json
           STAGE1_ARTIFACT: stage1-artifact
           BENCHMARK_TRAP_MANIFEST: ${{ inputs.benchmark_trap_manifest || 'configs/fixtures/benchmark_traps/p167_score164_176.jsonl' }}
           NEARHIT_FIXTURE: ${{ inputs.nearhit_fixture || 'configs/fixtures/p167_focused_nearhit_candidates.jsonl' }}
@@ -347,23 +303,23 @@ jobs:
           SNAPSHOT_ATTEMPTED_STEPS: ${{ inputs.snapshot_attempted_steps || '0,1' }}
           SNAPSHOT_ACCEPTED_MOVES: ${{ inputs.snapshot_accepted_moves || '0,1' }}
           HIGH_RESOLUTION_LOGGING: ${{ inputs.high_resolution_logging || 'false' }}
-          HIGH_RESOLUTION_MODE: ${{ inputs.high_resolution_mode || 'triggered' }}
-          HIGH_RESOLUTION_MAX_WINDOWS_PER_TRAJECTORY: ${{ inputs.high_resolution_max_windows_per_trajectory || '2' }}
-          HIGH_RESOLUTION_WINDOW_ACCEPTED_MOVES: ${{ inputs.high_resolution_window_accepted_moves || '50' }}
+          HIGH_RESOLUTION_MODE: "triggered"
+          HIGH_RESOLUTION_MAX_WINDOWS_PER_TRAJECTORY: "2"
+          HIGH_RESOLUTION_WINDOW_ACCEPTED_MOVES: "50"
           HIGHRES_FOLLOWUP_ACCEPTED_MOVES: "50"
           ARTIFACT_MODE: ${{ inputs.artifact_mode || 'summary_only' }}
-          COMPRESS_RAW_LOGS: ${{ inputs.compress_raw_logs || 'true' }}
-          UPLOAD_RAW_LOGS: ${{ inputs.upload_raw_logs || 'false' }}
+          COMPRESS_RAW_LOGS: "true"
+          UPLOAD_RAW_LOGS: "false"
           SNAPSHOT_LOG_MODE: ${{ inputs.snapshot_log_mode || 'summary_only' }}
           OPERATOR_REWARD_LOG_MODE: ${{ inputs.operator_reward_log_mode || 'topk' }}
           OPERATOR_REWARD_TOPK: ${{ inputs.operator_reward_topk || '50' }}
-          OPERATOR_REWARD_SAMPLE_RATE: ${{ inputs.operator_reward_sample_rate || '0.01' }}
+          OPERATOR_REWARD_SAMPLE_RATE: "0.01"
           MAX_TASKS: ${{ inputs.max_tasks || '1' }}
           SHARD_INDEX: ${{ matrix.shard_index }}
           SHARD_COUNT: ${{ inputs.shard_count || '1' }}
           RUN_LABEL: ${{ inputs.run_label || 'p167-stage2-smoke' }}
           STAGE_NAME: "p167_stage2"
-          STAGE3_CANDIDATE_LIMIT: ${{ inputs.stage3_candidate_limit || '50' }}
+          STAGE3_CANDIDATE_LIMIT: "50"
         run: |
           set -euo pipefail
 
@@ -459,7 +415,7 @@ jobs:
           retention-days: ${{ steps.prepare.outputs.retention_days }}
 
       - name: Upload p167 Stage 2 raw/debug logs
-        if: always() && (inputs.upload_raw_logs == true || inputs.artifact_mode == 'summary_plus_raw')
+        if: always() && inputs.artifact_mode == 'summary_plus_raw'
         uses: actions/upload-artifact@v7
         with:
           name: p167-stage2-raw-logs-${{ steps.prepare.outputs.safe_label }}-${{ github.run_id }}
@@ -490,24 +446,24 @@ jobs:
         env:
           EXPECTED_SHARDS: ${{ needs.define-shards.outputs.shard_jobs }}
           CONFIG: ${{ inputs.config || 'configs/experiments/p167_stage2_survivor_deepening.yaml' }}
-          TUPLE_REGISTRY: ${{ inputs.tuple_registry || 'configs/fixtures/p167_tuple_classes.json' }}
+          TUPLE_REGISTRY: configs/fixtures/p167_tuple_classes.json
           STAGE1_ARTIFACT: stage1-artifact
           BENCHMARK_TRAP_MANIFEST: ${{ inputs.benchmark_trap_manifest || 'configs/fixtures/benchmark_traps/p167_score164_176.jsonl' }}
           NEARHIT_FIXTURE: ${{ inputs.nearhit_fixture || 'configs/fixtures/p167_focused_nearhit_candidates.jsonl' }}
           RUN_LABEL: ${{ inputs.run_label || 'p167-stage2-smoke' }}
           STAGE_NAME: "p167_stage2"
-          STAGE3_CANDIDATE_LIMIT: ${{ inputs.stage3_candidate_limit || '50' }}
+          STAGE3_CANDIDATE_LIMIT: "50"
           HIGH_RESOLUTION_LOGGING: ${{ inputs.high_resolution_logging || 'false' }}
-          HIGH_RESOLUTION_MODE: ${{ inputs.high_resolution_mode || 'triggered' }}
-          HIGH_RESOLUTION_MAX_WINDOWS_PER_TRAJECTORY: ${{ inputs.high_resolution_max_windows_per_trajectory || '2' }}
-          HIGH_RESOLUTION_WINDOW_ACCEPTED_MOVES: ${{ inputs.high_resolution_window_accepted_moves || '50' }}
+          HIGH_RESOLUTION_MODE: "triggered"
+          HIGH_RESOLUTION_MAX_WINDOWS_PER_TRAJECTORY: "2"
+          HIGH_RESOLUTION_WINDOW_ACCEPTED_MOVES: "50"
           ARTIFACT_MODE: ${{ inputs.artifact_mode || 'summary_only' }}
-          COMPRESS_RAW_LOGS: ${{ inputs.compress_raw_logs || 'true' }}
-          UPLOAD_RAW_LOGS: ${{ inputs.upload_raw_logs || 'false' }}
+          COMPRESS_RAW_LOGS: "true"
+          UPLOAD_RAW_LOGS: "false"
           SNAPSHOT_LOG_MODE: ${{ inputs.snapshot_log_mode || 'summary_only' }}
           OPERATOR_REWARD_LOG_MODE: ${{ inputs.operator_reward_log_mode || 'topk' }}
           OPERATOR_REWARD_TOPK: ${{ inputs.operator_reward_topk || '50' }}
-          OPERATOR_REWARD_SAMPLE_RATE: ${{ inputs.operator_reward_sample_rate || '0.01' }}
+          OPERATOR_REWARD_SAMPLE_RATE: "0.01"
         run: |
           set -euo pipefail
           mkdir -p aggregate-output stage1-artifact
@@ -647,7 +603,7 @@ jobs:
           retention-days: 30
 
       - name: Upload aggregate raw/debug logs
-        if: always() && (inputs.upload_raw_logs == true || inputs.artifact_mode == 'summary_plus_raw')
+        if: always() && inputs.artifact_mode == 'summary_plus_raw'
         uses: actions/upload-artifact@v7
         with:
           name: p167-stage2-raw-logs-aggregate-${{ github.run_id }}
