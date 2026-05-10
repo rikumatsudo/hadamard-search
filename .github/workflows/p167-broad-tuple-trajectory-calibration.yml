@@ -247,6 +247,7 @@ jobs:
           MAX_TASKS: ${{ inputs.max_tasks || '1' }}
           SHARD_INDEX: ${{ matrix.shard_index }}
           SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          RUN_LABEL: ${{ inputs.run_label || 'p167-broad-stage0-smoke' }}
         run: |
           set -euo pipefail
 
@@ -270,6 +271,7 @@ jobs:
             --shard-count "$SHARD_COUNT"
             --github-run-id "$GITHUB_RUN_ID"
             --code-commit "$GITHUB_SHA"
+            --run-label "$RUN_LABEL"
             --out-dir "$OUT_DIR"
           )
           if [ "$HIGH_RESOLUTION_LOGGING" = "true" ]; then
@@ -297,7 +299,9 @@ jobs:
           {
             echo "## p167 broad tuple trajectory calibration"
             echo
-            if [ -f "$OUT_DIR/p167_broad_tuple_stage0_calibration_summary.md" ]; then
+            if [ -f "$OUT_DIR/p167_broad_tuple_trajectory_dataset_calibration_schema_patch_summary.md" ]; then
+              sed -n '1,260p' "$OUT_DIR/p167_broad_tuple_trajectory_dataset_calibration_schema_patch_summary.md"
+            elif [ -f "$OUT_DIR/p167_broad_tuple_stage0_calibration_summary.md" ]; then
               sed -n '1,220p' "$OUT_DIR/p167_broad_tuple_stage0_calibration_summary.md"
             else
               echo "Summary was not generated."
@@ -341,6 +345,7 @@ jobs:
             --aggregate-roots downloaded-artifacts
             --shard-count "$EXPECTED_SHARDS"
             --code-commit "$GITHUB_SHA"
+            --run-label "${{ inputs.run_label || 'p167-broad-stage0-smoke' }}"
             --out-dir aggregate-output
           )
           sage_command="$(printf '%q ' "${args[@]}")"
@@ -424,7 +429,9 @@ jobs:
           {
             echo "## p167 broad tuple trajectory calibration aggregate"
             echo
-            if [ -f "aggregate-output/p167_broad_tuple_stage0_calibration_summary.md" ]; then
+            if [ -f "aggregate-output/p167_broad_tuple_trajectory_dataset_calibration_schema_patch_summary.md" ]; then
+              sed -n '1,320p' "aggregate-output/p167_broad_tuple_trajectory_dataset_calibration_schema_patch_summary.md"
+            elif [ -f "aggregate-output/p167_broad_tuple_stage0_calibration_summary.md" ]; then
               sed -n '1,260p' "aggregate-output/p167_broad_tuple_stage0_calibration_summary.md"
             else
               echo "Aggregate summary was not generated."
