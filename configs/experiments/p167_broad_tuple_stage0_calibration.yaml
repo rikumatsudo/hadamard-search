@@ -1,0 +1,86 @@
+schema_version: p167_broad_tuple_stage0_calibration_v1
+experiment_id: p167-broad-tuple-trajectory-dataset-calibration
+purpose: >
+  Calibrate the p=167 broad tuple trajectory dataset schema, runtime, logging volume,
+  and aggregation behavior. This is not a Hadamard 668 construction run.
+
+tuple_registry: configs/fixtures/p167_tuple_classes.json
+benchmark_trap_manifest: configs/fixtures/benchmark_traps/p167_score164_176.jsonl
+
+p: 167
+n: 668
+tuple_classes: all
+
+stage: 0
+success_criteria:
+  - all_10_tuple_classes_have_run_level_records
+  - run_trajectory_snapshot_layers_are_written
+  - sampled_diagnostic_metadata_is_present
+  - code_commit_config_hash_input_manifest_hash_are_present
+  - artifact_size_and_runtime_are_reported
+  - tuple_seed_operator_summary_is_written
+
+seed_families:
+  - pure_random
+  - mixed_diversity
+
+operators:
+  - baseline_score_only
+  - random_walk_score_guarded
+  - focused_plus_small_threshold
+
+restarts: 1
+steps: 200
+sample_swaps: 100
+diagnostic_sample_count: 100
+diagnostic_type: sampled
+
+snapshot_schedule:
+  attempted_steps: [0, 25, 50, 100, 200]
+  accepted_moves: [0, 25, 50, 100]
+  special_states:
+    - best_score_state
+    - best_exactlike_state
+    - best_closure_shell_state
+    - best_alignment_state
+    - final_state
+
+high_resolution_logging:
+  enabled: true
+  followup_accepted_moves: 50
+  triggers:
+    - closure_shell_score_enters_top_5_percent_of_current_run
+    - kappa_q99_improves_by_top_decile
+    - D_min_ratio_improves_by_at_least_20_percent
+    - alignment_to_minus_rho_improves_by_at_least_0_15
+    - best_score_improves_by_score_band
+
+labels:
+  hard_labels: false
+  soft_scores:
+    - exactlike_score
+    - false_basin_score
+    - closure_shell_score
+    - damage_score
+    - hardening_score
+    - support_mixing_score
+  rank_labels:
+    - top_decile_exactlike_candidate
+    - bottom_decile_false_basin_candidate
+    - high_closure_shell_candidate
+    - damage_candidate
+
+github_actions:
+  shard_count: 40
+  sharding: stratified_by_tuple_seed_operator_restart
+  local_policy: smoke_only
+  local_smoke:
+    max_tasks: 1
+    steps: 1
+    sample_swaps: 5
+    diagnostic_sample_count: 5
+
+notes:
+  - "Stage 0 success is dataset completeness and runtime/log calibration, not score improvement."
+  - "D_min/S, kappa, and alignment are sampled diagnostics unless diagnostic_type is full."
+  - "score=0 remains only a candidate until strict SDS and Goethals-Seidel validation pass."
