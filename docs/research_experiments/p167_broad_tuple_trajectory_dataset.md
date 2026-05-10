@@ -332,6 +332,9 @@ Stage 0 implementation should write:
 run_level.jsonl
 trajectory_level.jsonl
 snapshot_level.jsonl
+run_level_records.jsonl
+trajectory_level_records.jsonl
+snapshot_level_records.jsonl
 tuple_summary.csv
 tuple_summary.json
 seed_family_summary.csv
@@ -340,11 +343,48 @@ operator_summary.csv
 operator_summary.json
 trajectory_label_summary.csv
 trajectory_label_summary.json
+trajectory_type_summary.csv
+trajectory_type_summary.json
+diagnostic_budget_summary.csv
+diagnostic_budget_summary.json
+shard_distribution_summary.csv
+shard_distribution_summary.json
+tuple_by_shard_matrix.csv
+seed_family_by_shard_matrix.csv
+operator_by_shard_matrix.csv
 runtime_summary.csv
 runtime_summary.json
 artifact_size_summary.json
+input_manifest.json
+input_manifest_hash.txt
+tuple_class_registry.json
 hypothesis_evaluation.json
 p167_broad_tuple_stage0_calibration_summary.md
+p167_broad_tuple_trajectory_dataset_calibration_schema_patch_summary.md
+```
+
+Schema audit fields:
+
+```text
+closure_shell_rank_within_tuple / percentile
+closure_shell_rank_within_score_band / percentile
+closure_shell_percentile_within_run
+D_min_ratio_rank_within_tuple / percentile
+D_min_ratio_rank_within_score_band / percentile
+kappa_q99_rank_within_tuple / percentile
+kappa_q99_rank_within_score_band / percentile
+alignment_rank_within_tuple / percentile
+alignment_rank_within_score_band / percentile
+damage_score and damage_score_component_*
+```
+
+Rank direction:
+
+```text
+closure_shell_score, kappa_q99, and alignment: higher is better
+D_min_ratio: lower is better
+rank 1 is best; percentile 1.0 is best
+score_band = floor(S / 50) * 50
 ```
 
 ## Implementation Files

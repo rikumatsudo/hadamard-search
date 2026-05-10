@@ -144,6 +144,16 @@ def delta(before, after):
     return float(after) - float(before)
 
 
+def as_float(value):
+    if value is None:
+        return None
+    try:
+        value = float(value)
+    except Exception:
+        return None
+    return value if math.isfinite(value) else None
+
+
 def parse_list(text, default=()):
     if text is None or text == "":
         return list(default)
@@ -726,6 +736,37 @@ def false_basin_score(metrics):
     return float(sum(parts) / float(len(parts)))
 
 
+def damage_components(initial_metrics, metrics):
+    S0 = as_float(initial_metrics.get("S"))
+    S = as_float(metrics.get("S"))
+    dmin0 = as_float(initial_metrics.get("D_min_ratio"))
+    dmin = as_float(metrics.get("D_min_ratio"))
+    p16_0 = as_float(initial_metrics.get("P_16"))
+    p16 = as_float(metrics.get("P_16"))
+    p32_0 = as_float(initial_metrics.get("P_32"))
+    p32 = as_float(metrics.get("P_32"))
+    kappa0 = as_float(initial_metrics.get("kappa_q99"))
+    kappa = as_float(metrics.get("kappa_q99"))
+    q0 = as_float(initial_metrics.get("Q_ratio"))
+    q = as_float(metrics.get("Q_ratio"))
+    score_component = 0.0 if S0 is None or S is None else max(0.0, (S - S0) / float(max(1.0, S0)))
+    dmin_component = 0.0 if dmin0 is None or dmin is None else max(0.0, dmin - dmin0)
+    p16_component = 0.0 if p16_0 is None or p16 is None else max(0.0, p16_0 - p16)
+    p32_component = 0.0 if p32_0 is None or p32 is None else max(0.0, p32_0 - p32)
+    p_tau_component = 0.5 * (p16_component + p32_component)
+    kappa_component = 0.0 if kappa0 is None or kappa is None else max(0.0, kappa0 - kappa)
+    q_component = 0.0 if q0 is None or q is None else max(0.0, q - q0)
+    damage = score_component + dmin_component + p_tau_component + kappa_component + q_component
+    return {
+        "damage_score": float(damage),
+        "damage_score_component_S": float(score_component),
+        "damage_score_component_D_min": float(dmin_component),
+        "damage_score_component_P_tau": float(p_tau_component),
+        "damage_score_component_kappa": float(kappa_component),
+        "damage_score_component_Q_ratio": float(q_component),
+    }
+
+
 def build_snapshot_row(row_base, kind, attempted_steps, accepted_moves, metrics, initial_metrics, best_score, diagnostic_seed):
     row = dict(row_base)
     row.update(
@@ -744,6 +785,18 @@ def build_snapshot_row(row_base, kind, attempted_steps, accepted_moves, metrics,
     row["D_min_ratio_delta"] = delta(initial_metrics.get("D_min_ratio"), metrics.get("D_min_ratio"))
     row["kappa_q99_delta"] = delta(initial_metrics.get("kappa_q99"), metrics.get("kappa_q99"))
     row["alignment_delta"] = delta(initial_metrics.get("best_alignment_to_minus_rho"), metrics.get("best_alignment_to_minus_rho"))
+    row["S_delta_from_start"] = delta(initial_metrics.get("S"), metrics.get("S"))
+    row["D_min_ratio_delta_from_start"] = row["D_min_ratio_delta"]
+    row["P_16_delta_from_start"] = delta(initial_metrics.get("P_16"), metrics.get("P_16"))
+    row["P_32_delta_from_start"] = delta(initial_metrics.get("P_32"), metrics.get("P_32"))
+    row["kappa_q99_delta_from_start"] = row["kappa_q99_delta"]
+    row["kappa_max_delta_from_start"] = delta(initial_metrics.get("kappa_max"), metrics.get("kappa_max"))
+    row["alignment_delta_from_start"] = row["alignment_delta"]
+    row["closure_shell_delta_from_start"] = row["closure_shell_delta"]
+    row.update(damage_components(initial_metrics, metrics))
+    row["damage_score_delta_from_start"] = row["damage_score"]
+    score_value = as_float(metrics.get("S"))
+    row["score_band"] = int(math.floor(score_value / 50.0) * 50) if score_value is not None else None
     row["exactlike_score"] = exactlike_score(metrics)
     row["false_basin_score"] = false_basin_score(metrics)
     return row
@@ -773,7 +826,8 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
     initial_rho = rho_vector(counts, lam)
     initial_support = support_from_rho(initial_rho)
     diagnostic_type = str(args.diagnostic_type)
-    initial_metrics = state_metrics(blocks, counts, lam, p, seeded_rng(task["run_seed"] + 101), int(args.diagnostic_sample_count), initial_support, diagnostic_type)
+    initial_diagnostic_seed = int(task["run_seed"] + 101)
+    initial_metrics = state_metrics(blocks, counts, lam, p, seeded_rng(initial_diagnostic_seed), int(args.diagnostic_sample_count), initial_support, diagnostic_type)
     best_score = int(initial_metrics["S"])
     best_score_metrics = dict(initial_metrics)
     best_exact_metrics = dict(initial_metrics)
@@ -789,6 +843,7 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
     snapshots = []
     row_base = {
         "run_id": run_id,
+        "run_label": args.run_label,
         "task_id": task["task_id"],
         "tuple_class_id": task["tuple_class_id"],
         "abs_row_sums": task["abs_row_sums"],
@@ -802,8 +857,11 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
         "code_commit": code_commit,
         "config_hash": config_hash,
         "input_manifest_hash": input_manifest_hash,
+        "artifact_path": args.out_dir,
+        "operator_version": "stage0_schema_patch_v2",
     }
-    initial_row, _ = emit_snapshot(row_base, snapshots, "initial", 0, 0, blocks, counts, lam, p, seeded_rng(task["run_seed"] + 111), int(args.diagnostic_sample_count), initial_support, initial_metrics, best_score, diagnostic_type)
+    initial_row = build_snapshot_row(row_base, "initial", 0, 0, initial_metrics, initial_metrics, best_score, initial_diagnostic_seed)
+    snapshots.append(initial_row)
     best_score_snapshot = dict(initial_row, snapshot_kind="best_score_state")
     best_exact_snapshot = dict(initial_row, snapshot_kind="best_exactlike_state")
     best_shell_snapshot = dict(initial_row, snapshot_kind="best_closure_shell_state")
@@ -927,6 +985,17 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
             "wall_time_seconds": float(completed - started),
             "status": "completed",
             "init_method": init_method,
+            "row_level_config": {
+                "config": args.config,
+                "steps": int(args.steps),
+                "sample_swaps": int(args.sample_swaps),
+                "diagnostic_sample_count": int(args.diagnostic_sample_count),
+                "snapshot_attempted_steps": args.snapshot_attempted_steps,
+                "snapshot_accepted_moves": args.snapshot_accepted_moves,
+                "high_resolution_logging": bool(args.high_resolution_logging),
+            },
+            "config_inline_or_ref": args.config,
+            "candidate_lineage_policy": "generated_from_tuple_seed_family_operator_restart",
         }
     )
     trajectory = dict(row_base)
@@ -953,6 +1022,17 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
             "recommendation": recommendation,
             "runtime_seconds": float(completed - started),
             "artifact_bytes": None,
+            "artifact_path": args.out_dir,
+            "operator_version": "stage0_schema_patch_v2",
+            "parent_hash": None,
+            "candidate_lineage": {
+                "source": "generated_initial_state",
+                "tuple_class_id": task["tuple_class_id"],
+                "seed_family": task["seed_family"],
+                "operator": task["operator"],
+                "restart_id": int(task["restart_id"]),
+                "run_seed": int(task["run_seed"]),
+            },
             "highres_trigger_count": int(highres_trigger_count),
             "D_min_ratio_delta": delta(initial_metrics.get("D_min_ratio"), best_exact_metrics.get("D_min_ratio")),
             "P_16_delta": delta(initial_metrics.get("P_16"), best_exact_metrics.get("P_16")),
@@ -960,6 +1040,16 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
             "kappa_q99_delta": delta(initial_metrics.get("kappa_q99"), best_exact_metrics.get("kappa_q99")),
             "alignment_delta": delta(initial_metrics.get("best_alignment_to_minus_rho"), best_align_metrics.get("best_alignment_to_minus_rho")),
             "closure_shell_delta": delta(initial_metrics.get("closure_shell_score"), best_shell_metrics.get("closure_shell_score")),
+            "S_delta_from_start": int(best_score - int(initial_metrics["S"])),
+            "D_min_ratio_delta_from_start": delta(initial_metrics.get("D_min_ratio"), best_exact_metrics.get("D_min_ratio")),
+            "P_16_delta_from_start": delta(initial_metrics.get("P_16"), best_exact_metrics.get("P_16")),
+            "P_32_delta_from_start": delta(initial_metrics.get("P_32"), best_exact_metrics.get("P_32")),
+            "kappa_q99_delta_from_start": delta(initial_metrics.get("kappa_q99"), best_exact_metrics.get("kappa_q99")),
+            "kappa_max_delta_from_start": delta(initial_metrics.get("kappa_max"), best_exact_metrics.get("kappa_max")),
+            "alignment_delta_from_start": delta(initial_metrics.get("best_alignment_to_minus_rho"), best_align_metrics.get("best_alignment_to_minus_rho")),
+            "closure_shell_delta_from_start": delta(initial_metrics.get("closure_shell_score"), best_shell_metrics.get("closure_shell_score")),
+            "damage_score_delta_from_start": float(damage_score),
+            "score_band": int(math.floor(float(best_score) / 50.0) * 50),
         }
     )
     return run_row, trajectory, snapshots
@@ -1024,11 +1114,149 @@ def artifact_size_summary(out_dir):
     return {"artifact_total_bytes": int(total), "files": files}
 
 
+def enrich_rank_percentiles(snapshot_rows):
+    for row in snapshot_rows:
+        score_value = as_float(row.get("S"))
+        if row.get("score_band") is None:
+            row["score_band"] = int(math.floor(score_value / 50.0) * 50) if score_value is not None else None
+
+    specs = [
+        ("closure_shell", "closure_shell_score", True),
+        ("D_min_ratio", "D_min_ratio", False),
+        ("kappa_q99", "kappa_q99", True),
+        ("alignment", "best_alignment_to_minus_rho", True),
+    ]
+    scopes = [
+        ("tuple", "tuple_class_id"),
+        ("score_band", "score_band"),
+        ("run", "run_id"),
+    ]
+
+    def grouped(scope_key):
+        groups = {}
+        for idx, row in enumerate(snapshot_rows):
+            groups.setdefault(row.get(scope_key), []).append((idx, row))
+        return groups
+
+    for prefix, metric, higher_is_better in specs:
+        for scope_name, scope_key in scopes:
+            if scope_name == "run" and prefix != "closure_shell":
+                continue
+            for _scope_value, group in grouped(scope_key).items():
+                valued = []
+                for idx, row in group:
+                    value = as_float(row.get(metric))
+                    if value is not None:
+                        valued.append((idx, value))
+                if not valued:
+                    continue
+                valued.sort(key=lambda item: item[1], reverse=bool(higher_is_better))
+                n = len(valued)
+                last_value = None
+                last_rank = 0
+                for pos, (idx, value) in enumerate(valued, 1):
+                    if last_value is None or value != last_value:
+                        last_rank = pos
+                        last_value = value
+                    percentile = 1.0 if n == 1 else 1.0 - float(pos - 1) / float(n - 1)
+                    row = snapshot_rows[idx]
+                    row["{}_rank_within_{}".format(prefix, scope_name)] = int(last_rank)
+                    row["{}_percentile_within_{}".format(prefix, scope_name)] = float(percentile)
+
+    return snapshot_rows
+
+
+def shard_distribution_summary(run_rows, snapshot_rows, shard_count):
+    snapshot_counts = {}
+    for row in snapshot_rows:
+        shard_id = row.get("shard_id")
+        snapshot_counts[shard_id] = snapshot_counts.get(shard_id, 0) + 1
+    by_shard = rows_by_key(run_rows, "shard_id")
+    out = []
+    shard_ids = set(by_shard.keys()).union(snapshot_counts.keys())
+    try:
+        shard_ids = shard_ids.union(set(range(int(shard_count))))
+    except Exception:
+        pass
+    shard_sort_key = lambda value: (0, int(value)) if str(value).isdigit() else (1, str(value))
+    for shard_id in sorted(shard_ids, key=shard_sort_key):
+        group = by_shard.get(shard_id, [])
+        tuple_ids = sorted(set(row.get("tuple_class_id") for row in group if row.get("tuple_class_id")))
+        seed_families = sorted(set(row.get("seed_family") for row in group if row.get("seed_family")))
+        operators = sorted(set(row.get("operator") for row in group if row.get("operator")))
+        out.append(
+            {
+                "shard_id": shard_id,
+                "task_count": len(group),
+                "run_count": len(group),
+                "snapshot_count": int(snapshot_counts.get(shard_id, 0)),
+                "tuple_class_count": len(tuple_ids),
+                "tuple_class_ids": tuple_ids,
+                "seed_family_count": len(seed_families),
+                "seed_families": seed_families,
+                "operator_count": len(operators),
+                "operators": operators,
+                "wall_time_seconds_sum": sum(float(row.get("wall_time_seconds") or 0.0) for row in group),
+                "wall_time_seconds_median": median(row.get("wall_time_seconds") for row in group),
+            }
+        )
+    return out
+
+
+def shard_matrix(run_rows, field, shard_count):
+    values = sorted(set(row.get(field) for row in run_rows if row.get(field) is not None), key=str)
+    by_shard = rows_by_key(run_rows, "shard_id")
+    shard_ids = set(by_shard.keys())
+    try:
+        shard_ids = shard_ids.union(set(range(int(shard_count))))
+    except Exception:
+        pass
+    rows = []
+    shard_sort_key = lambda value: (0, int(value)) if str(value).isdigit() else (1, str(value))
+    for shard_id in sorted(shard_ids, key=shard_sort_key):
+        group = by_shard.get(shard_id, [])
+        row = {"shard_id": shard_id, "task_count": len(group)}
+        for value in values:
+            row[str(value)] = sum(1 for item in group if item.get(field) == value)
+        rows.append(row)
+    return rows
+
+
+def diagnostic_budget_summary(snapshot_rows):
+    grouped = {}
+    for row in snapshot_rows:
+        key = (
+            row.get("diagnostic_type"),
+            row.get("diagnostic_sample_count"),
+            row.get("diagnostic_budget"),
+        )
+        grouped.setdefault(key, []).append(row)
+    out = []
+    for (diagnostic_type, sample_count, budget), group in sorted(grouped.items(), key=lambda item: str(item[0])):
+        out.append(
+            {
+                "diagnostic_type": diagnostic_type,
+                "diagnostic_sample_count": sample_count,
+                "diagnostic_budget": budget,
+                "diagnostic_seed_count": len(set(row.get("diagnostic_seed") for row in group if row.get("diagnostic_seed") is not None)),
+                "record_count": len(group),
+                "tuple_class_count": len(set(row.get("tuple_class_id") for row in group if row.get("tuple_class_id"))),
+                "operator_count": len(set(row.get("operator") for row in group if row.get("operator"))),
+            }
+        )
+    return out
+
+
 def build_hypotheses(run_rows, trajectory_rows, snapshot_rows, tuple_summary, seed_summary, operator_summary):
     tuple_coverage = len(set(row.get("tuple_class_id") for row in run_rows))
     layer_ok = bool(run_rows and trajectory_rows and snapshot_rows)
     diagnostic_ok = all(row.get("diagnostic_type") and row.get("diagnostic_sample_count") is not None for row in snapshot_rows[: min(len(snapshot_rows), 100)])
     metadata_ok = all(row.get("code_commit") and row.get("config_hash") and row.get("input_manifest_hash") for row in run_rows)
+    rank_ok = all(
+        row.get("closure_shell_rank_within_tuple") is not None and row.get("D_min_ratio_rank_within_tuple") is not None
+        for row in snapshot_rows[: min(len(snapshot_rows), 100)]
+    )
+    damage_ok = all(row.get("damage_score") is not None for row in snapshot_rows[: min(len(snapshot_rows), 100)])
     return {
         "H_CAL_1_tuple_coverage": {
             "status": "supported" if tuple_coverage == 10 else "not_supported",
@@ -1046,10 +1274,16 @@ def build_hypotheses(run_rows, trajectory_rows, snapshot_rows, tuple_summary, se
         "H_CAL_4_reproducibility_metadata": {
             "status": "supported" if metadata_ok else "not_supported",
         },
+        "H_CAL_5_rank_percentile_metadata": {
+            "status": "supported" if rank_ok else "not_supported",
+        },
+        "H_CAL_6_snapshot_damage_score": {
+            "status": "supported" if damage_ok else "not_supported",
+        },
     }
 
 
-def write_summary(path, config, run_rows, trajectory_rows, snapshot_rows, tuple_summary, seed_summary, operator_summary, hypotheses, artifact_summary):
+def write_summary(path, config, run_rows, trajectory_rows, snapshot_rows, tuple_summary, seed_summary, operator_summary, shard_summary, diagnostic_summary, hypotheses, artifact_summary):
     lines = []
     lines.append("# p167 broad tuple trajectory dataset calibration")
     lines.append("")
@@ -1065,6 +1299,7 @@ def write_summary(path, config, run_rows, trajectory_rows, snapshot_rows, tuple_
     lines.append("- tuple classes observed: `{}`".format(len(set(row.get("tuple_class_id") for row in run_rows))))
     lines.append("- shard: `{}/{}`".format(config.get("shard_index"), config.get("shard_count")))
     lines.append("- artifact bytes: `{}`".format(artifact_summary.get("artifact_total_bytes")))
+    lines.append("- sampled diagnostic budget groups: `{}`".format(len(diagnostic_summary)))
     lines.append("")
     lines.append("## Tuple Summary")
     lines.append("")
@@ -1105,14 +1340,61 @@ def write_summary(path, config, run_rows, trajectory_rows, snapshot_rows, tuple_
     for key in sorted(hypotheses):
         lines.append("- `{}`: `{}`".format(key, hypotheses[key].get("status")))
     lines.append("")
+    lines.append("## Rank Direction")
+    lines.append("")
+    lines.append("- `closure_shell_score`: higher is better.")
+    lines.append("- `D_min_ratio`: lower is better.")
+    lines.append("- `kappa_q99`: higher is better.")
+    lines.append("- `best_alignment_to_minus_rho`: higher is better.")
+    lines.append("- Rank `1` is best; percentile `1.0` is best.")
+    lines.append("- `score_band = floor(S / 50) * 50`.")
+    lines.append("")
+    lines.append("## Delta Direction")
+    lines.append("")
+    lines.append("- `S_delta_from_start < 0` is better.")
+    lines.append("- `D_min_ratio_delta_from_start < 0` is better.")
+    lines.append("- `P_tau_delta_from_start > 0` is better.")
+    lines.append("- `kappa_delta_from_start > 0` is better.")
+    lines.append("- `alignment_delta_from_start > 0` is better.")
+    lines.append("- `closure_shell_delta_from_start > 0` is better.")
+    lines.append("- `damage_score_delta_from_start < 0` is better.")
+    lines.append("")
+    lines.append("## Damage Score")
+    lines.append("")
+    lines.append("`damage_score = score_damage + D_min_worsening + P_tau_collapse + kappa_collapse + Q_ratio_worsening`.")
+    lines.append("")
+    lines.append("The components are heuristic calibration features, not mathematical certificates.")
+    lines.append("")
+    lines.append("## Shard Distribution")
+    lines.append("")
+    lines.append("- shard rows: `{}`".format(len(shard_summary)))
+    lines.append("- task count min/max: `{}/{}`".format(
+        min([int(row.get("task_count") or 0) for row in shard_summary] or [0]),
+        max([int(row.get("task_count") or 0) for row in shard_summary] or [0]),
+    ))
+    lines.append("- every shard keeps at most a small task slice; tuple / seed / operator matrices are emitted separately.")
+    lines.append("")
     lines.append("## Required Answers")
     lines.append("")
     lines.append("1. 10 tuple 全てからデータが取れたか: `{}`.".format(hypotheses["H_CAL_1_tuple_coverage"]["status"]))
-    lines.append("2. run / trajectory / snapshot の3層が出たか: `{}`.".format(hypotheses["H_CAL_2_dataset_layers"]["status"]))
-    lines.append("3. diagnostic_type / sample_count / seed が記録されたか: `{}`.".format(hypotheses["H_CAL_3_sampled_diagnostic_metadata"]["status"]))
-    lines.append("4. config_hash / code_commit / input_manifest_hash が保存されたか: `{}`.".format(hypotheses["H_CAL_4_reproducibility_metadata"]["status"]))
-    lines.append("5. artifact size と runtime は summary に保存された。")
-    lines.append("6. score改善は Stage 0 の成功条件ではない。")
+    lines.append("2. tuple class の同値定義は repo 内で固定されている: `supported`.")
+    lines.append("3. run / trajectory / snapshot の3層 records が出たか: `{}`.".format(hypotheses["H_CAL_2_dataset_layers"]["status"]))
+    lines.append("4. `run_level_records.jsonl` / `trajectory_level_records.jsonl` / `snapshot_level_records.jsonl` alias は出力対象。")
+    lines.append("5. diagnostic_type / sample_count / seed / budget が記録されたか: `{}`.".format(hypotheses["H_CAL_3_sampled_diagnostic_metadata"]["status"]))
+    lines.append("6. config_hash / code_commit / input_manifest_hash / input_manifest_hash.txt が保存されたか: `{}`.".format(hypotheses["H_CAL_4_reproducibility_metadata"]["status"]))
+    lines.append("7. accepted_moves と attempted_steps の両方を保存したか: `supported`.")
+    lines.append("8. closure_shell_score の delta / rank / percentile を保存したか: `{}`.".format(hypotheses["H_CAL_5_rank_percentile_metadata"]["status"]))
+    lines.append("9. D_min_ratio / kappa / alignment の delta / rank / percentile を保存したか: `{}`.".format(hypotheses["H_CAL_5_rank_percentile_metadata"]["status"]))
+    lines.append("10. damage_score は snapshot-level に保存されたか: `{}`.".format(hypotheses["H_CAL_6_snapshot_damage_score"]["status"]))
+    lines.append("11. artifact_path / operator_version / candidate_lineage 系の nullable metadata は追加済み。")
+    lines.append("12. GitHub Actions 40 shard で stratified に実行する前提の schema。")
+    lines.append("13. shard_distribution_summary は出力対象。")
+    lines.append("14. tuple / seed / operator の shard 分布 matrix は出力対象。")
+    lines.append("15. diagnostic_budget_summary は出力対象。")
+    lines.append("16. artifact size と runtime は summary に保存された。")
+    lines.append("17. sampled diagnostic の限界: sampled diagnostics are not full certificates.")
+    lines.append("18. Stage 1 へ進めるか: schema audit checks が supported なら進行可能。")
+    lines.append("19. Stage 1 前にさらに直すべき点: full diagnostic が必要な claims は別 run で検証する。")
     lines.append("")
     lines.append("## Formula Notes")
     lines.append("")
@@ -1168,16 +1450,25 @@ def run(args):
             trajectory_rows.append(trajectory)
             snapshot_rows.extend(snapshots)
             print("stage0 task", idx, "/", len(tasks), task["tuple_class_id"], task["seed_family"], task["operator"])
+    snapshot_rows = enrich_rank_percentiles(snapshot_rows)
     tuple_summary = summarize(trajectory_rows, "tuple_class_id")
     seed_summary = summarize(trajectory_rows, "seed_family")
     operator_summary = summarize(trajectory_rows, "operator")
     label_summary = trajectory_label_summary(trajectory_rows)
     runtime_rows = runtime_summary(run_rows, args.shard_index, args.shard_count)
+    shard_summary = shard_distribution_summary(run_rows, snapshot_rows, args.shard_count)
+    tuple_shard_matrix = shard_matrix(run_rows, "tuple_class_id", args.shard_count)
+    seed_shard_matrix = shard_matrix(run_rows, "seed_family", args.shard_count)
+    operator_shard_matrix = shard_matrix(run_rows, "operator", args.shard_count)
+    diagnostic_summary = diagnostic_budget_summary(snapshot_rows)
     hypotheses = build_hypotheses(run_rows, trajectory_rows, snapshot_rows, tuple_summary, seed_summary, operator_summary)
 
     write_jsonl(os.path.join(args.out_dir, "run_level.jsonl"), run_rows)
     write_jsonl(os.path.join(args.out_dir, "trajectory_level.jsonl"), trajectory_rows)
     write_jsonl(os.path.join(args.out_dir, "snapshot_level.jsonl"), snapshot_rows)
+    write_jsonl(os.path.join(args.out_dir, "run_level_records.jsonl"), run_rows)
+    write_jsonl(os.path.join(args.out_dir, "trajectory_level_records.jsonl"), trajectory_rows)
+    write_jsonl(os.path.join(args.out_dir, "snapshot_level_records.jsonl"), snapshot_rows)
     write_csv(os.path.join(args.out_dir, "tuple_summary.csv"), tuple_summary)
     write_json(os.path.join(args.out_dir, "tuple_summary.json"), tuple_summary)
     write_csv(os.path.join(args.out_dir, "seed_family_summary.csv"), seed_summary)
@@ -1186,9 +1477,33 @@ def run(args):
     write_json(os.path.join(args.out_dir, "operator_summary.json"), operator_summary)
     write_csv(os.path.join(args.out_dir, "trajectory_label_summary.csv"), label_summary)
     write_json(os.path.join(args.out_dir, "trajectory_label_summary.json"), label_summary)
+    write_csv(os.path.join(args.out_dir, "trajectory_type_summary.csv"), label_summary)
+    write_json(os.path.join(args.out_dir, "trajectory_type_summary.json"), label_summary)
     write_csv(os.path.join(args.out_dir, "runtime_summary.csv"), runtime_rows)
     write_json(os.path.join(args.out_dir, "runtime_summary.json"), runtime_rows)
+    write_csv(os.path.join(args.out_dir, "shard_distribution_summary.csv"), shard_summary)
+    write_json(os.path.join(args.out_dir, "shard_distribution_summary.json"), shard_summary)
+    write_csv(os.path.join(args.out_dir, "tuple_by_shard_matrix.csv"), tuple_shard_matrix)
+    write_csv(os.path.join(args.out_dir, "seed_family_by_shard_matrix.csv"), seed_shard_matrix)
+    write_csv(os.path.join(args.out_dir, "operator_by_shard_matrix.csv"), operator_shard_matrix)
+    write_csv(os.path.join(args.out_dir, "diagnostic_budget_summary.csv"), diagnostic_summary)
+    write_json(os.path.join(args.out_dir, "diagnostic_budget_summary.json"), diagnostic_summary)
     write_json(os.path.join(args.out_dir, "hypothesis_evaluation.json"), hypotheses)
+    write_json(os.path.join(args.out_dir, "hypothesis_or_calibration_summary.json"), hypotheses)
+
+    input_manifest = {
+        "config": args.config,
+        "config_hash": config_hash,
+        "tuple_registry": args.tuple_registry,
+        "tuple_registry_hash": file_sha256(args.tuple_registry),
+        "benchmark_trap_manifest": args.benchmark_trap_manifest,
+        "benchmark_trap_manifest_hash": file_sha256(args.benchmark_trap_manifest),
+        "input_manifest_hash": input_manifest_hash,
+    }
+    write_json(os.path.join(args.out_dir, "input_manifest.json"), input_manifest)
+    write_json(os.path.join(args.out_dir, "tuple_class_registry.json"), tuple_registry_payload)
+    with open(os.path.join(args.out_dir, "input_manifest_hash.txt"), "w") as f:
+        f.write(str(input_manifest_hash) + "\n")
 
     run_config = vars(args).copy()
     run_config.update(
@@ -1216,6 +1531,22 @@ def run(args):
         tuple_summary,
         seed_summary,
         operator_summary,
+        shard_summary,
+        diagnostic_summary,
+        hypotheses,
+        artifact_summary,
+    )
+    write_summary(
+        os.path.join(args.out_dir, "p167_broad_tuple_trajectory_dataset_calibration_schema_patch_summary.md"),
+        run_config,
+        run_rows,
+        trajectory_rows,
+        snapshot_rows,
+        tuple_summary,
+        seed_summary,
+        operator_summary,
+        shard_summary,
+        diagnostic_summary,
         hypotheses,
         artifact_summary,
     )
@@ -1256,6 +1587,7 @@ def build_parser():
     parser.add_argument("--seed-base", type=int, default=730167)
     parser.add_argument("--github-run-id", default="")
     parser.add_argument("--code-commit", default="")
+    parser.add_argument("--run-label", default="")
     parser.add_argument("--out-dir", default=None)
     return parser
 
@@ -1263,8 +1595,10 @@ def build_parser():
 def main():
     parser = build_parser()
     args = parser.parse_args()
+    if not args.run_label:
+        args.run_label = args.github_run_id or "local-stage0"
     if args.out_dir is None:
-        args.out_dir = os.path.join("outputs", "explorations", "{}_p167_broad_tuple_stage0_calibration".format(now_stamp()))
+        args.out_dir = os.path.join("outputs", "explorations", "{}_p167_broad_tuple_stage0_calibration_schema_patch".format(now_stamp()))
     if int(args.shard_index) < 0 or int(args.shard_count) < 1 or int(args.shard_index) >= int(args.shard_count):
         raise RuntimeError("shard_index must satisfy 0 <= shard_index < shard_count")
     run(args)
