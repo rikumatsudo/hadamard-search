@@ -48,10 +48,19 @@ GitHub Actionsの現在の並列上限まで並列化します。GitHub Freeのs
 GitHubの現在の制限が変わっていない限り、20 concurrent jobsを上限の目安にします。
 GitHub Proでは40 concurrent jobsを上限の目安にします。
 
+本番実験のproduction fan-outは、原則として毎回必ず40分割で設計します。
+smoke testや明示的な小規模確認は例外ですが、production runを起動する場合は
+`shard_count=40` と `max_parallel=40` を基本値にします。
+GitHub Actionsの現在の上限が40未満、または対象workflowが未対応の場合は、
+先にworkflowやdispatch scriptを40分割対応へ直してから本番runへ進みます。
+
 fan-out戦略を変える前には、GitHub Actionsの現在のlimitを確認します。
 larger runnerはコストが発生するため、ユーザーの明示承認なしに使いません。
 
-production workはseed、parameter tuple、config file単位で分割します。
+production workの分割軸は実験ごとに最適なものを選びます。
+seed、parent candidate、mode、restart、parameter tuple、config fileなど、
+その実験で負荷が均等になり、再現性とartifact確認がしやすい単位を使います。
+「必ずseedで分割する」とは決めず、40 shardへ均等に割れる設計を優先します。
 各shardは再現可能にし、artifact名と `run_label` で内容が分かるようにします。
 seed分割では `total_seeds`, `shard_index`, `shard_count` を使い、
 20等分または40等分のように均等なshardへ分割します。
