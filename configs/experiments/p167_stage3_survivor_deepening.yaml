@@ -1,0 +1,66 @@
+schema_version: p167_stage3_survivor_deepening_v1
+stage: 3
+description: >
+  Stage 3 survivor deepening for p=167. This is not a Hadamard 668
+  construction run; it deepens Stage 2 recommendations and narrows Stage 4 /
+  production exploration candidates using score, exact-like, closure-shell,
+  alignment, and damage diagnostics.
+
+p: 167
+n: 668
+
+stage2:
+  source_run_id: "25627470830"
+  source_artifact_name: "p167-stage2-aggregate-25627470830"
+  expected_recommendations: 50
+  replay_policy: deterministic_stage2_best_state_replay
+
+candidates:
+  deep_search_limit: 41
+  repair_target_limit: 2
+  operator_benchmark_limit: 3
+  needs_more_diagnostics_limit: 1
+  archive_limit: 2
+  total_candidate_limit: 49
+
+operators:
+  - survivor_baseline_score_only
+  - survivor_exact_joint_local_repair
+  - survivor_mixed_operator_adaptive
+  - survivor_pair_profile_movespace_filter
+
+operator_reward:
+  formula: "reward = closure improvement + alignment improvement + kappa improvement + D_min improvement + support mixing - damage"
+  note: >
+    Step-level reward is a lightweight routing proxy. Stage 3 evaluation should
+    use sampled trajectory diagnostics and never treat sampled D_min/kappa/
+    alignment as full certificates.
+
+logging:
+  snapshot_attempted_steps: "0,50,100,200,500,1000,1500"
+  snapshot_accepted_moves: "0,25,50,100,200,500"
+  artifact_mode: summary_only
+  snapshot_log_mode: summary_only
+  operator_reward_log_mode: topk
+  operator_reward_topk: 50
+  upload_raw_logs: false
+  high_resolution_mode: triggered
+  high_resolution_max_windows_per_trajectory: 2
+  high_resolution_window_accepted_moves: 50
+
+diagnostics:
+  diagnostic_type: sampled
+  diagnostic_sample_count: 300
+  diagnostic_budget_note: "sampled diagnostics are not full certificates"
+
+stage4_selection:
+  limit: 50
+  criteria:
+    - closure_shell_score high and improved
+    - alignment_to_minus_rho high and improved
+    - D_min_ratio decreased
+    - kappa_q99 improved
+    - damage_score low
+    - hardening_score low
+    - support_mixing_score positive
+    - score did not degrade badly
