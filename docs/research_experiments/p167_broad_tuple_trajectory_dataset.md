@@ -1,6 +1,6 @@
 # p167 Broad Tuple Trajectory Dataset
 
-Status: PR1 dataset schema / tuple registry.
+Status: Stage 0 tuple registry, calibration script, workflow, and dispatch helper.
 
 Scope: p=167, n=668, broad landscape sampling across the 10 row-sum absolute tuple classes.
 
@@ -347,13 +347,65 @@ hypothesis_evaluation.json
 p167_broad_tuple_stage0_calibration_summary.md
 ```
 
-## Next Implementation Step
+## Implementation Files
 
-PR2 should add:
+Tuple registry / benchmark manifest:
+
+```text
+configs/fixtures/p167_tuple_classes.json
+configs/fixtures/benchmark_traps/p167_score164_176.jsonl
+```
+
+Config:
+
+```text
+configs/experiments/p167_broad_tuple_stage0_calibration.yaml
+```
+
+Calibration implementation:
 
 ```text
 sage/73_p167_broad_tuple_trajectory_dataset_calibration.sage
 .github/workflows/p167-broad-tuple-trajectory-calibration.yml
 ```
 
-The script should consume the tuple registry and Stage 0 config, produce the three dataset layers, use stratified 40-shard assignment, and aggregate summaries without running a large local experiment.
+Dispatch helper:
+
+```text
+scripts/dispatch_p167_broad_stage0.py
+```
+
+The script consumes the tuple registry and Stage 0 config, produces the three dataset layers, uses shard assignment, and aggregates summaries without running a large local experiment.
+
+## Dispatch Presets
+
+The helper is dry-run by default.
+
+Remote smoke:
+
+```bash
+python3 scripts/dispatch_p167_broad_stage0.py \
+  --preset remote-smoke \
+  --ref main \
+  --run-label p167-broad-stage0-remote-smoke-YYYYMMDD
+```
+
+40 shard Stage 0:
+
+```bash
+python3 scripts/dispatch_p167_broad_stage0.py \
+  --preset stage0-40 \
+  --ref main \
+  --run-label p167-broad-stage0-40x-YYYYMMDD
+```
+
+Short 40 shard calibration:
+
+```bash
+python3 scripts/dispatch_p167_broad_stage0.py \
+  --preset stage0-lite-40 \
+  --ref main \
+  --run-label p167-broad-stage0-lite-40x-YYYYMMDD
+```
+
+Add `--execute` only after inspecting the printed `env -u GITHUB_TOKEN gh workflow run ...` command.

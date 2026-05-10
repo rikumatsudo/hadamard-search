@@ -125,3 +125,106 @@ run完了後は、aggregate artifactを見る。
 成功扱いできるのは、`verification_summary.json` で `hadamard_ok_count` が1以上、
 かつ該当candidate JSONに `verify_sds=true`, `generated_hadamard=true`, `hh_t=true`
 が記録されている場合だけです。
+
+## p167 Broad Tuple Stage 0 Calibration
+
+これはHadamard 668構成runではありません。10 tuple classを比較するための
+dataset schema / label / runtime / artifact size calibrationです。
+
+必ず次の順番で実行します。
+
+1. local N=1 smokeを通す。
+2. PRをmergeする。
+3. remote smokeを1 taskで通す。
+4. 40 shard Stage 0 calibrationを起動する。
+
+local N=1 smoke:
+
+```bash
+DOT_SAGE=${TMPDIR:-/tmp}/sage-dot \
+sage sage/73_p167_broad_tuple_trajectory_dataset_calibration.sage \
+  --config configs/experiments/p167_broad_tuple_stage0_calibration.yaml \
+  --tuple-registry configs/fixtures/p167_tuple_classes.json \
+  --benchmark-trap-manifest configs/fixtures/benchmark_traps/p167_score164_176.jsonl \
+  --seed-families pure_random \
+  --operators baseline_score_only \
+  --restarts 1 \
+  --steps 1 \
+  --sample-swaps 5 \
+  --diagnostic-sample-count 5 \
+  --snapshot-attempted-steps 0,1 \
+  --snapshot-accepted-moves 0,1 \
+  --mixed-diversity-pool 2 \
+  --max-tasks 1 \
+  --shard-index 0 \
+  --shard-count 1 \
+  --out-dir "${TMPDIR:-/tmp}/hadamard-stage0-local-smoke"
+```
+
+dispatch helperはdry-runをデフォルトにしています。
+
+Remote smoke dry-run:
+
+```bash
+python3 scripts/dispatch_p167_broad_stage0.py \
+  --preset remote-smoke \
+  --ref main \
+  --run-label p167-broad-stage0-remote-smoke-YYYYMMDD
+```
+
+Remote smoke実行:
+
+```bash
+python3 scripts/dispatch_p167_broad_stage0.py \
+  --preset remote-smoke \
+  --ref main \
+  --run-label p167-broad-stage0-remote-smoke-YYYYMMDD \
+  --execute
+```
+
+40 shard Stage 0 calibration dry-run:
+
+```bash
+python3 scripts/dispatch_p167_broad_stage0.py \
+  --preset stage0-40 \
+  --ref main \
+  --run-label p167-broad-stage0-40x-YYYYMMDD
+```
+
+40 shard Stage 0 calibration実行:
+
+```bash
+python3 scripts/dispatch_p167_broad_stage0.py \
+  --preset stage0-40 \
+  --ref main \
+  --run-label p167-broad-stage0-40x-YYYYMMDD \
+  --execute
+```
+
+短めに40 shardの分散・artifact量を見たい場合:
+
+```bash
+python3 scripts/dispatch_p167_broad_stage0.py \
+  --preset stage0-lite-40 \
+  --ref main \
+  --run-label p167-broad-stage0-lite-40x-YYYYMMDD
+```
+
+Stage 0で見るべき成功条件はscore改善ではありません。
+
+- 10 tuple classすべてにrun-level rowがある。
+- run / trajectory / snapshot の3層が出る。
+- sampled diagnostic metadataがある。
+- `code_commit`, `config_hash`, `input_manifest_hash` がある。
+- aggregate summaryでruntimeとartifact sizeが見える。
+- tuple / seed family / operator比較表が出る。
+
+結果はaggregate artifactの次のファイルを見る。
+
+- `p167_broad_tuple_stage0_calibration_summary.md`
+- `tuple_summary.csv`
+- `seed_family_summary.csv`
+- `operator_summary.csv`
+- `trajectory_label_summary.csv`
+- `runtime_summary.csv`
+- `artifact_size_summary.json`
