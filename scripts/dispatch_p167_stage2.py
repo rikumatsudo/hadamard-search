@@ -29,6 +29,16 @@ PRESETS = {
         "snapshot_attempted_steps": "0,1",
         "snapshot_accepted_moves": "0,1",
         "high_resolution_logging": "false",
+        "high_resolution_mode": "off",
+        "high_resolution_max_windows_per_trajectory": "1",
+        "high_resolution_window_accepted_moves": "5",
+        "artifact_mode": "summary_only",
+        "compress_raw_logs": "true",
+        "upload_raw_logs": "false",
+        "snapshot_log_mode": "summary_only",
+        "operator_reward_log_mode": "topk",
+        "operator_reward_topk": "5",
+        "operator_reward_sample_rate": "0.01",
         "max_tasks": "1",
         "shard_count": "1",
         "max_parallel": "1",
@@ -54,6 +64,16 @@ PRESETS = {
         "snapshot_attempted_steps": "0,50,100,200,500,1000",
         "snapshot_accepted_moves": "0,25,50,100,200,500",
         "high_resolution_logging": "true",
+        "high_resolution_mode": "triggered",
+        "high_resolution_max_windows_per_trajectory": "2",
+        "high_resolution_window_accepted_moves": "50",
+        "artifact_mode": "summary_only",
+        "compress_raw_logs": "true",
+        "upload_raw_logs": "false",
+        "snapshot_log_mode": "summary_only",
+        "operator_reward_log_mode": "topk",
+        "operator_reward_topk": "50",
+        "operator_reward_sample_rate": "0.01",
         "max_tasks": "0",
         "shard_count": "40",
         "max_parallel": "40",
@@ -79,6 +99,16 @@ PRESETS = {
         "snapshot_attempted_steps": "0,50,100,200,500,1000,2000",
         "snapshot_accepted_moves": "0,25,50,100,200,500",
         "high_resolution_logging": "true",
+        "high_resolution_mode": "triggered",
+        "high_resolution_max_windows_per_trajectory": "2",
+        "high_resolution_window_accepted_moves": "50",
+        "artifact_mode": "summary_only",
+        "compress_raw_logs": "true",
+        "upload_raw_logs": "false",
+        "snapshot_log_mode": "summary_only",
+        "operator_reward_log_mode": "topk",
+        "operator_reward_topk": "50",
+        "operator_reward_sample_rate": "0.01",
         "max_tasks": "0",
         "shard_count": "40",
         "max_parallel": "40",
@@ -107,6 +137,16 @@ INPUT_ORDER = [
     "snapshot_attempted_steps",
     "snapshot_accepted_moves",
     "high_resolution_logging",
+    "high_resolution_mode",
+    "high_resolution_max_windows_per_trajectory",
+    "high_resolution_window_accepted_moves",
+    "artifact_mode",
+    "compress_raw_logs",
+    "upload_raw_logs",
+    "snapshot_log_mode",
+    "operator_reward_log_mode",
+    "operator_reward_topk",
+    "operator_reward_sample_rate",
     "max_tasks",
     "shard_count",
     "max_parallel",
@@ -172,14 +212,30 @@ def validate(values):
         "steps",
         "sample_swaps",
         "diagnostic_sample_count",
+        "high_resolution_window_accepted_moves",
+        "operator_reward_topk",
         "shard_count",
         "max_parallel",
         "stage3_candidate_limit",
     ):
         positive_int(values[key], key)
+    nonnegative_int(values["high_resolution_max_windows_per_trajectory"], "high_resolution_max_windows_per_trajectory")
     if int(values["max_parallel"]) > int(values["shard_count"]):
         raise ValueError("max_parallel should not exceed shard_count")
     values["high_resolution_logging"] = parse_bool(values["high_resolution_logging"], "high_resolution_logging")
+    values["compress_raw_logs"] = parse_bool(values["compress_raw_logs"], "compress_raw_logs")
+    values["upload_raw_logs"] = parse_bool(values["upload_raw_logs"], "upload_raw_logs")
+    if values["high_resolution_mode"] not in ("off", "triggered", "all"):
+        raise ValueError("high_resolution_mode must be off, triggered, or all")
+    if values["artifact_mode"] not in ("summary_only", "summary_plus_raw"):
+        raise ValueError("artifact_mode must be summary_only or summary_plus_raw")
+    if values["snapshot_log_mode"] not in ("summary_only", "scheduled", "triggered", "full"):
+        raise ValueError("snapshot_log_mode must be summary_only, scheduled, triggered, or full")
+    if values["operator_reward_log_mode"] not in ("summary_only", "topk", "sampled", "full_compressed"):
+        raise ValueError("operator_reward_log_mode must be summary_only, topk, sampled, or full_compressed")
+    sample_rate = float(values["operator_reward_sample_rate"])
+    if sample_rate < 0.0 or sample_rate > 1.0:
+        raise ValueError("operator_reward_sample_rate must be in [0, 1]")
 
 
 def build_command(args, values):

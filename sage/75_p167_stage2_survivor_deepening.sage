@@ -2,6 +2,7 @@ from sage.all import *
 
 import argparse
 import glob
+import gzip
 import json
 import math
 import os
@@ -32,6 +33,19 @@ ADAPTIVE_BASE_OPERATORS = (
     "survivor_hybrid_pair_to_closure_shell",
     "survivor_pair_profile_movespace_filter",
     "survivor_exact_joint_local_repair",
+)
+
+ESSENTIAL_SNAPSHOT_KINDS = set(
+    [
+        "initial",
+        "scheduled",
+        "final",
+        "best_score_state",
+        "best_exactlike_state",
+        "best_closure_shell_state",
+        "best_alignment_state",
+        "best_operator_reward_state",
+    ]
 )
 
 
@@ -663,6 +677,7 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
     accepted = 0
     highres_until = -1
     highres_trigger_count = 0
+    highres_windows_opened = 0
     no_move_streak = 0
     previous_selected = None
     operator_switch_count = 0
@@ -729,7 +744,16 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
                     best_score_snapshot.update(operator_state_counts(operator_state))
         attempted_due = step in attempted_schedule and step not in emitted_attempted_steps
         accepted_due = accepted in accepted_schedule and accepted not in emitted_accepted_moves
-        highres_due = accepted > 0 and accepted <= highres_until and accepted not in emitted_highres_accepted_moves
+        highres_due = (
+            str(args.high_resolution_mode) == "all"
+            and accepted > 0
+            and accepted not in emitted_highres_accepted_moves
+        ) or (
+            str(args.high_resolution_mode) == "triggered"
+            and accepted > 0
+            and accepted <= highres_until
+            and accepted not in emitted_highres_accepted_moves
+        )
         need_snapshot = attempted_due or accepted_due or highres_due
         if need_snapshot:
             kind = "high_resolution" if highres_due else "scheduled"
@@ -769,7 +793,7 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
             if float(metrics.get("best_alignment_to_minus_rho") or -999.0) > float(best_align_metrics.get("best_alignment_to_minus_rho") or -999.0):
                 best_align_metrics = dict(metrics)
                 best_align_snapshot = dict(row, snapshot_kind="best_alignment_state")
-            if bool(args.high_resolution_logging):
+            if bool(args.high_resolution_logging) and str(args.high_resolution_mode) == "triggered":
                 dmin0 = initial_metrics.get("D_min_ratio")
                 dmin = metrics.get("D_min_ratio")
                 align_delta = row.get("alignment_delta")
@@ -786,9 +810,14 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
                     trigger = True
                 if reward > best_operator_reward + 0.25:
                     trigger = True
-                if trigger and accepted + int(args.highres_followup_accepted_moves) > highres_until:
-                    highres_until = accepted + int(args.highres_followup_accepted_moves)
+                if (
+                    trigger
+                    and highres_windows_opened < int(args.high_resolution_max_windows_per_trajectory)
+                    and accepted + int(args.high_resolution_window_accepted_moves) > highres_until
+                ):
+                    highres_until = accepted + int(args.high_resolution_window_accepted_moves)
                     highres_trigger_count += 1
+                    highres_windows_opened += 1
     final_blocks = [set(block) for block in blocks]
     final_counts = counts
     final_score = score_counts(final_counts, lam)
@@ -846,6 +875,14 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
                 "snapshot_attempted_steps": args.snapshot_attempted_steps,
                 "snapshot_accepted_moves": args.snapshot_accepted_moves,
                 "high_resolution_logging": bool(args.high_resolution_logging),
+                "high_resolution_mode": args.high_resolution_mode,
+                "high_resolution_max_windows_per_trajectory": int(args.high_resolution_max_windows_per_trajectory),
+                "high_resolution_window_accepted_moves": int(args.high_resolution_window_accepted_moves),
+                "artifact_mode": args.artifact_mode,
+                "snapshot_log_mode": args.snapshot_log_mode,
+                "operator_reward_log_mode": args.operator_reward_log_mode,
+                "operator_reward_topk": int(args.operator_reward_topk),
+                "operator_reward_sample_rate": float(args.operator_reward_sample_rate),
             },
             "config_inline_or_ref": args.config,
             "candidate_lineage_policy": "stage1_survivor_replay_or_control_fixture",
@@ -1083,6 +1120,9 @@ def write_stage2_summary(path, run_config, run_rows, trajectory_rows, snapshot_r
     lines.append("- sources: `{}`".format({key: len(value) for key, value in source_counts.items()}))
     lines.append("- stage3 recommendations: `{}`".format(len(stage3_rows)))
     lines.append("- artifact bytes: `{}`".format(artifact_summary.get("artifact_total_bytes")))
+    lines.append("- snapshot log mode: `{}`".format(run_config.get("snapshot_log_mode")))
+    lines.append("- operator reward log mode: `{}`".format(run_config.get("operator_reward_log_mode")))
+    lines.append("- raw logs uploaded: `{}`".format(run_config.get("upload_raw_logs")))
     lines.append("")
     lines.append("## Operator Summary")
     lines.append("")
@@ -1124,6 +1164,261 @@ def write_stage2_summary(path, run_config, run_rows, trajectory_rows, snapshot_r
         f.write("\n".join(lines) + "\n")
 
 
+def write_jsonl_gzip(path, rows):
+    ensure_dir(os.path.dirname(path))
+    with gzip.open(path, "wt") as f:
+        for row in rows:
+            f.write(json.dumps(json_safe(row), sort_keys=True) + "\n")
+
+
+def filtered_snapshot_rows(snapshot_rows, mode):
+    mode = str(mode or "summary_only")
+    if mode == "full":
+        return list(snapshot_rows)
+    if mode == "triggered":
+        return list(snapshot_rows)
+    if mode == "scheduled":
+        return [row for row in snapshot_rows if row.get("snapshot_kind") != "high_resolution"]
+    return [row for row in snapshot_rows if row.get("snapshot_kind") in ESSENTIAL_SNAPSHOT_KINDS]
+
+
+def best_numeric(rows, key, higher_is_better=True):
+    usable = [row for row in rows if row.get(key) is not None]
+    if not usable:
+        return None
+    return max(usable, key=lambda row: float(row.get(key))) if higher_is_better else min(usable, key=lambda row: float(row.get(key)))
+
+
+def snapshot_summary_by_trajectory(snapshot_rows):
+    groups = rows_by_key(snapshot_rows, "trajectory_id")
+    out = []
+    for trajectory_id in sorted(groups):
+        rows = groups[trajectory_id]
+        initial = next((row for row in rows if row.get("snapshot_kind") == "initial"), rows[0])
+        final = next((row for row in reversed(rows) if row.get("snapshot_kind") == "final"), rows[-1])
+        best_s = best_numeric(rows, "S", higher_is_better=False)
+        best_closure = best_numeric(rows, "closure_shell_score", higher_is_better=True)
+        best_dmin = best_numeric(rows, "D_min_ratio", higher_is_better=False)
+        best_kappa = best_numeric(rows, "kappa_q99", higher_is_better=True)
+        best_alignment = best_numeric(rows, "best_alignment_to_minus_rho", higher_is_better=True)
+        max_damage = best_numeric(rows, "damage_score", higher_is_better=True)
+        row = {
+            "trajectory_id": trajectory_id,
+            "run_id": initial.get("run_id"),
+            "tuple_class_id": initial.get("tuple_class_id"),
+            "operator": initial.get("operator"),
+            "source": initial.get("source"),
+            "recommendation": initial.get("recommendation"),
+            "initial_S": initial.get("S"),
+            "best_S": best_s.get("S") if best_s else None,
+            "final_S": final.get("S"),
+            "initial_closure_shell_score": initial.get("closure_shell_score"),
+            "best_closure_shell_score": best_closure.get("closure_shell_score") if best_closure else None,
+            "final_closure_shell_score": final.get("closure_shell_score"),
+            "closure_shell_delta_best": delta(initial.get("closure_shell_score"), best_closure.get("closure_shell_score") if best_closure else None),
+            "initial_D_min_ratio": initial.get("D_min_ratio"),
+            "best_D_min_ratio": best_dmin.get("D_min_ratio") if best_dmin else None,
+            "final_D_min_ratio": final.get("D_min_ratio"),
+            "D_min_ratio_delta_best": delta(initial.get("D_min_ratio"), best_dmin.get("D_min_ratio") if best_dmin else None),
+            "initial_kappa_q99": initial.get("kappa_q99"),
+            "best_kappa_q99": best_kappa.get("kappa_q99") if best_kappa else None,
+            "final_kappa_q99": final.get("kappa_q99"),
+            "kappa_q99_delta_best": delta(initial.get("kappa_q99"), best_kappa.get("kappa_q99") if best_kappa else None),
+            "initial_alignment": initial.get("best_alignment_to_minus_rho"),
+            "best_alignment": best_alignment.get("best_alignment_to_minus_rho") if best_alignment else None,
+            "final_alignment": final.get("best_alignment_to_minus_rho"),
+            "alignment_delta_best": delta(initial.get("best_alignment_to_minus_rho"), best_alignment.get("best_alignment_to_minus_rho") if best_alignment else None),
+            "initial_damage_score": initial.get("damage_score"),
+            "max_damage_score": max_damage.get("damage_score") if max_damage else None,
+            "final_damage_score": final.get("damage_score"),
+            "best_snapshot_kind": best_closure.get("snapshot_kind") if best_closure else None,
+            "best_snapshot_step": best_closure.get("attempted_steps") if best_closure else None,
+            "best_snapshot_accepted_moves": best_closure.get("accepted_moves") if best_closure else None,
+        }
+        out.append(row)
+    return out
+
+
+def simple_group_summary(rows, key):
+    out = []
+    for value, group in sorted(rows_by_key(rows, key).items()):
+        out.append(
+            {
+                key: value,
+                "trajectory_count": len(group),
+                "median_best_S": median(row.get("best_S") for row in group),
+                "median_best_closure_shell_score": median(row.get("best_closure_shell_score") for row in group),
+                "median_D_min_ratio_delta_best": median(row.get("D_min_ratio_delta_best") for row in group),
+                "median_kappa_q99_delta_best": median(row.get("kappa_q99_delta_best") for row in group),
+                "median_alignment_delta_best": median(row.get("alignment_delta_best") for row in group),
+                "median_max_damage_score": median(row.get("max_damage_score") for row in group),
+            }
+        )
+    return out
+
+
+def reward_topk_rows(reward_rows, trajectory_lookup, k):
+    k = int(k)
+    grouped = rows_by_key(reward_rows, "trajectory_id")
+    out = []
+    for trajectory_id, group in grouped.items():
+        group = sorted(group, key=lambda row: float(row.get("operator_reward") or 0.0), reverse=True)[:k]
+        for row in group:
+            base = dict(row)
+            trajectory = trajectory_lookup.get(trajectory_id, {})
+            base["recommendation"] = trajectory.get("recommendation")
+            base["reward"] = base.get("operator_reward")
+            base["reward_components"] = {
+                "DeltaS": base.get("DeltaS"),
+                "kappa": base.get("kappa"),
+                "removed_support_count": base.get("removed_support_count"),
+                "added_support_count": base.get("added_support_count"),
+            }
+            base.setdefault("S", None)
+            base.setdefault("D_min_ratio", None)
+            base.setdefault("kappa_q99", None)
+            base.setdefault("closure_shell_score", None)
+            base.setdefault("alignment", None)
+            base.setdefault("damage_score", None)
+            out.append(base)
+    return out
+
+
+def reward_sampled_rows(reward_rows, sample_rate, seed_base):
+    sample_rate = float(sample_rate)
+    if sample_rate <= 0:
+        return []
+    if sample_rate >= 1:
+        return list(reward_rows)
+    out = []
+    for row in reward_rows:
+        seed = deterministic_seed((seed_base, row.get("trajectory_id"), row.get("step"), row.get("current_operator")))
+        if random.Random(seed).random() <= sample_rate:
+            out.append(row)
+    return out
+
+
+def operator_reward_summary_rows(reward_rows, trajectory_lookup):
+    enriched = []
+    for row in reward_rows:
+        trajectory = trajectory_lookup.get(row.get("trajectory_id"), {})
+        enriched.append(
+            dict(
+                row,
+                source=row.get("source") or trajectory.get("source"),
+                recommendation=trajectory.get("recommendation"),
+                damage_seen=trajectory.get("damage_seen"),
+                closure_improved=float(trajectory.get("closure_shell_delta") or 0.0) > 0.0,
+                alignment_improved=float(trajectory.get("alignment_delta") or 0.0) > 0.0,
+                D_min_improved=float(trajectory.get("D_min_ratio_delta") or 0.0) < 0.0,
+            )
+        )
+    grouped = {}
+    for row in enriched:
+        key = (row.get("current_operator"), row.get("tuple_class_id"), row.get("source"), row.get("recommendation"))
+        grouped.setdefault(key, []).append(row)
+    out = []
+    for key, group in sorted(grouped.items(), key=lambda item: str(item[0])):
+        rewards = [float(row.get("operator_reward") or 0.0) for row in group]
+        operator, tuple_class_id, source, recommendation = key
+        out.append(
+            {
+                "operator": operator,
+                "tuple_class_id": tuple_class_id,
+                "source": source,
+                "recommendation": recommendation,
+                "attempt_count": len(group),
+                "median_reward": median(rewards),
+                "mean_reward": sum(rewards) / float(len(rewards)) if rewards else None,
+                "max_reward": max(rewards) if rewards else None,
+                "min_reward": min(rewards) if rewards else None,
+                "positive_reward_rate": sum(1 for value in rewards if value > 0.0) / float(len(rewards)) if rewards else 0.0,
+                "damage_rate": rate(group, "damage_seen"),
+                "closure_improvement_rate": rate(group, "closure_improved"),
+                "alignment_improvement_rate": rate(group, "alignment_improved"),
+                "D_min_improvement_rate": rate(group, "D_min_improved"),
+            }
+        )
+    return out
+
+
+def dominant_row_level_config(run_rows):
+    counts = {}
+    for row in run_rows:
+        cfg = row.get("row_level_config") or {}
+        key = json.dumps(json_safe(cfg), sort_keys=True)
+        counts[key] = counts.get(key, 0) + 1
+    if not counts:
+        return {}
+    key = max(counts, key=lambda item: counts[item])
+    try:
+        return json.loads(key)
+    except Exception:
+        return {}
+
+
+def write_artifact_policy_summary(path, args):
+    lines = []
+    lines.append("# Stage 2 artifact policy")
+    lines.append("")
+    lines.append("This run separates audit-friendly summary outputs from optional heavy raw logs.")
+    lines.append("")
+    lines.append("## Summary artifact contents")
+    lines.append("")
+    lines.append("- run and trajectory records")
+    lines.append("- compact snapshot records")
+    lines.append("- snapshot summaries by trajectory / tuple / operator / recommendation")
+    lines.append("- operator reward summary and top-k/sample logs")
+    lines.append("- Stage 3 recommendations and hypothesis summary")
+    lines.append("- `actual_effective_config.json` and `stage2_artifact_manifest.json`")
+    lines.append("")
+    lines.append("## Raw artifact contents")
+    lines.append("")
+    lines.append("- `raw_logs/snapshot_level_records.jsonl.gz` when raw logs are enabled")
+    lines.append("- `raw_logs/operator_reward_log.jsonl.gz` when raw logs are enabled")
+    lines.append("")
+    lines.append("## Default policy")
+    lines.append("")
+    lines.append("- artifact_mode: `{}`".format(args.artifact_mode))
+    lines.append("- snapshot_log_mode: `{}`".format(args.snapshot_log_mode))
+    lines.append("- operator_reward_log_mode: `{}`".format(args.operator_reward_log_mode))
+    lines.append("- upload_raw_logs: `{}`".format(args.upload_raw_logs))
+    lines.append("- compress_raw_logs: `{}`".format(args.compress_raw_logs))
+    lines.append("")
+    lines.append("Full raw logs are for debugging only. Summary outputs remain the primary audit interface.")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def build_artifact_manifest(args, artifact_summary, raw_files, summary_files):
+    run_id = args.github_run_id or os.environ.get("GITHUB_RUN_ID") or "<run_id>"
+    return {
+        "github_run_id": run_id,
+        "code_commit": args.code_commit,
+        "config_hash": None,
+        "input_manifest_hash": None,
+        "summary_artifact_name": "p167-stage2-summary-{}".format(run_id),
+        "raw_artifact_name": "p167-stage2-raw-logs-{}".format(run_id),
+        "summary_files": summary_files,
+        "raw_files": raw_files,
+        "file_sizes_bytes": artifact_summary.get("files", {}),
+        "compressed_file_sizes_bytes": {},
+        "raw_logs_uploaded": bool(args.upload_raw_logs),
+        "raw_log_policy": args.operator_reward_log_mode,
+        "snapshot_log_policy": args.snapshot_log_mode,
+        "operator_reward_log_policy": args.operator_reward_log_mode,
+        "full_snapshot_available": bool(args.upload_raw_logs),
+        "full_snapshot_path": "raw_logs/snapshot_level_records.jsonl.gz" if args.upload_raw_logs else None,
+        "operator_reward_full_available": bool(args.upload_raw_logs),
+        "operator_reward_full_path": "raw_logs/operator_reward_log.jsonl.gz" if args.upload_raw_logs else None,
+        "notes": [
+            "summary artifact is the primary audit interface",
+            "sampled diagnostics are not full certificates",
+            "GitHub artifact compressed sizes are not available before upload",
+        ],
+    }
+
+
 def write_outputs(args, run_rows, trajectory_rows, snapshot_rows, attempts_rows, reward_rows, input_survivors, input_controls, config_hash, input_manifest_hash, code_commit, tuple_registry_payload):
     input_survivors = dedupe_rows(input_survivors, "candidate_id")
     input_controls = dedupe_rows(input_controls, "candidate_id")
@@ -1139,17 +1434,66 @@ def write_outputs(args, run_rows, trajectory_rows, snapshot_rows, attempts_rows,
     stage3_rows = stage3_candidates(trajectory_rows, int(args.stage3_candidate_limit))
     stage3_summary = summarize(stage3_rows, "tuple_class_id")
     hypotheses = build_hypotheses(trajectory_rows)
+    trajectory_lookup = dict((row.get("trajectory_id"), row) for row in trajectory_rows)
+    snapshot_summary = snapshot_summary_by_trajectory(snapshot_rows)
+    for row in snapshot_summary:
+        trajectory = trajectory_lookup.get(row.get("trajectory_id"), {})
+        if trajectory:
+            row["recommendation"] = trajectory.get("recommendation")
+            row["source"] = trajectory.get("source")
+            row["operator"] = trajectory.get("operator")
+            row["tuple_class_id"] = trajectory.get("tuple_class_id")
+    snapshot_summary_by_tuple = simple_group_summary(snapshot_summary, "tuple_class_id")
+    snapshot_summary_by_operator = simple_group_summary(snapshot_summary, "operator")
+    snapshot_summary_by_recommendation = simple_group_summary(snapshot_summary, "recommendation")
+    compact_snapshot_rows = filtered_snapshot_rows(snapshot_rows, args.snapshot_log_mode)
+    reward_summary = operator_reward_summary_rows(reward_rows, trajectory_lookup)
+    reward_topk = reward_topk_rows(reward_rows, trajectory_lookup, int(args.operator_reward_topk))
+    reward_sampled = reward_sampled_rows(reward_rows, float(args.operator_reward_sample_rate), int(args.seed_base))
+    if args.operator_reward_log_mode == "full_compressed":
+        summary_reward_rows = reward_topk
+    elif args.operator_reward_log_mode == "sampled":
+        summary_reward_rows = reward_sampled
+    else:
+        summary_reward_rows = reward_topk
 
     write_jsonl(os.path.join(args.out_dir, "input_stage2_survivors.jsonl"), input_survivors)
     write_jsonl(os.path.join(args.out_dir, "input_stage2_controls.jsonl"), input_controls)
     write_jsonl(os.path.join(args.out_dir, "run_level.jsonl"), run_rows)
     write_jsonl(os.path.join(args.out_dir, "trajectory_level.jsonl"), trajectory_rows)
-    write_jsonl(os.path.join(args.out_dir, "snapshot_level.jsonl"), snapshot_rows)
+    write_jsonl(os.path.join(args.out_dir, "snapshot_level.jsonl"), compact_snapshot_rows)
     write_jsonl(os.path.join(args.out_dir, "run_level_records.jsonl"), run_rows)
     write_jsonl(os.path.join(args.out_dir, "trajectory_level_records.jsonl"), trajectory_rows)
-    write_jsonl(os.path.join(args.out_dir, "snapshot_level_records.jsonl"), snapshot_rows)
+    write_jsonl(os.path.join(args.out_dir, "snapshot_level_records.jsonl"), compact_snapshot_rows)
     write_jsonl(os.path.join(args.out_dir, "survivor_deepening_attempts.jsonl"), attempts_rows or trajectory_rows)
-    write_jsonl(os.path.join(args.out_dir, "operator_reward_log.jsonl"), reward_rows)
+    write_jsonl(os.path.join(args.out_dir, "operator_reward_log.jsonl"), summary_reward_rows)
+    write_jsonl(os.path.join(args.out_dir, "operator_reward_topk.jsonl"), reward_topk)
+    write_jsonl(os.path.join(args.out_dir, "operator_reward_sampled.jsonl"), reward_sampled)
+    write_csv(os.path.join(args.out_dir, "operator_reward_summary.csv"), reward_summary)
+    write_json(os.path.join(args.out_dir, "operator_reward_summary.json"), reward_summary)
+    write_jsonl(os.path.join(args.out_dir, "snapshot_summary_by_trajectory.jsonl"), snapshot_summary)
+    write_csv(os.path.join(args.out_dir, "snapshot_summary_by_tuple.csv"), snapshot_summary_by_tuple)
+    write_json(os.path.join(args.out_dir, "snapshot_summary_by_tuple.json"), snapshot_summary_by_tuple)
+    write_csv(os.path.join(args.out_dir, "snapshot_summary_by_operator.csv"), snapshot_summary_by_operator)
+    write_json(os.path.join(args.out_dir, "snapshot_summary_by_operator.json"), snapshot_summary_by_operator)
+    write_csv(os.path.join(args.out_dir, "snapshot_summary_by_recommendation.csv"), snapshot_summary_by_recommendation)
+    write_json(os.path.join(args.out_dir, "snapshot_summary_by_recommendation.json"), snapshot_summary_by_recommendation)
+    raw_files = []
+    if bool(args.upload_raw_logs):
+        raw_dir = os.path.join(args.out_dir, "raw_logs")
+        ensure_dir(raw_dir)
+        snapshot_raw = os.path.join(raw_dir, "snapshot_level_records.jsonl.gz")
+        reward_raw = os.path.join(raw_dir, "operator_reward_log.jsonl.gz")
+        if bool(args.compress_raw_logs):
+            write_jsonl_gzip(snapshot_raw, snapshot_rows)
+            write_jsonl_gzip(reward_raw, reward_rows)
+            raw_files.extend(["raw_logs/snapshot_level_records.jsonl.gz", "raw_logs/operator_reward_log.jsonl.gz"])
+        else:
+            snapshot_raw = os.path.join(raw_dir, "snapshot_level_records.jsonl")
+            reward_raw = os.path.join(raw_dir, "operator_reward_log.jsonl")
+            write_jsonl(snapshot_raw, snapshot_rows)
+            write_jsonl(reward_raw, reward_rows)
+            raw_files.extend(["raw_logs/snapshot_level_records.jsonl", "raw_logs/operator_reward_log.jsonl"])
     write_csv(os.path.join(args.out_dir, "tuple_summary.csv"), tuple_summary)
     write_json(os.path.join(args.out_dir, "tuple_summary.json"), tuple_summary)
     write_csv(os.path.join(args.out_dir, "operator_summary.csv"), operator_summary)
@@ -1187,6 +1531,21 @@ def write_outputs(args, run_rows, trajectory_rows, snapshot_rows, attempts_rows,
     write_json(os.path.join(args.out_dir, "tuple_class_registry.json"), tuple_registry_payload)
 
     run_config = vars(args).copy()
+    dominant_config = dominant_row_level_config(run_rows)
+    if dominant_config:
+        for key in (
+            "high_resolution_logging",
+            "high_resolution_mode",
+            "high_resolution_max_windows_per_trajectory",
+            "high_resolution_window_accepted_moves",
+            "artifact_mode",
+            "snapshot_log_mode",
+            "operator_reward_log_mode",
+            "operator_reward_topk",
+            "operator_reward_sample_rate",
+        ):
+            if key in dominant_config:
+                run_config[key] = dominant_config.get(key)
     run_config.update(
         {
             "script": SCRIPT_NAME,
@@ -1197,12 +1556,50 @@ def write_outputs(args, run_rows, trajectory_rows, snapshot_rows, attempts_rows,
             "run_rows": len(run_rows),
             "trajectory_rows": len(trajectory_rows),
             "snapshot_rows": len(snapshot_rows),
+            "snapshot_rows_written": len(compact_snapshot_rows),
             "operator_reward_rows": len(reward_rows),
+            "operator_reward_rows_written": len(summary_reward_rows),
             "stage3_candidate_rows": len(stage3_rows),
             "timestamp": now_stamp(),
         }
     )
     write_json(os.path.join(args.out_dir, "run_config.json"), run_config)
+    actual_effective_config = {
+        "workflow_inputs": vars(args).copy(),
+        "dominant_row_level_config": dominant_config,
+        "config_hash": config_hash,
+        "code_commit": code_commit,
+        "github_run_id": args.github_run_id or os.environ.get("GITHUB_RUN_ID"),
+        "artifact_names": {
+            "summary": "p167-stage2-summary-<run_id>",
+            "raw": "p167-stage2-raw-logs-<run_id>",
+        },
+        "raw_log_policy": {
+            "artifact_mode": args.artifact_mode,
+            "upload_raw_logs": bool(args.upload_raw_logs),
+            "compress_raw_logs": bool(args.compress_raw_logs),
+        },
+        "summary_artifact_policy": {
+            "snapshot_log_mode": args.snapshot_log_mode,
+            "operator_reward_log_mode": args.operator_reward_log_mode,
+            "operator_reward_topk": int(args.operator_reward_topk),
+            "operator_reward_sample_rate": float(args.operator_reward_sample_rate),
+        },
+    }
+    write_json(os.path.join(args.out_dir, "actual_effective_config.json"), actual_effective_config)
+    write_artifact_policy_summary(os.path.join(args.out_dir, "stage2_artifact_policy_summary.md"), args)
+    artifact_summary = artifact_size_summary(args.out_dir)
+    summary_files = sorted(
+        [
+            path
+            for path in artifact_summary.get("files", {})
+            if not path.startswith("raw_logs/")
+        ]
+    )
+    manifest = build_artifact_manifest(args, artifact_summary, raw_files, summary_files)
+    manifest["config_hash"] = config_hash
+    manifest["input_manifest_hash"] = input_manifest_hash
+    write_json(os.path.join(args.out_dir, "stage2_artifact_manifest.json"), manifest)
     artifact_summary = artifact_size_summary(args.out_dir)
     write_json(os.path.join(args.out_dir, "artifact_size_summary.json"), artifact_summary)
     write_stage2_summary(
@@ -1318,6 +1715,18 @@ def build_parser():
     parser.add_argument("--high-resolution-logging", action="store_true", default=False)
     parser.add_argument("--disable-high-resolution-logging", action="store_false", dest="high_resolution_logging")
     parser.add_argument("--highres-followup-accepted-moves", type=int, default=50)
+    parser.add_argument("--high-resolution-mode", choices=["off", "triggered", "all"], default="triggered")
+    parser.add_argument("--high-resolution-max-windows-per-trajectory", type=int, default=2)
+    parser.add_argument("--high-resolution-window-accepted-moves", type=int, default=50)
+    parser.add_argument("--artifact-mode", choices=["summary_only", "summary_plus_raw"], default="summary_only")
+    parser.add_argument("--compress-raw-logs", action="store_true", default=True)
+    parser.add_argument("--no-compress-raw-logs", action="store_false", dest="compress_raw_logs")
+    parser.add_argument("--upload-raw-logs", action="store_true", default=False)
+    parser.add_argument("--disable-raw-log-upload", action="store_false", dest="upload_raw_logs")
+    parser.add_argument("--snapshot-log-mode", choices=["summary_only", "scheduled", "triggered", "full"], default="summary_only")
+    parser.add_argument("--operator-reward-log-mode", choices=["summary_only", "topk", "sampled", "full_compressed"], default="topk")
+    parser.add_argument("--operator-reward-topk", type=int, default=50)
+    parser.add_argument("--operator-reward-sample-rate", type=float, default=0.01)
     parser.add_argument("--shard-index", type=int, default=0)
     parser.add_argument("--shard-count", type=int, default=1)
     parser.add_argument("--max-tasks", type=int, default=0)
@@ -1340,6 +1749,18 @@ def main():
         args.out_dir = os.path.join("outputs", "explorations", "{}_p167_stage2_survivor_deepening".format(now_stamp()))
     if int(args.shard_index) < 0 or int(args.shard_count) < 1 or int(args.shard_index) >= int(args.shard_count):
         raise RuntimeError("shard_index must satisfy 0 <= shard_index < shard_count")
+    if not bool(args.high_resolution_logging):
+        args.high_resolution_mode = "off"
+    if str(args.artifact_mode) == "summary_plus_raw":
+        args.upload_raw_logs = True
+    if int(args.high_resolution_max_windows_per_trajectory) < 0:
+        raise RuntimeError("high_resolution_max_windows_per_trajectory must be non-negative")
+    if int(args.high_resolution_window_accepted_moves) < 1:
+        raise RuntimeError("high_resolution_window_accepted_moves must be positive")
+    if int(args.operator_reward_topk) < 1:
+        raise RuntimeError("operator_reward_topk must be positive")
+    if float(args.operator_reward_sample_rate) < 0.0 or float(args.operator_reward_sample_rate) > 1.0:
+        raise RuntimeError("operator_reward_sample_rate must be in [0, 1]")
     run(args)
     return 0
 
