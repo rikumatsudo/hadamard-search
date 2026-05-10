@@ -269,6 +269,7 @@ jobs:
             --shard-index "$SHARD_INDEX"
             --shard-count "$SHARD_COUNT"
             --github-run-id "$GITHUB_RUN_ID"
+            --code-commit "$GITHUB_SHA"
             --out-dir "$OUT_DIR"
           )
           if [ "$HIGH_RESOLUTION_LOGGING" = "true" ]; then
@@ -339,6 +340,7 @@ jobs:
             sage sage/73_p167_broad_tuple_trajectory_dataset_calibration.sage
             --aggregate-roots downloaded-artifacts
             --shard-count "$EXPECTED_SHARDS"
+            --code-commit "$GITHUB_SHA"
             --out-dir aggregate-output
           )
           sage_command="$(printf '%q ' "${args[@]}")"
