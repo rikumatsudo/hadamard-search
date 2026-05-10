@@ -387,6 +387,24 @@ jobs:
             "$sage_command" \
             2>&1 | tee "$OUT_DIR/runner.log"
 
+      - name: Validate generated score0 candidates
+        if: always()
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          score0_files=("$OUT_DIR"/score0_candidates/*.json)
+          if [ "${#score0_files[@]}" -eq 0 ]; then
+            echo "No generated score0 candidates to validate."
+            exit 0
+          fi
+          for candidate in "${score0_files[@]}"; do
+            docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" "sage sage/08_analyze_sds_candidate.sage '$candidate'"
+            docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" "sage sage/05_validate_candidate_json.sage '$candidate'"
+            docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" "sage sage/04_build_gs_from_sds.sage '$candidate'"
+          done
+
       - name: Build GitHub summary
         if: always()
         env:

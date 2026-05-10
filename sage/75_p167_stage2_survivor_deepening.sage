@@ -224,6 +224,36 @@ def candidate_hash_from_blocks(blocks, p, ks):
     return state_hash([set(block) for block in blocks], int(p), [int(k) for k in ks])
 
 
+def save_stage2_score0_candidate(out_dir, task, blocks, run_id, operator, state_label):
+    p = int(task["p"])
+    ks = [int(k) for k in task["ks"]]
+    h = state_hash([set(block) for block in blocks], p, ks)
+    score0_dir = os.path.join(out_dir, "score0_candidates")
+    ensure_dir(score0_dir)
+    path = os.path.join(score0_dir, "{}_{}_{}.json".format(h[:12], operator, state_label))
+    payload = {
+        "p": p,
+        "v": p,
+        "n": int(4 * p),
+        "ks": ks,
+        "lambda": int(task["lambda"]),
+        "score": 0,
+        "blocks": json_blocks(blocks),
+        "canonical_hash": h,
+        "parent_hash": task.get("candidate_hash"),
+        "candidate_id": task.get("candidate_id"),
+        "source": task.get("source"),
+        "source_script": SCRIPT_NAME,
+        "run_id": run_id,
+        "trajectory_id": run_id,
+        "operator": operator,
+        "state_label": state_label,
+        "note": "score=0 is only a candidate until 08/05/04 validation passes",
+    }
+    write_json(path, payload)
+    return path, h
+
+
 def load_stage1_artifact(stage1_artifact):
     root = stage1_artifact
     if not os.path.isdir(root):
@@ -888,6 +918,17 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
             "candidate_lineage_policy": "stage1_survivor_replay_or_control_fixture",
         }
     )
+    score0_candidate_path = None
+    score0_candidate_hash = None
+    if int(best_score) == 0:
+        score0_candidate_path, score0_candidate_hash = save_stage2_score0_candidate(
+            args.out_dir,
+            task,
+            best_score_blocks,
+            run_id,
+            task["operator"],
+            "best_score",
+        )
     trajectory = dict(row_base)
     trajectory.update(
         {
@@ -917,6 +958,8 @@ def run_task(task, args, config_hash, input_manifest_hash, code_commit, github_r
             "operator_version": "{}_operator_v1".format(args.stage_name or "p167_stage2"),
             "parent_hash": task.get("candidate_hash"),
             "candidate_lineage": task.get("candidate_lineage"),
+            "score0_candidate_path": score0_candidate_path,
+            "score0_candidate_hash": score0_candidate_hash,
             "highres_trigger_count": int(highres_trigger_count),
             "operator_switch_count": int(operator_switch_count),
             "D_min_ratio_delta": verdict["D_min_ratio_delta"],
@@ -1120,6 +1163,7 @@ def write_stage2_summary(path, run_config, run_rows, trajectory_rows, snapshot_r
     lines.append("- sources: `{}`".format({key: len(value) for key, value in source_counts.items()}))
     lines.append("- stage3 recommendations: `{}`".format(len(stage3_rows)))
     lines.append("- artifact bytes: `{}`".format(artifact_summary.get("artifact_total_bytes")))
+    lines.append("- score0 candidate files: `{}`".format(sum(1 for row in trajectory_rows if row.get("score0_candidate_path"))))
     lines.append("- snapshot log mode: `{}`".format(run_config.get("snapshot_log_mode")))
     lines.append("- operator reward log mode: `{}`".format(run_config.get("operator_reward_log_mode")))
     lines.append("- raw logs uploaded: `{}`".format(run_config.get("upload_raw_logs")))
