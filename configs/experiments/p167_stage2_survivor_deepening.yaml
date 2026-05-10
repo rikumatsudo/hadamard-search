@@ -1,0 +1,61 @@
+schema_version: p167_stage2_survivor_deepening_v1
+stage: 2
+description: >
+  Stage 2 survivor deepening for p=167 broad tuple trajectory scan.
+  This is not a Hadamard 668 construction run; it deepens Stage 1-lite
+  survivors and compares them with benchmark/control groups using sampled
+  trajectory diagnostics.
+
+p: 167
+n: 668
+
+stage1:
+  source_run_id: "25626432803"
+  source_artifact_name: "p167-broad-stage1-aggregate-25626432803"
+  expected_survivors: 50
+  replay_policy: deterministic_stage1_best_state_replay
+
+candidates:
+  survivor_limit: 50
+  benchmark_trap_limit: 7
+  random_control_limit: 20
+  nearhit_control_limit: 20
+  total_candidate_limit: 100
+
+operators:
+  - survivor_baseline_score_only
+  - survivor_focused_plus_threshold
+  - survivor_hybrid_pair_to_closure_shell
+  - survivor_pair_profile_movespace_filter
+  - survivor_mixed_operator_adaptive
+  - survivor_exact_joint_local_repair
+
+operator_reward:
+  formula: "reward = closure proxy + alignment proxy + kappa proxy + D_min proxy + support mixing proxy - damage proxy"
+  note: >
+    Step-level reward is a lightweight move proxy. Snapshot-level exactlike,
+    closure-shell, D_min/S, kappa, and alignment metrics remain the primary
+    evaluation signals.
+
+logging:
+  snapshot_attempted_steps: "0,50,100,200,500,1000"
+  snapshot_accepted_moves: "0,25,50,100,200,500"
+  high_resolution_logging: true
+  highres_followup_accepted_moves: 50
+
+diagnostics:
+  diagnostic_type: sampled
+  diagnostic_sample_count: 300
+  diagnostic_budget_note: "sampled diagnostics are not full certificates"
+
+stage3_selection:
+  limit: 50
+  criteria:
+    - closure_shell_score improved and remains high
+    - alignment_to_minus_rho improved
+    - D_min_ratio decreased
+    - kappa_q99 improved
+    - damage_score low
+    - hardening_score low
+    - support_mixing_score positive
+    - score did not degrade badly
