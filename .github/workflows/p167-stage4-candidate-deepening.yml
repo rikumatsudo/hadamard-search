@@ -37,65 +37,15 @@ on:
         required: false
         default: "stage4_pair_profile_movespace_filter"
         type: string
-      production_candidate_limit:
-        description: "production_deep_search unique candidates to include"
+      candidate_limits:
+        description: "Comma-separated role limits: production,guarded,repair,benchmark,diagnostic,archive,total"
         required: false
-        default: "0"
+        default: "production=0,guarded=0,repair=1,benchmark=0,diagnostic=0,archive=0,total=1"
         type: string
-      guarded_repair_limit:
-        description: "guarded_repair unique candidates to include"
+      restart_plan:
+        description: "Comma-separated restart counts: production,repair,benchmark,diagnostic,baseline"
         required: false
-        default: "0"
-        type: string
-      repair_target_limit:
-        description: "repair_target unique candidates to include"
-        required: false
-        default: "1"
-        type: string
-      operator_benchmark_limit:
-        description: "operator_benchmark unique candidates to include"
-        required: false
-        default: "0"
-        type: string
-      needs_more_diagnostics_limit:
-        description: "needs_more_diagnostics unique candidates to include"
-        required: false
-        default: "0"
-        type: string
-      archive_limit:
-        description: "archive unique candidates to include"
-        required: false
-        default: "0"
-        type: string
-      total_candidate_limit:
-        description: "Maximum Stage 4 unique candidates; 0 means all selected"
-        required: false
-        default: "1"
-        type: string
-      production_restarts:
-        description: "Restarts for production candidates per main operator"
-        required: false
-        default: "1"
-        type: string
-      repair_restarts:
-        description: "Restarts for repair/guarded candidates per selected operator"
-        required: false
-        default: "1"
-        type: string
-      benchmark_restarts:
-        description: "Restarts for benchmark candidates per selected operator"
-        required: false
-        default: "1"
-        type: string
-      diagnostic_restarts:
-        description: "Restarts for diagnostic candidates per selected operator"
-        required: false
-        default: "1"
-        type: string
-      baseline_restarts:
-        description: "Baseline restarts where enabled"
-        required: false
-        default: "0"
+        default: "production=1,repair=1,benchmark=1,diagnostic=1,baseline=0"
         type: string
       steps:
         description: "Attempted steps per Stage 4 trajectory"
@@ -335,18 +285,8 @@ jobs:
           CONFIG: ${{ inputs.config || 'configs/experiments/p167_stage4_candidate_deepening.yaml' }}
           STAGE3_ARTIFACT: stage3-artifact
           OPERATORS: ${{ inputs.operators || 'stage4_pair_profile_movespace_filter' }}
-          PRODUCTION_CANDIDATE_LIMIT: ${{ inputs.production_candidate_limit || '0' }}
-          GUARDED_REPAIR_LIMIT: ${{ inputs.guarded_repair_limit || '0' }}
-          REPAIR_TARGET_LIMIT: ${{ inputs.repair_target_limit || '1' }}
-          OPERATOR_BENCHMARK_LIMIT: ${{ inputs.operator_benchmark_limit || '0' }}
-          NEEDS_MORE_DIAGNOSTICS_LIMIT: ${{ inputs.needs_more_diagnostics_limit || '0' }}
-          ARCHIVE_LIMIT: ${{ inputs.archive_limit || '0' }}
-          TOTAL_CANDIDATE_LIMIT: ${{ inputs.total_candidate_limit || '1' }}
-          PRODUCTION_RESTARTS: ${{ inputs.production_restarts || '1' }}
-          REPAIR_RESTARTS: ${{ inputs.repair_restarts || '1' }}
-          BENCHMARK_RESTARTS: ${{ inputs.benchmark_restarts || '1' }}
-          DIAGNOSTIC_RESTARTS: ${{ inputs.diagnostic_restarts || '1' }}
-          BASELINE_RESTARTS: ${{ inputs.baseline_restarts || '0' }}
+          CANDIDATE_LIMITS: ${{ inputs.candidate_limits || 'production=0,guarded=0,repair=1,benchmark=0,diagnostic=0,archive=0,total=1' }}
+          RESTART_PLAN: ${{ inputs.restart_plan || 'production=1,repair=1,benchmark=1,diagnostic=1,baseline=0' }}
           STEPS: ${{ inputs.steps || '1' }}
           SAMPLE_SWAPS: ${{ inputs.sample_swaps || '5' }}
           DIAGNOSTIC_SAMPLE_COUNT: ${{ inputs.diagnostic_sample_count || '5' }}
@@ -391,6 +331,35 @@ jobs:
             MAX_TASKS="0"
             SHARD_COUNT="40"
             STAGE5_CANDIDATE_LIMIT="20"
+          elif [ "$PRESET" = "custom" ]; then
+            get_profile_value() {
+              python3 -c 'import sys; raw,key,default=sys.argv[1],sys.argv[2],sys.argv[3]; parts=[p.strip() for p in raw.split(",") if p.strip()]; bad=[p for p in parts if "=" not in p]; (not bad) or (_ for _ in ()).throw(SystemExit("Expected key=value in {}".format(bad[0]))); values=dict((p.split("=",1)[0].strip(), p.split("=",1)[1].strip()) for p in parts); print(values.get(key, default))' "$1" "$2" "$3"
+            }
+            PRODUCTION_CANDIDATE_LIMIT="$(get_profile_value "$CANDIDATE_LIMITS" production 0)"
+            GUARDED_REPAIR_LIMIT="$(get_profile_value "$CANDIDATE_LIMITS" guarded 0)"
+            REPAIR_TARGET_LIMIT="$(get_profile_value "$CANDIDATE_LIMITS" repair 1)"
+            OPERATOR_BENCHMARK_LIMIT="$(get_profile_value "$CANDIDATE_LIMITS" benchmark 0)"
+            NEEDS_MORE_DIAGNOSTICS_LIMIT="$(get_profile_value "$CANDIDATE_LIMITS" diagnostic 0)"
+            ARCHIVE_LIMIT="$(get_profile_value "$CANDIDATE_LIMITS" archive 0)"
+            TOTAL_CANDIDATE_LIMIT="$(get_profile_value "$CANDIDATE_LIMITS" total 1)"
+            PRODUCTION_RESTARTS="$(get_profile_value "$RESTART_PLAN" production 1)"
+            REPAIR_RESTARTS="$(get_profile_value "$RESTART_PLAN" repair 1)"
+            BENCHMARK_RESTARTS="$(get_profile_value "$RESTART_PLAN" benchmark 1)"
+            DIAGNOSTIC_RESTARTS="$(get_profile_value "$RESTART_PLAN" diagnostic 1)"
+            BASELINE_RESTARTS="$(get_profile_value "$RESTART_PLAN" baseline 0)"
+          else
+            PRODUCTION_CANDIDATE_LIMIT="0"
+            GUARDED_REPAIR_LIMIT="0"
+            REPAIR_TARGET_LIMIT="1"
+            OPERATOR_BENCHMARK_LIMIT="0"
+            NEEDS_MORE_DIAGNOSTICS_LIMIT="0"
+            ARCHIVE_LIMIT="0"
+            TOTAL_CANDIDATE_LIMIT="1"
+            PRODUCTION_RESTARTS="1"
+            REPAIR_RESTARTS="1"
+            BENCHMARK_RESTARTS="1"
+            DIAGNOSTIC_RESTARTS="1"
+            BASELINE_RESTARTS="0"
           fi
 
           args=(
