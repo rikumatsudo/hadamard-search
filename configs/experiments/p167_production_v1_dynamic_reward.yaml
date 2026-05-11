@@ -1,0 +1,86 @@
+name: p167_production_v1_dynamic_reward
+description: >
+  Production Run v1 p167 dynamic reward search. This is not a Hadamard 668
+  construction run. It compares online dynamic reward routing against fixed
+  reward routing on the 13 unique Stage 5 production candidates.
+
+p: 167
+n: 668
+tuple_registry: configs/fixtures/p167_tuple_classes.json
+
+stage5_artifact_required_files:
+  - stage6_candidate_recommendations.jsonl
+  - trajectory_level_records.jsonl
+  - run_level_records.jsonl
+  - input_stage5_candidates_deduped.jsonl
+
+candidate_policy:
+  dedupe_key: candidate_hash
+  unique_candidates_expected: 13
+  production_candidate_limit: 10
+  repair_target_limit: 2
+  operator_benchmark_limit: 1
+  total_candidate_limit: 13
+
+operators:
+  - production_dynamic_reward_mixed_operator_adaptive
+  - production_fixed_reward_mixed_operator_adaptive
+  - production_pair_profile_movespace_filter
+  - production_exact_joint_local_repair_guarded
+  - benchmark_exact_joint_or_pair_filter
+
+operator_roles:
+  production_dynamic_reward_mixed_operator_adaptive: >
+    Main online routing operator. Reward weights are adjusted from recent
+    damage, closure, low-score-trap, and soft cycle signals.
+  production_fixed_reward_mixed_operator_adaptive: >
+    Fixed reward baseline for the same mixed operator family.
+  production_pair_profile_movespace_filter: >
+    Safety operator intended to reduce damage while preserving closure-shell,
+    alignment, and D_min metrics.
+  production_exact_joint_local_repair_guarded: >
+    Aggressive local repair operator with dynamic damage interpretation.
+  benchmark_exact_joint_or_pair_filter: >
+    Benchmark/trap stress-test operator for the p167_c09 score160 family.
+
+production_v1_medium_recommended:
+  p167_c05_production_restarts: 14
+  p167_c05_production_steps: 8000
+  p167_c01_production_restarts: 11
+  p167_c01_production_steps: 7000
+  repair_restarts: 7
+  repair_steps: 6000
+  benchmark_restarts: 3
+  benchmark_steps: 4000
+  sample_swaps: 500
+  benchmark_sample_swaps: 400
+  diagnostic_sample_count: 300
+  shard_count: 40
+  max_parallel: 40
+
+cycle_diagnostics:
+  passive_only: true
+  state_hash: hash(sorted_blocks)
+  rho_hash: hash(rho_vector)
+  support_signature_hash: hash(nonzero_rho_pairs)
+  score_band: floor(S / 20) * 20
+
+dynamic_reward_prep:
+  online_dynamic_reward: true
+  windows: [50, 100, 200]
+  notes:
+    - Production v1 changes reward weights online but still does not use hard tabu.
+    - p167_c09 score160-like candidates are benchmark/trap rows and excluded from non-benchmark best score.
+
+artifact_policy:
+  artifact_mode: summary_only
+  snapshot_log_mode: summary_only
+  operator_reward_log_mode: topk
+  operator_reward_topk: 50
+  upload_raw_logs: false
+
+notes:
+  - score0 is only a candidate until Sage 08/05/04 validation passes.
+  - sampled diagnostics are not full certificates.
+  - Production v1 must report overall best and non-benchmark best separately.
+  - Positive score drops require score decrease plus closure/alignment/D_min improvement without damage spike.
