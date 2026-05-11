@@ -143,13 +143,16 @@ def parse_bool(value, name):
 
 
 def apply_overrides(values, args):
+    overrides = set()
     for key in INPUT_ORDER:
         value = getattr(args, key, None)
         if value is not None:
             values[key] = str(value)
+            overrides.add(key)
     if args.run_label_suffix:
         values["run_label"] = "{}-{}".format(values["run_label"], args.run_label_suffix)
-    return values
+        overrides.add("run_label")
+    return values, overrides
 
 
 def validate(values):
@@ -192,9 +195,13 @@ def validate(values):
         raise ValueError("operator_reward_log_mode must be summary_only, topk, sampled, or full_compressed")
 
 
-def build_command(args, values):
+def build_command(args, values, overrides):
     command = ["gh", "workflow", "run", WORKFLOW, "--repo", args.repo, "--ref", args.ref]
+    command.extend(["-f", "preset={}".format(args.preset)])
+    dispatch_keys = {"run_label"} | set(overrides)
     for key in INPUT_ORDER:
+        if key not in dispatch_keys:
+            continue
         value = values.get(key)
         if value is not None and str(value) != "":
             command.extend(["-f", "{}={}".format(key, value)])
@@ -220,9 +227,9 @@ def parse_args():
 def main():
     args = parse_args()
     values = dict(PRESETS[args.preset])
-    values = apply_overrides(values, args)
+    values, overrides = apply_overrides(values, args)
     validate(values)
-    command = build_command(args, values)
+    command = build_command(args, values, overrides)
     print(printable(command))
     if args.execute:
         subprocess.run(["env", "-u", "GITHUB_TOKEN"] + command, check=True)

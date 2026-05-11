@@ -8,6 +8,15 @@ on:
         required: false
         default: "p167-stage4-smoke"
         type: string
+      preset:
+        description: "Preset input bundle"
+        required: false
+        default: "remote-smoke"
+        type: choice
+        options:
+          - "remote-smoke"
+          - "stage4-medium-40"
+          - "custom"
       config:
         description: "Stage 4 deepening config"
         required: false
@@ -222,6 +231,7 @@ jobs:
       - name: Build matrix
         id: matrix
         env:
+          PRESET: ${{ inputs.preset || 'remote-smoke' }}
           SHARD_COUNT: ${{ inputs.shard_count || '1' }}
           MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
         run: |
@@ -230,8 +240,13 @@ jobs:
           import json
           import os
 
-          shard_count = int(os.environ.get("SHARD_COUNT") or "1")
-          max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
+          preset = os.environ.get("PRESET") or "remote-smoke"
+          if preset == "stage4-medium-40":
+              shard_count = 40
+              max_parallel = 40
+          else:
+              shard_count = int(os.environ.get("SHARD_COUNT") or "1")
+              max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
           if shard_count < 1:
               raise SystemExit("shard_count must be >= 1")
           if max_parallel < 1:
@@ -297,10 +312,15 @@ jobs:
       - name: Download Stage 3 aggregate artifact
         env:
           GH_TOKEN: ${{ github.token }}
+          PRESET: ${{ inputs.preset || 'remote-smoke' }}
           STAGE3_RUN_ID: ${{ inputs.stage3_run_id || '25632651179' }}
           STAGE3_ARTIFACT_NAME: ${{ inputs.stage3_artifact_name || 'p167-stage3-summary-aggregate-25632651179' }}
         run: |
           set -euo pipefail
+          if [ "$PRESET" = "stage4-medium-40" ]; then
+            STAGE3_RUN_ID="25632774795"
+            STAGE3_ARTIFACT_NAME="p167-stage3-summary-aggregate-25632774795"
+          fi
           rm -rf stage3-artifact
           mkdir -p stage3-artifact
           gh run download "$STAGE3_RUN_ID" \
@@ -310,6 +330,7 @@ jobs:
 
       - name: Run p167 Stage 4 candidate deepening
         env:
+          PRESET: ${{ inputs.preset || 'remote-smoke' }}
           OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
           CONFIG: ${{ inputs.config || 'configs/experiments/p167_stage4_candidate_deepening.yaml' }}
           STAGE3_ARTIFACT: stage3-artifact
@@ -343,6 +364,34 @@ jobs:
           RUN_LABEL: ${{ inputs.run_label || 'p167-stage4-smoke' }}
         run: |
           set -euo pipefail
+          if [ "$PRESET" = "stage4-medium-40" ]; then
+            OPERATORS="stage4_mixed_operator_adaptive,stage4_exact_joint_local_repair,stage4_pair_profile_movespace_filter,stage4_baseline_score_only"
+            PRODUCTION_CANDIDATE_LIMIT="8"
+            GUARDED_REPAIR_LIMIT="4"
+            REPAIR_TARGET_LIMIT="4"
+            OPERATOR_BENCHMARK_LIMIT="2"
+            NEEDS_MORE_DIAGNOSTICS_LIMIT="1"
+            ARCHIVE_LIMIT="0"
+            TOTAL_CANDIDATE_LIMIT="13"
+            PRODUCTION_RESTARTS="12"
+            REPAIR_RESTARTS="8"
+            BENCHMARK_RESTARTS="4"
+            DIAGNOSTIC_RESTARTS="4"
+            BASELINE_RESTARTS="2"
+            STEPS="5000"
+            SAMPLE_SWAPS="500"
+            DIAGNOSTIC_SAMPLE_COUNT="500"
+            SNAPSHOT_ATTEMPTED_STEPS="0,100,250,500,1000,2500,5000"
+            SNAPSHOT_ACCEPTED_MOVES="0,50,100,250,500,1000"
+            HIGH_RESOLUTION_LOGGING="true"
+            ARTIFACT_MODE="summary_only"
+            SNAPSHOT_LOG_MODE="summary_only"
+            OPERATOR_REWARD_LOG_MODE="topk"
+            OPERATOR_REWARD_TOPK="50"
+            MAX_TASKS="0"
+            SHARD_COUNT="40"
+            STAGE5_CANDIDATE_LIMIT="20"
+          fi
 
           args=(
             sage sage/77_p167_stage4_candidate_deepening.sage
@@ -471,6 +520,7 @@ jobs:
 
       - name: Aggregate shard outputs
         env:
+          PRESET: ${{ inputs.preset || 'remote-smoke' }}
           EXPECTED_SHARDS: ${{ needs.define-shards.outputs.shard_jobs }}
           CONFIG: ${{ inputs.config || 'configs/experiments/p167_stage4_candidate_deepening.yaml' }}
           RUN_LABEL: ${{ inputs.run_label || 'p167-stage4-smoke' }}
@@ -483,6 +533,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p aggregate-output stage3-artifact
+          if [ "$PRESET" = "stage4-medium-40" ]; then
+            HIGH_RESOLUTION_LOGGING="true"
+            ARTIFACT_MODE="summary_only"
+            SNAPSHOT_LOG_MODE="summary_only"
+            OPERATOR_REWARD_LOG_MODE="topk"
+            OPERATOR_REWARD_TOPK="50"
+          fi
           args=(
             sage sage/77_p167_stage4_candidate_deepening.sage
             --config "$CONFIG"
