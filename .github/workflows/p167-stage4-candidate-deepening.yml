@@ -1,0 +1,610 @@
+name: p167 Stage 4 candidate deepening
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Short label for artifact and Slack messages"
+        required: false
+        default: "p167-stage4-smoke"
+        type: string
+      config:
+        description: "Stage 4 deepening config"
+        required: false
+        default: "configs/experiments/p167_stage4_candidate_deepening.yaml"
+        type: string
+      stage3_run_id:
+        description: "GitHub Actions run id containing Stage 3 aggregate artifact"
+        required: false
+        default: "25632651179"
+        type: string
+      stage3_artifact_name:
+        description: "Stage 3 aggregate artifact name"
+        required: false
+        default: "p167-stage3-summary-aggregate-25632651179"
+        type: string
+      operators:
+        description: "Comma-separated Stage 4 operators"
+        required: false
+        default: "stage4_pair_profile_movespace_filter"
+        type: string
+      production_candidate_limit:
+        description: "production_deep_search unique candidates to include"
+        required: false
+        default: "0"
+        type: string
+      guarded_repair_limit:
+        description: "guarded_repair unique candidates to include"
+        required: false
+        default: "0"
+        type: string
+      repair_target_limit:
+        description: "repair_target unique candidates to include"
+        required: false
+        default: "1"
+        type: string
+      operator_benchmark_limit:
+        description: "operator_benchmark unique candidates to include"
+        required: false
+        default: "0"
+        type: string
+      needs_more_diagnostics_limit:
+        description: "needs_more_diagnostics unique candidates to include"
+        required: false
+        default: "0"
+        type: string
+      archive_limit:
+        description: "archive unique candidates to include"
+        required: false
+        default: "0"
+        type: string
+      total_candidate_limit:
+        description: "Maximum Stage 4 unique candidates; 0 means all selected"
+        required: false
+        default: "1"
+        type: string
+      production_restarts:
+        description: "Restarts for production candidates per main operator"
+        required: false
+        default: "1"
+        type: string
+      repair_restarts:
+        description: "Restarts for repair/guarded candidates per selected operator"
+        required: false
+        default: "1"
+        type: string
+      benchmark_restarts:
+        description: "Restarts for benchmark candidates per selected operator"
+        required: false
+        default: "1"
+        type: string
+      diagnostic_restarts:
+        description: "Restarts for diagnostic candidates per selected operator"
+        required: false
+        default: "1"
+        type: string
+      baseline_restarts:
+        description: "Baseline restarts where enabled"
+        required: false
+        default: "0"
+        type: string
+      steps:
+        description: "Attempted steps per Stage 4 trajectory"
+        required: false
+        default: "1"
+        type: string
+      sample_swaps:
+        description: "Candidate swaps sampled per attempted step"
+        required: false
+        default: "5"
+        type: string
+      diagnostic_sample_count:
+        description: "Sampled 1-swap diagnostics per snapshot"
+        required: false
+        default: "5"
+        type: string
+      snapshot_attempted_steps:
+        description: "Attempted-step snapshot list"
+        required: false
+        default: "0,1"
+        type: string
+      snapshot_accepted_moves:
+        description: "Accepted-move snapshot list"
+        required: false
+        default: "0,1"
+        type: string
+      high_resolution_logging:
+        description: "Enable event-triggered accepted-move logging"
+        required: false
+        default: false
+        type: boolean
+      artifact_mode:
+        description: "Artifact policy"
+        required: false
+        default: "summary_only"
+        type: choice
+        options:
+          - "summary_only"
+          - "summary_plus_raw"
+      snapshot_log_mode:
+        description: "Snapshot log policy for summary artifact"
+        required: false
+        default: "summary_only"
+        type: choice
+        options:
+          - "summary_only"
+          - "scheduled"
+          - "triggered"
+          - "full"
+      operator_reward_log_mode:
+        description: "Operator reward log policy for summary artifact"
+        required: false
+        default: "topk"
+        type: choice
+        options:
+          - "summary_only"
+          - "topk"
+          - "sampled"
+          - "full_compressed"
+      operator_reward_topk:
+        description: "Top-k reward rows per trajectory/operator to keep in summary"
+        required: false
+        default: "5"
+        type: string
+      max_tasks:
+        description: "Maximum total tasks before sharding; 0 means all"
+        required: false
+        default: "1"
+        type: string
+      shard_count:
+        description: "Shard count for fan-out"
+        required: false
+        default: "1"
+        type: string
+      max_parallel:
+        description: "Maximum parallel shard jobs"
+        required: false
+        default: "1"
+        type: string
+      stage5_candidate_limit:
+        description: "Maximum Stage 5 recommendation rows"
+        required: false
+        default: "5"
+        type: string
+  pull_request:
+    paths:
+      - "sage/77_p167_stage4_candidate_deepening.sage"
+      - ".github/workflows/p167-stage4-candidate-deepening.yml"
+      - "configs/experiments/p167_stage4_candidate_deepening.yaml"
+      - "scripts/dispatch_p167_stage4.py"
+      - "sage/75_p167_stage2_survivor_deepening.sage"
+      - "sage/06_known_sds_regression.sage"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: p167-stage4-${{ github.ref }}-${{ inputs.run_label || github.event_name }}
+  cancel-in-progress: false
+
+env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  known-regression:
+    name: Known SDS regression
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run known SDS regression
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            "sage sage/06_known_sds_regression.sage"
+
+  define-shards:
+    name: Define shard matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      shard_jobs: ${{ steps.matrix.outputs.shard_jobs }}
+    steps:
+      - name: Build matrix
+        id: matrix
+        env:
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          shard_count = int(os.environ.get("SHARD_COUNT") or "1")
+          max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
+          if shard_count < 1:
+              raise SystemExit("shard_count must be >= 1")
+          if max_parallel < 1:
+              raise SystemExit("max_parallel must be >= 1")
+          max_parallel = min(max_parallel, shard_count)
+          width = max(2, len(str(shard_count - 1)))
+          matrix = [
+              {
+                  "shard_index": idx,
+                  "shard_suffix": "single" if shard_count == 1 else f"s{idx:0{width}d}",
+              }
+              for idx in range(shard_count)
+          ]
+          print(f"matrix={json.dumps({'include': matrix}, separators=(',', ':'))}")
+          print(f"max_parallel={max_parallel}")
+          print(f"shard_jobs={shard_count}")
+          PY
+
+  deepen:
+    name: Run p167 Stage 4 deepening (${{ matrix.shard_suffix }})
+    needs:
+      - known-regression
+      - define-shards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.define-shards.outputs.max_parallel) }}
+      matrix: ${{ fromJSON(needs.define-shards.outputs.matrix) }}
+    outputs:
+      out_dir: ${{ steps.prepare.outputs.out_dir }}
+      safe_label: ${{ steps.prepare.outputs.safe_label }}
+      retention_days: ${{ steps.prepare.outputs.retention_days }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Prepare run
+        id: prepare
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-stage4-smoke' }}
+          RETENTION_DAYS: "30"
+          SHARD_SUFFIX: ${{ matrix.shard_suffix }}
+        run: |
+          set -euo pipefail
+
+          raw_label="$RUN_LABEL"
+          if [ "$SHARD_SUFFIX" != "single" ]; then
+            raw_label="${RUN_LABEL}-${SHARD_SUFFIX}"
+          fi
+
+          safe_label="$(printf '%s' "$raw_label" | tr -c 'A-Za-z0-9_.-' '-')"
+          safe_label="${safe_label:-p167-stage4-smoke}"
+          out_dir="outputs/artifacts/${safe_label}-${GITHUB_RUN_ID}"
+          mkdir -p "$out_dir"
+
+          {
+            echo "safe_label=$safe_label"
+            echo "out_dir=$out_dir"
+            echo "retention_days=$RETENTION_DAYS"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download Stage 3 aggregate artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAGE3_RUN_ID: ${{ inputs.stage3_run_id || '25632651179' }}
+          STAGE3_ARTIFACT_NAME: ${{ inputs.stage3_artifact_name || 'p167-stage3-summary-aggregate-25632651179' }}
+        run: |
+          set -euo pipefail
+          rm -rf stage3-artifact
+          mkdir -p stage3-artifact
+          gh run download "$STAGE3_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            -n "$STAGE3_ARTIFACT_NAME" \
+            -D stage3-artifact
+
+      - name: Run p167 Stage 4 candidate deepening
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+          CONFIG: ${{ inputs.config || 'configs/experiments/p167_stage4_candidate_deepening.yaml' }}
+          STAGE3_ARTIFACT: stage3-artifact
+          OPERATORS: ${{ inputs.operators || 'stage4_pair_profile_movespace_filter' }}
+          PRODUCTION_CANDIDATE_LIMIT: ${{ inputs.production_candidate_limit || '0' }}
+          GUARDED_REPAIR_LIMIT: ${{ inputs.guarded_repair_limit || '0' }}
+          REPAIR_TARGET_LIMIT: ${{ inputs.repair_target_limit || '1' }}
+          OPERATOR_BENCHMARK_LIMIT: ${{ inputs.operator_benchmark_limit || '0' }}
+          NEEDS_MORE_DIAGNOSTICS_LIMIT: ${{ inputs.needs_more_diagnostics_limit || '0' }}
+          ARCHIVE_LIMIT: ${{ inputs.archive_limit || '0' }}
+          TOTAL_CANDIDATE_LIMIT: ${{ inputs.total_candidate_limit || '1' }}
+          PRODUCTION_RESTARTS: ${{ inputs.production_restarts || '1' }}
+          REPAIR_RESTARTS: ${{ inputs.repair_restarts || '1' }}
+          BENCHMARK_RESTARTS: ${{ inputs.benchmark_restarts || '1' }}
+          DIAGNOSTIC_RESTARTS: ${{ inputs.diagnostic_restarts || '1' }}
+          BASELINE_RESTARTS: ${{ inputs.baseline_restarts || '0' }}
+          STEPS: ${{ inputs.steps || '1' }}
+          SAMPLE_SWAPS: ${{ inputs.sample_swaps || '5' }}
+          DIAGNOSTIC_SAMPLE_COUNT: ${{ inputs.diagnostic_sample_count || '5' }}
+          SNAPSHOT_ATTEMPTED_STEPS: ${{ inputs.snapshot_attempted_steps || '0,1' }}
+          SNAPSHOT_ACCEPTED_MOVES: ${{ inputs.snapshot_accepted_moves || '0,1' }}
+          HIGH_RESOLUTION_LOGGING: ${{ inputs.high_resolution_logging || 'false' }}
+          ARTIFACT_MODE: ${{ inputs.artifact_mode || 'summary_only' }}
+          SNAPSHOT_LOG_MODE: ${{ inputs.snapshot_log_mode || 'summary_only' }}
+          OPERATOR_REWARD_LOG_MODE: ${{ inputs.operator_reward_log_mode || 'topk' }}
+          OPERATOR_REWARD_TOPK: ${{ inputs.operator_reward_topk || '5' }}
+          MAX_TASKS: ${{ inputs.max_tasks || '1' }}
+          SHARD_INDEX: ${{ matrix.shard_index }}
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          STAGE5_CANDIDATE_LIMIT: ${{ inputs.stage5_candidate_limit || '5' }}
+          RUN_LABEL: ${{ inputs.run_label || 'p167-stage4-smoke' }}
+        run: |
+          set -euo pipefail
+
+          args=(
+            sage sage/77_p167_stage4_candidate_deepening.sage
+            --config "$CONFIG"
+            --stage3-artifact "$STAGE3_ARTIFACT"
+            --operators "$OPERATORS"
+            --production-candidate-limit "$PRODUCTION_CANDIDATE_LIMIT"
+            --guarded-repair-limit "$GUARDED_REPAIR_LIMIT"
+            --repair-target-limit "$REPAIR_TARGET_LIMIT"
+            --operator-benchmark-limit "$OPERATOR_BENCHMARK_LIMIT"
+            --needs-more-diagnostics-limit "$NEEDS_MORE_DIAGNOSTICS_LIMIT"
+            --archive-limit "$ARCHIVE_LIMIT"
+            --total-candidate-limit "$TOTAL_CANDIDATE_LIMIT"
+            --production-restarts "$PRODUCTION_RESTARTS"
+            --repair-restarts "$REPAIR_RESTARTS"
+            --benchmark-restarts "$BENCHMARK_RESTARTS"
+            --diagnostic-restarts "$DIAGNOSTIC_RESTARTS"
+            --baseline-restarts "$BASELINE_RESTARTS"
+            --steps "$STEPS"
+            --sample-swaps "$SAMPLE_SWAPS"
+            --diagnostic-sample-count "$DIAGNOSTIC_SAMPLE_COUNT"
+            --snapshot-attempted-steps "$SNAPSHOT_ATTEMPTED_STEPS"
+            --snapshot-accepted-moves "$SNAPSHOT_ACCEPTED_MOVES"
+            --artifact-mode "$ARTIFACT_MODE"
+            --snapshot-log-mode "$SNAPSHOT_LOG_MODE"
+            --operator-reward-log-mode "$OPERATOR_REWARD_LOG_MODE"
+            --operator-reward-topk "$OPERATOR_REWARD_TOPK"
+            --max-tasks "$MAX_TASKS"
+            --shard-index "$SHARD_INDEX"
+            --shard-count "$SHARD_COUNT"
+            --stage5-candidate-limit "$STAGE5_CANDIDATE_LIMIT"
+            --github-run-id "$GITHUB_RUN_ID"
+            --code-commit "$GITHUB_SHA"
+            --run-label "$RUN_LABEL"
+            --stage-name p167_stage4
+            --out-dir "$OUT_DIR"
+          )
+          if [ "$HIGH_RESOLUTION_LOGGING" = "true" ]; then
+            args+=(--high-resolution-logging)
+          else
+            args+=(--disable-high-resolution-logging)
+          fi
+          sage_command="$(printf '%q ' "${args[@]}")"
+
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            "$sage_command" \
+            2>&1 | tee "$OUT_DIR/runner.log"
+
+      - name: Validate generated score0 candidates
+        if: always()
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          score0_files=("$OUT_DIR"/score0_candidates/*.json)
+          if [ "${#score0_files[@]}" -eq 0 ]; then
+            echo "No generated score0 candidates to validate."
+            exit 0
+          fi
+          for candidate in "${score0_files[@]}"; do
+            docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" "sage sage/08_analyze_sds_candidate.sage '$candidate'"
+            docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" "sage sage/05_validate_candidate_json.sage '$candidate'"
+            docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" "sage sage/04_build_gs_from_sds.sage '$candidate'"
+          done
+
+      - name: Build GitHub summary
+        if: always()
+        env:
+          OUT_DIR: ${{ steps.prepare.outputs.out_dir }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## p167 Stage 4 candidate deepening"
+            echo
+            if [ -f "$OUT_DIR/p167_stage4_candidate_deepening_summary.md" ]; then
+              sed -n '1,320p' "$OUT_DIR/p167_stage4_candidate_deepening_summary.md"
+            else
+              echo "Summary was not generated."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload p167 Stage 4 summary artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p167-stage4-summary-${{ steps.prepare.outputs.safe_label }}-${{ github.run_id }}
+          path: |
+            ${{ steps.prepare.outputs.out_dir }}
+            !${{ steps.prepare.outputs.out_dir }}/raw_logs/**
+          if-no-files-found: warn
+          retention-days: ${{ steps.prepare.outputs.retention_days }}
+
+      - name: Upload p167 Stage 4 raw/debug logs
+        if: always() && inputs.artifact_mode == 'summary_plus_raw'
+        uses: actions/upload-artifact@v7
+        with:
+          name: p167-stage4-raw-logs-${{ steps.prepare.outputs.safe_label }}-${{ github.run_id }}
+          path: ${{ steps.prepare.outputs.out_dir }}/raw_logs
+          if-no-files-found: warn
+          retention-days: ${{ steps.prepare.outputs.retention_days }}
+
+  aggregate:
+    name: Aggregate p167 Stage 4 shards
+    if: always()
+    needs:
+      - define-shards
+      - deepen
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download shard artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          path: downloaded-artifacts
+          pattern: p167-stage4-summary-*
+          merge-multiple: false
+
+      - name: Aggregate shard outputs
+        env:
+          EXPECTED_SHARDS: ${{ needs.define-shards.outputs.shard_jobs }}
+          CONFIG: ${{ inputs.config || 'configs/experiments/p167_stage4_candidate_deepening.yaml' }}
+          RUN_LABEL: ${{ inputs.run_label || 'p167-stage4-smoke' }}
+          STAGE3_ARTIFACT: stage3-artifact
+          HIGH_RESOLUTION_LOGGING: ${{ inputs.high_resolution_logging || 'false' }}
+          ARTIFACT_MODE: ${{ inputs.artifact_mode || 'summary_only' }}
+          SNAPSHOT_LOG_MODE: ${{ inputs.snapshot_log_mode || 'summary_only' }}
+          OPERATOR_REWARD_LOG_MODE: ${{ inputs.operator_reward_log_mode || 'topk' }}
+          OPERATOR_REWARD_TOPK: ${{ inputs.operator_reward_topk || '5' }}
+        run: |
+          set -euo pipefail
+          mkdir -p aggregate-output stage3-artifact
+          args=(
+            sage sage/77_p167_stage4_candidate_deepening.sage
+            --config "$CONFIG"
+            --stage3-artifact "$STAGE3_ARTIFACT"
+            --aggregate-roots downloaded-artifacts
+            --shard-count "$EXPECTED_SHARDS"
+            --code-commit "$GITHUB_SHA"
+            --run-label "$RUN_LABEL"
+            --stage-name p167_stage4
+            --artifact-mode "$ARTIFACT_MODE"
+            --snapshot-log-mode "$SNAPSHOT_LOG_MODE"
+            --operator-reward-log-mode "$OPERATOR_REWARD_LOG_MODE"
+            --operator-reward-topk "$OPERATOR_REWARD_TOPK"
+            --out-dir aggregate-output
+          )
+          if [ "$HIGH_RESOLUTION_LOGGING" = "true" ]; then
+            args+=(--high-resolution-logging)
+          else
+            args+=(--disable-high-resolution-logging)
+          fi
+          sage_command="$(printf '%q ' "${args[@]}")"
+
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            "$sage_command" \
+            2>&1 | tee aggregate-output/aggregate-runner.log
+
+      - name: Build aggregate Slack payload
+        if: always()
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-stage4-smoke' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ needs.deepen.result }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+
+          hypotheses = {}
+          config = {}
+          for name, target in (
+              ("aggregate-output/run_config.json", config),
+              ("aggregate-output/hypothesis_evaluation.json", hypotheses),
+          ):
+              if os.path.exists(name):
+                  with open(name) as f:
+                      target.update(json.load(f))
+          status = os.environ["JOB_STATUS"].upper()
+          label = os.environ["RUN_LABEL"]
+          run_url = os.environ["RUN_URL"]
+          stage5_status = hypotheses.get("H_STAGE4_6_stage5_candidates_available", {}).get("status", "n/a")
+          routing_status = hypotheses.get("H_STAGE4_4_routing_beats_baseline", {}).get("status", "n/a")
+          payload = {
+              "text": "p167 Stage 4 candidate deepening",
+              "blocks": [
+                  {
+                      "type": "section",
+                      "text": {
+                          "type": "mrkdwn",
+                          "text": f"*p167 Stage 4 candidate deepening* <{run_url}|GitHub Actions run>",
+                      },
+                  },
+                  {
+                      "type": "section",
+                      "fields": [
+                          {"type": "mrkdwn", "text": f"*Status*\\n{status}"},
+                          {"type": "mrkdwn", "text": f"*Label*\\n{label}"},
+                          {"type": "mrkdwn", "text": f"*Run rows*\\n{config.get('run_rows', 'n/a')}"},
+                          {"type": "mrkdwn", "text": f"*Snapshots*\\n{config.get('snapshot_rows', 'n/a')}"},
+                          {"type": "mrkdwn", "text": f"*Routing*\\n{routing_status}"},
+                          {"type": "mrkdwn", "text": f"*Stage5*\\n{stage5_status}"},
+                      ],
+                  },
+              ],
+          }
+          with open("aggregate-output/aggregate_slack_payload.json", "w") as f:
+              json.dump(payload, f)
+          PY
+
+      - name: Build aggregate GitHub summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## p167 Stage 4 candidate deepening aggregate"
+            echo
+            if [ -f "aggregate-output/p167_stage4_candidate_deepening_summary.md" ]; then
+              sed -n '1,380p' "aggregate-output/p167_stage4_candidate_deepening_summary.md"
+            else
+              echo "Aggregate summary was not generated."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload aggregate summary artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p167-stage4-summary-aggregate-${{ github.run_id }}
+          path: |
+            aggregate-output
+            !aggregate-output/raw_logs/**
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload aggregate raw/debug logs
+        if: always() && inputs.artifact_mode == 'summary_plus_raw'
+        uses: actions/upload-artifact@v7
+        with:
+          name: p167-stage4-raw-logs-aggregate-${{ github.run_id }}
+          path: aggregate-output/raw_logs
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Notify Slack
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v3.0.2
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: aggregate-output/aggregate_slack_payload.json

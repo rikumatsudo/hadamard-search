@@ -1,0 +1,81 @@
+name: p167_stage4_candidate_deepening
+description: >
+  Stage 4 p167 candidate deepening / long-horizon trajectory validation.
+  This is not a Hadamard 668 construction run. It deepens unique Stage 3
+  candidate hashes and tests whether short-horizon exact-like / closure-shell
+  signatures persist over longer trajectories.
+
+p: 167
+n: 668
+tuple_registry: configs/fixtures/p167_tuple_classes.json
+
+stage3_artifact_required_files:
+  - stage4_candidate_recommendations.jsonl
+  - trajectory_level_records.jsonl
+  - run_level_records.jsonl
+  - input_stage3_candidates.jsonl
+
+candidate_policy:
+  dedupe_key: candidate_hash
+  stage4_rows_expected: 50
+  unique_candidates_expected: 13
+  production_candidate_limit: 8
+  guarded_repair_limit: 4
+  repair_target_limit: 4
+  operator_benchmark_limit: 2
+  needs_more_diagnostics_limit: 1
+  archive_limit: 0
+  total_candidate_limit: 13
+
+operators:
+  - stage4_mixed_operator_adaptive
+  - stage4_exact_joint_local_repair
+  - stage4_pair_profile_movespace_filter
+  - stage4_baseline_score_only
+
+operator_roles:
+  stage4_mixed_operator_adaptive: >
+    Adaptive routing operator. Reward combines closure-shell, alignment,
+    kappa, D_min improvement, support mixing, and damage penalty.
+  stage4_exact_joint_local_repair: >
+    Aggressive local repair operator. Useful for score improvement, but damage
+    must be monitored and low-score states are not mathematical success.
+  stage4_pair_profile_movespace_filter: >
+    Guarded pair-profile / move-space operator intended to preserve candidate
+    quality and reduce damage.
+  stage4_baseline_score_only: >
+    Minimal comparison baseline. It is intentionally budget-limited in Stage 4.
+
+stage4_medium_recommended:
+  production_restarts: 12
+  repair_restarts: 8
+  benchmark_restarts: 4
+  diagnostic_restarts: 4
+  baseline_restarts: 2
+  steps: 5000
+  sample_swaps: 500
+  diagnostic_sample_count: 500
+  shard_count: 40
+  max_parallel: 40
+
+snapshot_policy:
+  attempted_steps: [0, 100, 250, 500, 1000, 2500, 5000]
+  accepted_moves: [0, 50, 100, 250, 500, 1000]
+  high_resolution_mode: triggered
+  high_resolution_max_windows_per_trajectory: 2
+  high_resolution_window_accepted_moves: 50
+  event_window_before_accepted_moves: 20
+  event_window_after_accepted_moves: 20
+
+artifact_policy:
+  artifact_mode: summary_only
+  snapshot_log_mode: summary_only
+  operator_reward_log_mode: topk
+  operator_reward_topk: 50
+  upload_raw_logs: false
+
+notes:
+  - score0 is only a candidate until Sage 08/05/04 validation passes.
+  - sampled diagnostics are not full certificates.
+  - Stage 4 selection must not use score alone.
+  - p167_c09 score160-like candidates are benchmark / repair targets unless exact-like metrics improve.
