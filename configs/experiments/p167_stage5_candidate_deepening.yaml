@@ -1,0 +1,85 @@
+name: p167_stage5_candidate_deepening
+description: >
+  Stage 5 p167 production-candidate deepening. This is not a Hadamard 668
+  construction run. It deepens the 13 unique Stage 4 candidates with
+  candidate-specific budgets and records passive cycle / dynamic reward
+  preparation diagnostics.
+
+p: 167
+n: 668
+tuple_registry: configs/fixtures/p167_tuple_classes.json
+
+stage4_artifact_required_files:
+  - stage5_candidate_recommendations.jsonl
+  - trajectory_level_records.jsonl
+  - run_level_records.jsonl
+  - input_stage4_candidates_deduped.jsonl
+
+candidate_policy:
+  dedupe_key: candidate_hash
+  unique_candidates_expected: 13
+  production_candidate_limit: 10
+  repair_target_limit: 2
+  operator_benchmark_limit: 1
+  total_candidate_limit: 13
+
+operators:
+  - stage5_mixed_operator_adaptive
+  - stage5_exact_joint_local_repair
+  - stage5_pair_profile_movespace_filter
+  - stage5_baseline_score_only
+
+operator_roles:
+  stage5_mixed_operator_adaptive: >
+    Main adaptive routing operator. Reward combines closure-shell, alignment,
+    kappa, D_min improvement, support mixing, and damage penalty.
+  stage5_exact_joint_local_repair: >
+    Aggressive local repair operator. Use with damage guards; score decreases
+    are not mathematical success unless score0 passes Sage 08/05/04 validation.
+  stage5_pair_profile_movespace_filter: >
+    Safety operator intended to reduce damage while preserving closure-shell,
+    alignment, and D_min metrics.
+  stage5_baseline_score_only: >
+    Thin comparison baseline only.
+
+stage5_medium_recommended:
+  p167_c05_production_restarts: 28
+  p167_c05_production_steps: 12000
+  p167_c01_production_restarts: 22
+  p167_c01_production_steps: 10000
+  repair_restarts: 14
+  repair_steps: 9000
+  benchmark_restarts: 6
+  benchmark_steps: 5000
+  sample_swaps: 700
+  benchmark_sample_swaps: 500
+  diagnostic_sample_count: 500
+  shard_count: 40
+  max_parallel: 40
+
+cycle_diagnostics:
+  passive_only: true
+  state_hash: hash(sorted_blocks)
+  rho_hash: hash(rho_vector)
+  support_signature_hash: hash(nonzero_rho_pairs)
+  score_band: floor(S / 20) * 20
+
+dynamic_reward_prep:
+  passive_only: true
+  windows: [50, 100, 200]
+  notes:
+    - Stage 5 records phase proxies and hypothetical trigger flags only.
+    - It does not change move acceptance or operator selection online.
+
+artifact_policy:
+  artifact_mode: summary_only
+  snapshot_log_mode: summary_only
+  operator_reward_log_mode: topk
+  operator_reward_topk: 50
+  upload_raw_logs: false
+
+notes:
+  - score0 is only a candidate until Sage 08/05/04 validation passes.
+  - sampled diagnostics are not full certificates.
+  - Stage 5 selection must not use score alone.
+  - p167_c09 score160-like candidates are operator benchmarks unless exact-like metrics improve.

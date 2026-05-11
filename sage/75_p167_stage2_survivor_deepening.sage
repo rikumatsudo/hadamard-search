@@ -1726,7 +1726,18 @@ def run(args):
             attempts_rows.append(trajectory)
             snapshot_rows.extend(snapshots)
             reward_rows.extend(reward_log)
-            print(args.stage_name, "task", idx, "/", len(tasks), task["source"], task["tuple_class_id"], task["operator"])
+            progress_pct = 100.0 * float(idx) / float(max(1, len(tasks)))
+            print(
+                args.stage_name,
+                "task",
+                idx,
+                "/",
+                len(tasks),
+                "({:.1f}%)".format(progress_pct),
+                task["source"],
+                task["tuple_class_id"],
+                task["operator"],
+            )
 
     write_outputs(args, run_rows, trajectory_rows, snapshot_rows, attempts_rows, reward_rows, input_survivors, input_controls, config_hash, input_manifest_hash, code_commit, tuple_registry_payload)
     print("Wrote {} outputs to {}".format(args.stage_name, args.out_dir))
