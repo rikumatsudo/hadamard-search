@@ -1,0 +1,46 @@
+experiment: p37_fourier_phase_bispectrum_audit
+description: >
+  Priority 2 diagnostic audit for p=37 Fourier phase and bispectrum variants.
+  This refines the p37 exact-like feature registry by comparing normalized,
+  weighted, complex, pair-level, gauge-aware, and sampled/full bispectrum
+  features against exact-derived and false-like candidate groups.
+p: 37
+n: 148
+ks: [13, 16, 18, 18]
+lambda: 28
+exact_json: outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json
+parent_fixture: configs/fixtures/p37_focused_defect_random_walk_parents.jsonl
+success_fixture: configs/fixtures/p37_focused_success_preclosure_states.jsonl
+sample_sizes: [100, 300, 500, 1000, full]
+exact_derived_count: 100
+random_control_count: 100
+diagnostic_type: full
+diagnostic_sample_count: 0
+multiplier_minimized: true
+shard_count: 40
+outputs:
+  - input_p37_phase_bispectrum_candidates.jsonl
+  - p37_block_bispectrum_variant_features.jsonl
+  - p37_pair_bispectrum_variant_features.jsonl
+  - p37_triple_correlation_variant_features.jsonl
+  - p37_phase_diagnostic_features.jsonl
+  - bispectrum_feature_separation_summary.csv
+  - bispectrum_feature_separation_summary.json
+  - pair_vs_block_bispectrum_summary.csv
+  - pair_vs_block_bispectrum_summary.json
+  - gauge_handling_summary.csv
+  - gauge_handling_summary.json
+  - sampled_bispectrum_variant_stability.csv
+  - sampled_bispectrum_variant_stability.json
+  - sampled_triple_variant_stability.csv
+  - sampled_triple_variant_stability.json
+  - late_preclosure_bispectrum_transition.csv
+  - late_preclosure_bispectrum_transition.json
+  - hypothesis_evaluation.json
+  - p37_fourier_phase_bispectrum_audit_summary.md
+notes:
+  - This is a theory-diagnostic run, not a Hadamard 668 construction run.
+  - This is not a new score0 search.
+  - Raw phase features are gauge-dependent and exploratory only.
+  - Normalized bispectrum / triple-correlation separation is diagnostic evidence, not a theorem.
+  - p37 behavior must not be transferred to p167 without a p167 audit.
