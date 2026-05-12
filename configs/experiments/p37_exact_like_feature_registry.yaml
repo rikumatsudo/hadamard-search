@@ -1,0 +1,43 @@
+experiment: p37_exact_like_feature_registry
+description: >
+  Build a reusable p=37 exact-like / false-like feature registry for
+  pair-profile, bispectrum, triple-correlation, AP, additive-energy,
+  moment, and move-space diagnostics.
+p: 37
+n: 148
+ks: [13, 16, 18, 18]
+lambda: 28
+exact_json: outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json
+parent_fixture: configs/fixtures/p37_focused_defect_random_walk_parents.jsonl
+success_fixture: configs/fixtures/p37_focused_success_preclosure_states.jsonl
+sample_sizes: [100, 300, 1000, full]
+exact_derived_count: 100
+random_control_count: 100
+diagnostic_type: full
+diagnostic_sample_count: 0
+shard_count: 40
+outputs:
+  - input_p37_feature_registry_candidates.jsonl
+  - p37_feature_registry.jsonl
+  - p37_bispectrum_registry_features.jsonl
+  - p37_triple_correlation_registry_features.jsonl
+  - p37_ap_energy_registry_features.jsonl
+  - p37_moment_registry_features.jsonl
+  - p37_movespace_registry_features.jsonl
+  - feature_distribution_by_group.csv
+  - feature_distribution_by_group.json
+  - feature_separation_summary.csv
+  - feature_separation_summary.json
+  - sampled_bispectrum_stability.csv
+  - sampled_bispectrum_stability.json
+  - sampled_triple_correlation_stability.csv
+  - sampled_triple_correlation_stability.json
+  - p37_exact_like_template_registry.json
+  - p37_false_like_template_registry.json
+  - hypothesis_evaluation.json
+  - p37_exact_like_feature_registry_summary.md
+notes:
+  - This is a theory-diagnostic / feature-registry run, not a Hadamard 668 construction run.
+  - This is not a new score0 search.
+  - p37 feature behavior must not be transferred to p167 without a p167 audit.
+  - Normalized bispectrum and triple-correlation features are diagnostic evidence, not a theorem.
