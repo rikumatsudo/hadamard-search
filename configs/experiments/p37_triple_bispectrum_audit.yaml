@@ -1,0 +1,20 @@
+experiment: p37_triple_bispectrum_audit
+description: >
+  Diagnostic analysis of p=37 exact, exact-derived, score4 false-like,
+  focused-success, and late-preclosure states using triple correlation,
+  normalized bispectrum phase, AP counts, and additive energy.
+p: 37
+ks: [13, 16, 18, 18]
+lambda: 28
+exact_json: outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json
+parent_fixture: configs/fixtures/p37_focused_defect_random_walk_parents.jsonl
+success_fixture: configs/fixtures/p37_focused_success_preclosure_states.jsonl
+sample_sizes: [100, 300, 1000, full]
+exact_derived_count: 24
+random_control_count: 12
+multiplier_minimized: true
+notes:
+  - This is not a Hadamard 668 construction run.
+  - This is not a new score0 search.
+  - score0 candidates are mathematical successes only after SDS and Goethals-Seidel verification.
+  - Main hypothesis: false basin = autocorrelation-near but phase / bispectrum / higher-order wrong.

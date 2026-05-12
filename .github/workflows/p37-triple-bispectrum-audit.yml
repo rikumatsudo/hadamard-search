@@ -1,0 +1,316 @@
+name: p37 triple bispectrum audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Short label for artifact and Slack messages"
+        required: false
+        default: "p37-triple-bispectrum-smoke"
+        type: string
+      preset:
+        description: "Preset input bundle"
+        required: false
+        default: "remote-smoke"
+        type: choice
+        options:
+          - "remote-smoke"
+          - "p37-triple-bispectrum-40"
+          - "custom"
+      sample_sizes:
+        description: "Comma-separated bispectrum sample sizes"
+        required: false
+        default: "10"
+        type: string
+      metric_mode:
+        description: "Metric mode"
+        required: false
+        default: "smoke"
+        type: choice
+        options:
+          - "smoke"
+          - "full"
+      max_candidates:
+        description: "Maximum selected candidates before sharding; 0 means all"
+        required: false
+        default: "2"
+        type: string
+      max_tasks:
+        description: "Maximum tasks per shard after sharding; 0 means all"
+        required: false
+        default: "2"
+        type: string
+      exact_derived_count:
+        description: "Generated exact-derived candidate count"
+        required: false
+        default: "2"
+        type: string
+      random_control_count:
+        description: "Generated random controls"
+        required: false
+        default: "1"
+        type: string
+      multiplier_minimized:
+        description: "Compute multiplier-minimized bispectrum distance"
+        required: false
+        default: false
+        type: boolean
+      shard_count:
+        description: "Shard count for fan-out"
+        required: false
+        default: "1"
+        type: string
+      max_parallel:
+        description: "Maximum parallel shard jobs"
+        required: false
+        default: "1"
+        type: string
+  pull_request:
+    paths:
+      - "sage/80_p37_triple_bispectrum_audit.sage"
+      - ".github/workflows/p37-triple-bispectrum-audit.yml"
+      - "configs/experiments/p37_triple_bispectrum_audit.yaml"
+      - "configs/fixtures/p37_focused_success_preclosure_states.jsonl"
+      - "configs/fixtures/p37_focused_defect_random_walk_parents.jsonl"
+      - "sage/06_known_sds_regression.sage"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: p37-triple-bispectrum-${{ github.ref }}-${{ inputs.run_label || github.event_name }}
+  cancel-in-progress: false
+
+env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  known-regression:
+    name: Known SDS regression
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run known SDS regression
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            sage sage/06_known_sds_regression.sage
+
+  define-shards:
+    name: Define shard matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      shard_jobs: ${{ steps.matrix.outputs.shard_jobs }}
+      effective_sample_sizes: ${{ steps.matrix.outputs.effective_sample_sizes }}
+      effective_metric_mode: ${{ steps.matrix.outputs.effective_metric_mode }}
+      effective_max_candidates: ${{ steps.matrix.outputs.effective_max_candidates }}
+      effective_max_tasks: ${{ steps.matrix.outputs.effective_max_tasks }}
+      effective_exact_derived_count: ${{ steps.matrix.outputs.effective_exact_derived_count }}
+      effective_random_control_count: ${{ steps.matrix.outputs.effective_random_control_count }}
+      effective_multiplier_minimized: ${{ steps.matrix.outputs.effective_multiplier_minimized }}
+    steps:
+      - name: Build matrix
+        id: matrix
+        env:
+          PRESET: ${{ inputs.preset || 'remote-smoke' }}
+          SAMPLE_SIZES: ${{ inputs.sample_sizes || '10' }}
+          METRIC_MODE: ${{ inputs.metric_mode || 'smoke' }}
+          MAX_CANDIDATES: ${{ inputs.max_candidates || '2' }}
+          MAX_TASKS: ${{ inputs.max_tasks || '2' }}
+          EXACT_DERIVED_COUNT: ${{ inputs.exact_derived_count || '2' }}
+          RANDOM_CONTROL_COUNT: ${{ inputs.random_control_count || '1' }}
+          MULTIPLIER_MINIMIZED: ${{ inputs.multiplier_minimized || 'false' }}
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          preset = os.environ.get("PRESET") or "remote-smoke"
+          if preset == "p37-triple-bispectrum-40":
+              shard_count = 40
+              max_parallel = 40
+              sample_sizes = "100,300,1000,full"
+              metric_mode = "full"
+              max_candidates = "0"
+              max_tasks = "0"
+              exact_derived_count = "24"
+              random_control_count = "12"
+              multiplier_minimized = "true"
+          else:
+              shard_count = int(os.environ.get("SHARD_COUNT") or "1")
+              max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
+              sample_sizes = os.environ.get("SAMPLE_SIZES") or "10"
+              metric_mode = os.environ.get("METRIC_MODE") or "smoke"
+              max_candidates = os.environ.get("MAX_CANDIDATES") or "2"
+              max_tasks = os.environ.get("MAX_TASKS") or "2"
+              exact_derived_count = os.environ.get("EXACT_DERIVED_COUNT") or "2"
+              random_control_count = os.environ.get("RANDOM_CONTROL_COUNT") or "1"
+              multiplier_minimized = str(os.environ.get("MULTIPLIER_MINIMIZED") or "false").lower()
+          if shard_count < 1:
+              raise SystemExit("shard_count must be >= 1")
+          if max_parallel < 1:
+              raise SystemExit("max_parallel must be >= 1")
+          max_parallel = min(max_parallel, shard_count)
+          width = max(2, len(str(shard_count - 1)))
+          matrix = [
+              {
+                  "shard_index": idx,
+                  "shard_suffix": "single" if shard_count == 1 else f"s{idx:0{width}d}",
+                  "shard_count": shard_count,
+              }
+              for idx in range(shard_count)
+          ]
+          print("matrix={}".format(json.dumps({"include": matrix}, separators=(",", ":"))))
+          print("max_parallel={}".format(max_parallel))
+          print("shard_jobs={}".format(shard_count))
+          print("effective_sample_sizes={}".format(sample_sizes))
+          print("effective_metric_mode={}".format(metric_mode))
+          print("effective_max_candidates={}".format(max_candidates))
+          print("effective_max_tasks={}".format(max_tasks))
+          print("effective_exact_derived_count={}".format(exact_derived_count))
+          print("effective_random_control_count={}".format(random_control_count))
+          print("effective_multiplier_minimized={}".format(multiplier_minimized))
+          PY
+
+  run-shard:
+    name: Audit shard ${{ matrix.shard_suffix }}
+    needs:
+      - known-regression
+      - define-shards
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.define-shards.outputs.max_parallel) }}
+      matrix: ${{ fromJSON(needs.define-shards.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run p37 triple bispectrum shard
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p37-triple-bispectrum-smoke' }}
+          SAMPLE_SIZES: ${{ needs.define-shards.outputs.effective_sample_sizes }}
+          METRIC_MODE: ${{ needs.define-shards.outputs.effective_metric_mode }}
+          MAX_CANDIDATES: ${{ needs.define-shards.outputs.effective_max_candidates }}
+          MAX_TASKS: ${{ needs.define-shards.outputs.effective_max_tasks }}
+          EXACT_DERIVED_COUNT: ${{ needs.define-shards.outputs.effective_exact_derived_count }}
+          RANDOM_CONTROL_COUNT: ${{ needs.define-shards.outputs.effective_random_control_count }}
+          MULTIPLIER_MINIMIZED: ${{ needs.define-shards.outputs.effective_multiplier_minimized }}
+          SHARD_INDEX: ${{ matrix.shard_index }}
+          SHARD_COUNT: ${{ matrix.shard_count }}
+          SHARD_SUFFIX: ${{ matrix.shard_suffix }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="outputs/explorations/${safe_label}-${GITHUB_RUN_ID}-${SHARD_SUFFIX}"
+          extra=()
+          if [ "$MULTIPLIER_MINIMIZED" != "true" ]; then
+            extra+=(--no-multiplier-minimized)
+          fi
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            sage sage/80_p37_triple_bispectrum_audit.sage \
+              --out-dir "$out_dir" \
+              --metric-mode "$METRIC_MODE" \
+              --sample-sizes "$SAMPLE_SIZES" \
+              --max-candidates "$MAX_CANDIDATES" \
+              --max-tasks "$MAX_TASKS" \
+              --exact-derived-count "$EXACT_DERIVED_COUNT" \
+              --random-control-count "$RANDOM_CONTROL_COUNT" \
+              --shard-index "$SHARD_INDEX" \
+              --shard-count "$SHARD_COUNT" \
+              "${extra[@]}"
+
+      - name: Upload shard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p37-triple-bispectrum-${{ matrix.shard_suffix }}-${{ github.run_id }}
+          path: outputs/explorations/*-${{ github.run_id }}-${{ matrix.shard_suffix }}
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    name: Aggregate p37 triple bispectrum audit
+    needs:
+      - define-shards
+      - run-shard
+    runs-on: ubuntu-24.04
+    if: always() && needs.run-shard.result == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download shard artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: downloaded-artifacts
+          pattern: p37-triple-bispectrum-*-${{ github.run_id }}
+          merge-multiple: false
+
+      - name: Aggregate shard outputs
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p37-triple-bispectrum-smoke' }}
+          SAMPLE_SIZES: ${{ needs.define-shards.outputs.effective_sample_sizes }}
+          METRIC_MODE: ${{ needs.define-shards.outputs.effective_metric_mode }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="outputs/explorations/${safe_label}-${GITHUB_RUN_ID}-aggregate"
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            sage sage/80_p37_triple_bispectrum_audit.sage \
+              --aggregate \
+              --aggregate-roots downloaded-artifacts \
+              --out-dir "$out_dir" \
+              --metric-mode "$METRIC_MODE" \
+              --sample-sizes "$SAMPLE_SIZES"
+
+      - name: Upload aggregate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p37-triple-bispectrum-aggregate-${{ github.run_id }}
+          path: outputs/explorations/*-${{ github.run_id }}-aggregate
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Slack notify
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p37-triple-bispectrum-smoke' }}
+          STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          payload=$(python3 - <<'PY'
+          import json
+          import os
+          text = "p37 triple bispectrum audit {status}: {label} run {run_id}".format(
+              status=os.environ.get("STATUS"),
+              label=os.environ.get("RUN_LABEL"),
+              run_id=os.environ.get("GITHUB_RUN_ID"),
+          )
+          print(json.dumps({"text": text}))
+          PY
+          )
+          curl -sS -X POST -H 'Content-Type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null
