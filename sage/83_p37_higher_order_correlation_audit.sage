@@ -50,16 +50,67 @@ def ensure_dir(path):
         os.makedirs(path, exist_ok=True)
 
 
+def json_safe(value):
+    if isinstance(value, dict):
+        return {str(k): json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(v) for v in value]
+    if isinstance(value, set):
+        return [json_safe(v) for v in sorted(value)]
+    if value is None or isinstance(value, (str, bool)):
+        return value
+    if isinstance(value, int):
+        return int(value)
+    if isinstance(value, float):
+        return float(value) if math.isfinite(float(value)) else None
+    try:
+        if value in ZZ:
+            return int(value)
+    except Exception:
+        pass
+    try:
+        out = float(value)
+        return out if math.isfinite(out) else None
+    except Exception:
+        return str(value)
+
+
+def public_row(row):
+    return {key: json_safe(value) for key, value in row.items() if not str(key).startswith("_")}
+
+
 def write_json(path, payload):
-    reg81.write_json(path, payload)
+    ensure_dir(os.path.dirname(path))
+    with open(path, "w") as f:
+        json.dump(json_safe(payload), f, indent=2, sort_keys=True)
+        f.write("\n")
 
 
 def write_jsonl(path, rows):
-    reg81.write_jsonl(path, rows)
+    ensure_dir(os.path.dirname(path))
+    with open(path, "w") as f:
+        for row in rows:
+            f.write(json.dumps(public_row(row), sort_keys=True) + "\n")
+
+
+def csv_value(value):
+    value = json_safe(value)
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, sort_keys=True)
+    if value is None:
+        return ""
+    return value
 
 
 def write_csv(path, rows, fields=None):
-    reg81.write_csv(path, rows, fields)
+    ensure_dir(os.path.dirname(path))
+    if fields is None:
+        fields = sorted(set().union(*(public_row(row).keys() for row in rows))) if rows else []
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore", lineterminator="\n")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: csv_value(row.get(field)) for field in fields})
 
 
 def read_jsonl(path):
