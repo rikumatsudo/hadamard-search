@@ -283,7 +283,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: p37-mixed3-guided-generator-${{ matrix.shard_suffix }}-${{ github.run_id }}
-          path: outputs/p37_mixed3_guided_generator_ablation/*-${{ github.run_id }}-${{ matrix.shard_suffix }}
+          path: ${{ needs.define-shards.outputs.effective_output_root }}/*-${{ github.run_id }}-${{ matrix.shard_suffix }}
           if-no-files-found: error
           retention-days: 14
 
