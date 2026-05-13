@@ -1,0 +1,59 @@
+experiment: p37_mixed3_movespace_guard
+description: >
+  Generator-yield experiment for adding move-space guard losses to the
+  p37 mixed3-focus constructive generator. This is not a filter, reranker,
+  classifier, or Hadamard 668 construction run.
+p: 37
+n: 148
+ks: [13, 16, 18, 18]
+lambda: 28
+focus_base:
+  split: fixed_03_12
+  beta: 0.05
+  top_M: 5
+variants:
+  - random_fixed_size
+  - pair_profile_guided
+  - pair_profile_plus_mixed3_focus
+  - mixed3_focus_plus_best_delta_guard
+  - mixed3_focus_plus_kappa_guard
+  - mixed3_focus_plus_closure_shell_guard
+optional_variants:
+  - mixed3_focus_plus_short_lookahead_guard
+candidates_per_variant_per_shard: 250
+shard_count: 40
+max_parallel: 40
+sample_count: 12
+repair_budget: 24
+repair_operator: score_only_1swap_greedy
+repair_swap_sample_count: 128
+diagnostic_sample_count: 128
+triple_sample_size: 100
+guard:
+  w_guard: 1.0
+  guard_sample_count: 24
+  guard_tau_best: 0
+  guard_kappa_target: 1.25
+  guard_min_fill_fraction: 0.7
+  guard_lookahead_steps: 1
+  guard_lookahead_sample_count: 32
+  closure_audit_limit: 500
+outputs:
+  - candidate_rows.csv
+  - candidate_rows.jsonl
+  - variant_summary.csv
+  - guard_summary.csv
+  - score0_candidates.jsonl
+  - validated_score0_candidates.jsonl
+  - nearhit_candidates.jsonl
+  - closure_shell_audit.csv
+  - score_histogram_by_variant.csv
+  - validation_report.json
+  - run_config.json
+  - README.md
+  - next_actions.md
+notes:
+  - mixed3 and move-space guard terms must be used during point-addition generation only.
+  - generated candidates are not filtered or reranked by move-space metrics.
+  - score0 is only a candidate until Sage validates SDS and Goethals-Seidel HH^T=nI.
+  - full r>=2 or r>=3 closure shell is not claimed unless explicitly computed.
