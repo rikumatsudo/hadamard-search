@@ -1,0 +1,45 @@
+experiment: p37_mixed3_guided_generator_ablation
+description: >
+  Generator-yield ablation for using mixed3 residual as an in-construction
+  loss, not as a post-hoc filter or reranker.
+p: 37
+n: 148
+ks: [13, 16, 18, 18]
+lambda: 28
+variants:
+  - random_fixed_size
+  - pair_profile_guided
+  - pair_profile_plus_AP_E
+  - pair_profile_plus_mixed3
+  - pair_profile_plus_mixed3_plus_AP_E
+  - pair_profile_plus_mixed3_plus_sampled_triple
+candidates_per_variant_per_shard: 200
+shard_count: 40
+sample_count: 12
+repair_budget: 20
+repair_swap_sample_count: 128
+diagnostic_sample_count: 128
+triple_sample_size: 100
+beta_list: [0.05, 0.1, 0.2, 0.5, 1.0]
+top_M_list: [5, 10, 20]
+split_modes: [fixed_01_23, fixed_02_13, fixed_03_12, random_split]
+block_order_modes: [fixed, random]
+outputs:
+  - candidate_rows.csv
+  - candidate_rows.jsonl
+  - variant_summary.csv
+  - split_summary.csv
+  - hyperparam_summary.csv
+  - score0_candidates.jsonl
+  - late_preclosure_candidates.jsonl
+  - repairable_parent_candidates.jsonl
+  - false_like_trap_examples.jsonl
+  - validation_report.json
+  - run_config.json
+  - README.md
+  - next_actions.md
+notes:
+  - mixed3 must be used during point-addition generation only.
+  - generated candidates are not filtered or reranked by mixed3.
+  - score0 is only a candidate until Sage validates SDS and Goethals-Seidel HH^T=nI.
+  - p37 results must not be transferred to p167 without a p167-specific audit.
