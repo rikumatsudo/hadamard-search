@@ -11,12 +11,15 @@ variants:
   - pair_profile_guided
   - pair_profile_plus_AP_E
   - pair_profile_plus_mixed3
+  - pair_profile_plus_mixed3_focus
   - pair_profile_plus_mixed3_plus_AP_E
   - pair_profile_plus_mixed3_plus_sampled_triple
 candidates_per_variant_per_shard: 200
+reproducibility_candidates_per_variant_per_shard: 500
 shard_count: 40
 sample_count: 12
 repair_budget: 20
+reproducibility_repair_budget: 24
 repair_swap_sample_count: 128
 diagnostic_sample_count: 128
 triple_sample_size: 100
@@ -24,13 +27,30 @@ beta_list: [0.05, 0.1, 0.2, 0.5, 1.0]
 top_M_list: [5, 10, 20]
 split_modes: [fixed_01_23, fixed_02_13, fixed_03_12, random_split]
 block_order_modes: [fixed, random]
+focus_variant:
+  variant: pair_profile_plus_mixed3_focus
+  split: fixed_03_12
+  beta: 0.05
+  top_M: 5
+previous_score0:
+  run_id: 25773837015
+  variant: pair_profile_plus_mixed3
+  seed: 640108
+  split: fixed_03_12
+  beta: 0.05
+  top_M: 5
+  canonical_hash: 51009665990a3845550821c4c085ea28ce52cab065ef5a1d38a95123a0261ba7
 outputs:
   - candidate_rows.csv
   - candidate_rows.jsonl
   - variant_summary.csv
+  - focus_summary.csv
   - split_summary.csv
   - hyperparam_summary.csv
   - score0_candidates.jsonl
+  - validated_score0_candidates.jsonl
+  - nearhit_candidates.jsonl
+  - score_histogram_by_variant.csv
   - late_preclosure_candidates.jsonl
   - repairable_parent_candidates.jsonl
   - false_like_trap_examples.jsonl

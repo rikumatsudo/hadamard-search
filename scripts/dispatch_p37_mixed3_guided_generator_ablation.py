@@ -19,6 +19,8 @@ PRESETS = {
         "triple_sample_size": "10",
         "shard_count": "1",
         "max_parallel": "1",
+        "base_seed": "37003",
+        "include_explicit_reproduce_previous": "false",
     },
     "p37-mixed3-guided-generator-40": {
         "run_label": "p37-mixed3-guided-generator-40x",
@@ -31,6 +33,22 @@ PRESETS = {
         "triple_sample_size": "100",
         "shard_count": "40",
         "max_parallel": "40",
+        "base_seed": "37003",
+        "include_explicit_reproduce_previous": "false",
+    },
+    "p37-mixed3-reproducibility-40": {
+        "run_label": "p37-mixed3-reproducibility-40x",
+        "variants": "random_fixed_size,pair_profile_guided,pair_profile_plus_AP_E,pair_profile_plus_mixed3,pair_profile_plus_mixed3_focus,pair_profile_plus_mixed3_plus_AP_E,pair_profile_plus_mixed3_plus_sampled_triple",
+        "candidates_per_variant": "500",
+        "sample_count": "12",
+        "repair_budget": "24",
+        "repair_swap_sample_count": "128",
+        "diagnostic_sample_count": "128",
+        "triple_sample_size": "100",
+        "shard_count": "40",
+        "max_parallel": "40",
+        "base_seed": "91037",
+        "include_explicit_reproduce_previous": "true",
     },
 }
 
@@ -44,6 +62,8 @@ INPUT_ORDER = [
     "repair_swap_sample_count",
     "diagnostic_sample_count",
     "triple_sample_size",
+    "base_seed",
+    "include_explicit_reproduce_previous",
     "shard_count",
     "max_parallel",
 ]
@@ -51,7 +71,7 @@ INPUT_ORDER = [
 
 def validate(values):
     for key in INPUT_ORDER:
-        if key in ("run_label", "variants"):
+        if key in ("run_label", "variants", "include_explicit_reproduce_previous"):
             continue
         if int(values[key]) < 1:
             raise ValueError("{} must be positive".format(key))

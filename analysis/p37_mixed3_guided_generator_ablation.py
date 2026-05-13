@@ -23,6 +23,8 @@ VARIANTS_DEFAULT = (
     "pair_profile_plus_mixed3_plus_AP_E",
     "pair_profile_plus_mixed3_plus_sampled_triple",
 )
+PREVIOUS_SCORE0_HASH_DEFAULT = "51009665990a3845550821c4c085ea28ce52cab065ef5a1d38a95123a0261ba7"
+NEARHIT_THRESHOLDS = (4, 8, 16, 50)
 SPLITS = {
     "fixed_01_23": ((0, 1), (2, 3)),
     "fixed_02_13": ((0, 2), (1, 3)),
@@ -284,6 +286,7 @@ def variant_weights(variant, args):
         "pair_profile_guided",
         "pair_profile_plus_AP_E",
         "pair_profile_plus_mixed3",
+        "pair_profile_plus_mixed3_focus",
         "pair_profile_plus_mixed3_plus_AP_E",
         "pair_profile_plus_mixed3_plus_sampled_triple",
         "pair_profile_plus_mixed3_plus_AP_E_plus_sampled_triple",
@@ -511,8 +514,22 @@ def run_one(variant, attempt_id, args, context):
     block_order_mode = order_modes[(attempt_id // max(1, len(beta_values) * len(top_values) * len(split_modes))) % len(order_modes)]
     variant_id = context["variant_ids"][variant]
     seed = int(args.base_seed) + int(args.shard_id) * 100000 + variant_id * 1000 + int(attempt_id)
+    explicit = context.get("explicit_override") or {}
+    if variant == "pair_profile_plus_mixed3_focus":
+        beta = 0.05
+        top_M = 5
+        split_mode = "fixed_03_12"
+        block_order_mode = "random"
+    if explicit:
+        seed = int(explicit.get("seed", seed))
+        beta = float(explicit.get("beta", beta))
+        top_M = int(explicit.get("top_M", top_M))
+        split_mode = str(explicit.get("split_mode", split_mode))
+        block_order_mode = str(explicit.get("block_order_mode", block_order_mode))
     rng = random.Random(seed)
     selected_split = selected_split_for_mode(split_mode, rng)
+    if explicit.get("selected_split"):
+        selected_split = str(explicit["selected_split"])
     blocks, gen_meta = generate_candidate(
         p,
         ks,
@@ -542,6 +559,8 @@ def run_one(variant, attempt_id, args, context):
     score0_after = int(score_after) == 0
     repairable = bool(improved or score0_after or late)
     false_trap = is_false_like_trap(score_generated, score_after, diag)
+    generated_thresholds = {threshold: int(score_generated) <= threshold for threshold in NEARHIT_THRESHOLDS}
+    after_thresholds = {threshold: int(score_after) <= threshold for threshold in NEARHIT_THRESHOLDS}
     final_components = loss_components(
         p,
         repaired,
@@ -577,6 +596,14 @@ def run_one(variant, attempt_id, args, context):
         "is_late_preclosure": bool(late),
         "is_repairable_parent": bool(repairable),
         "is_false_like_trap": bool(false_trap),
+        "generated_score_le_4": bool(generated_thresholds[4]),
+        "generated_score_le_8": bool(generated_thresholds[8]),
+        "generated_score_le_16": bool(generated_thresholds[16]),
+        "generated_score_le_50": bool(generated_thresholds[50]),
+        "after_repair_score_le_4": bool(after_thresholds[4]),
+        "after_repair_score_le_8": bool(after_thresholds[8]),
+        "after_repair_score_le_16": bool(after_thresholds[16]),
+        "after_repair_score_le_50": bool(after_thresholds[50]),
         "D_min_ratio": diag.get("D_min_ratio"),
         "P_4": diag.get("P_4"),
         "P_8": diag.get("P_8"),
@@ -593,9 +620,12 @@ def run_one(variant, attempt_id, args, context):
         "used_mixed3_during_generation": bool(gen_meta["used_mixed3_during_generation"]),
         "generation_loss_evaluations": int(gen_meta["generation_loss_evaluations"]),
         "diagnostic_sample_count": int(diag.get("diagnostic_sample_count") or 0),
+        "is_explicit_reproduce_previous": bool(explicit),
         "notes": "mixed3 used only during construction" if gen_meta["used_mixed3_during_generation"] else "",
         "blocks": [[int(x) for x in sorted(block)] for block in repaired],
     }
+    previous_hash = str(getattr(args, "previous_score0_hash", "") or "")
+    row["matches_previous_score0_hash"] = bool(previous_hash and h == previous_hash)
     return row
 
 
@@ -623,15 +653,19 @@ def summarize(rows, group_key):
         repairable = [row for row in group if row.get("is_repairable_parent")]
         traps = [row for row in group if row.get("is_false_like_trap")]
         repair_success = [row for row in group if int(row.get("score_after_repair", 0)) < int(row.get("score_generated", 0))]
+        gen_le = {threshold: [row for row in group if int(row.get("score_generated", 10**9)) <= threshold] for threshold in NEARHIT_THRESHOLDS}
+        after_le = {threshold: [row for row in group if int(row.get("score_after_repair", 10**9)) <= threshold] for threshold in NEARHIT_THRESHOLDS}
         same_compute_yield = (
             10.0 * len(score0_after)
             + 5.0 * len(score0_generated)
             + 3.0 * len(late)
+            + 2.0 * len(after_le[4])
+            + 1.0 * len(after_le[8])
+            + 0.25 * len(gen_le[50])
             + 1.0 * len(repairable)
             - 0.5 * len(traps)
         ) / float(max(1, count))
-        out.append(
-            {
+        row = {
                 group_key: key,
                 "candidate_count": count,
                 "score0_generated_count": len(score0_generated),
@@ -652,8 +686,27 @@ def summarize(rows, group_key):
                 "best_score_generated": min(int(row.get("score_generated")) for row in group) if group else None,
                 "best_score_after_repair": min(int(row.get("score_after_repair")) for row in group) if group else None,
                 "diversity_hash_count": len(set(row.get("canonical_hash") for row in group)),
-            }
-        )
+                "matches_previous_score0_hash_count": sum(1 for row in group if row.get("matches_previous_score0_hash")),
+                "explicit_reproduce_previous_count": sum(1 for row in group if row.get("is_explicit_reproduce_previous")),
+        }
+        for threshold in NEARHIT_THRESHOLDS:
+            row["generated_score_le_{}_count".format(threshold)] = len(gen_le[threshold])
+            row["generated_score_le_{}_rate".format(threshold)] = len(gen_le[threshold]) / float(max(1, count))
+            row["after_repair_score_le_{}_count".format(threshold)] = len(after_le[threshold])
+            row["after_repair_score_le_{}_rate".format(threshold)] = len(after_le[threshold]) / float(max(1, count))
+        out.append(row)
+    return out
+
+
+def score_histogram(rows):
+    groups = {}
+    for row in rows:
+        for phase, key in (("generated", "score_generated"), ("after_repair", "score_after_repair")):
+            hkey = (row.get("variant"), phase, int(row.get(key)))
+            groups[hkey] = groups.get(hkey, 0) + 1
+    out = []
+    for (variant, phase, score), count in sorted(groups.items(), key=lambda kv: (str(kv[0][0]), str(kv[0][1]), int(kv[0][2]))):
+        out.append({"variant": variant, "phase": phase, "score": score, "count": count})
     return out
 
 
@@ -680,6 +733,9 @@ def verdict(variant_rows):
     base_best = {
         "score0_rate": max(row["score0_rate"] for row in baselines),
         "unique_score0_children": max(row["unique_score0_children"] for row in baselines),
+        "generated_score_le_50_rate": max(row.get("generated_score_le_50_rate", 0.0) for row in baselines),
+        "after_repair_score_le_4_rate": max(row.get("after_repair_score_le_4_rate", 0.0) for row in baselines),
+        "after_repair_score_le_8_rate": max(row.get("after_repair_score_le_8_rate", 0.0) for row in baselines),
         "late_preclosure_rate": max(row["late_preclosure_rate"] for row in baselines),
         "repairable_parent_rate": max(row["repairable_parent_rate"] for row in baselines),
         "post_generation_repair_success_rate": max(row["post_generation_repair_success_rate"] for row in baselines),
@@ -690,16 +746,30 @@ def verdict(variant_rows):
     best_improvements = -999
     for row in mixed:
         improvements = 0
-        for key in ("score0_rate", "unique_score0_children", "late_preclosure_rate", "repairable_parent_rate", "post_generation_repair_success_rate", "same_compute_yield"):
+        for key in (
+            "score0_rate",
+            "unique_score0_children",
+            "generated_score_le_50_rate",
+            "after_repair_score_le_4_rate",
+            "after_repair_score_le_8_rate",
+            "late_preclosure_rate",
+            "repairable_parent_rate",
+            "post_generation_repair_success_rate",
+            "same_compute_yield",
+        ):
             if row[key] > base_best[key]:
                 improvements += 1
-        if row["false_like_trap_rate"] < base_best["false_like_trap_rate"]:
+        if row["false_like_trap_rate"] <= base_best["false_like_trap_rate"]:
             improvements += 1
         if improvements > best_improvements:
             best = row
             best_improvements = improvements
-    if best_improvements >= 2:
-        label = "GO"
+    if any(row.get("score0_after_repair_count", 0) > 1 or row.get("unique_score0_children", 0) > 1 for row in mixed):
+        label = "STRONG_GO"
+    elif any(row.get("score0_after_repair_count", 0) > 0 for row in mixed):
+        label = "WEAK_GO"
+    elif best_improvements >= 2:
+        label = "WEAK_GO"
     elif best_improvements <= 0:
         label = "NO_GO"
     else:
@@ -731,7 +801,7 @@ def write_readme(out_dir, config, variant_rows, decision):
         row = by_variant.get(variant)
         return row.get(key) if row else None
     lines = []
-    lines.append("# p37 mixed3-guided generator ablation")
+    lines.append("# p37 mixed3-guided generator reproducibility")
     lines.append("")
     lines.append("This is a generator-yield experiment, not a classifier, filter, reranker, or Hadamard 668 construction run.")
     lines.append("")
@@ -754,24 +824,25 @@ def write_readme(out_dir, config, variant_rows, decision):
     lines.append("")
     lines.append("## Variant summary")
     lines.append("")
-    lines.append("| variant | count | score0_rate | late_preclosure_rate | repairable_parent_rate | false_like_trap_rate | same_compute_yield |")
-    lines.append("|---|---:|---:|---:|---:|---:|---:|")
+    lines.append("| variant | count | score0_rate | generated<=50 | after<=4 | after<=8 | repairable_parent_rate | false_like_trap_rate | same_compute_yield |")
+    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
     for row in variant_rows:
         lines.append(
-            "| {variant} | {candidate_count} | {score0_rate:.6g} | {late_preclosure_rate:.6g} | {repairable_parent_rate:.6g} | {false_like_trap_rate:.6g} | {same_compute_yield:.6g} |".format(**row)
+            "| {variant} | {candidate_count} | {score0_rate:.6g} | {generated_score_le_50_rate:.6g} | {after_repair_score_le_4_rate:.6g} | {after_repair_score_le_8_rate:.6g} | {repairable_parent_rate:.6g} | {false_like_trap_rate:.6g} | {same_compute_yield:.6g} |".format(**row)
         )
     lines.append("")
     lines.append("## Required answers")
     lines.append("")
-    lines.append("Q1. mixed3-guided score0_rate vs baseline: see `variant_summary.csv`; best mixed3 variant `{}`.".format(decision.get("best_mixed3_variant")))
-    lines.append("Q2. unique_score0_children: max mixed3 `{}`.".format(max([row["unique_score0_children"] for row in variant_rows if "mixed3" in row["variant"]] or [0])))
-    lines.append("Q3. late_preclosure_rate: V3 `{}`, V1 `{}`.".format(row_value("pair_profile_plus_mixed3", "late_preclosure_rate"), row_value("pair_profile_guided", "late_preclosure_rate")))
-    lines.append("Q4. repairable_parent_rate: V3 `{}`, V1 `{}`.".format(row_value("pair_profile_plus_mixed3", "repairable_parent_rate"), row_value("pair_profile_guided", "repairable_parent_rate")))
-    lines.append("Q5. false_like_trap_rate: V3 `{}`, V1 `{}`.".format(row_value("pair_profile_plus_mixed3", "false_like_trap_rate"), row_value("pair_profile_guided", "false_like_trap_rate")))
-    lines.append("Q6. pair_profile_plus_mixed3 vs pair_profile_guided: compare same_compute_yield `{}` vs `{}`.".format(row_value("pair_profile_plus_mixed3", "same_compute_yield"), row_value("pair_profile_guided", "same_compute_yield")))
+    lines.append("Q1. pair_profile_plus_mixed3 score0 reproducibility: see `variant_summary.csv`; best mixed3 variant `{}`.".format(decision.get("best_mixed3_variant")))
+    lines.append("Q2. focus condition score0 / near-score0: see `focus_summary.csv`.")
+    lines.append("Q3. unique_score0_children: max mixed3 `{}`.".format(max([row["unique_score0_children"] for row in variant_rows if "mixed3" in row["variant"]] or [0])))
+    lines.append("Q4. Sage validation status: see `validation_report.json` and `validated_score0_candidates.jsonl`.")
+    lines.append("Q5. mixed3 generated_score<=50: V3 `{}`, V1 `{}`.".format(row_value("pair_profile_plus_mixed3", "generated_score_le_50_rate"), row_value("pair_profile_guided", "generated_score_le_50_rate")))
+    lines.append("Q6. repair after<=4 / after<=8: V3 `{} / {}`, V1 `{} / {}`.".format(row_value("pair_profile_plus_mixed3", "after_repair_score_le_4_rate"), row_value("pair_profile_plus_mixed3", "after_repair_score_le_8_rate"), row_value("pair_profile_guided", "after_repair_score_le_4_rate"), row_value("pair_profile_guided", "after_repair_score_le_8_rate")))
     lines.append("Q7. AP/E or sampled triple on top of mixed3: compare V4/V5 with V3 in `variant_summary.csv`.")
-    lines.append("Q8. mixed3 generator loss verdict: `{}`.".format(decision.get("go_no_go")))
-    lines.append("Q9. p167 transfer: only if p37 result is GO/Strong GO; do not transfer without a p167-specific smoke/audit.")
+    lines.append("Q8. false_like_trap_rate: V3 `{}`, V1 `{}`.".format(row_value("pair_profile_plus_mixed3", "false_like_trap_rate"), row_value("pair_profile_guided", "false_like_trap_rate")))
+    lines.append("Q9. reproducibility verdict: `{}`.".format(decision.get("go_no_go")))
+    lines.append("Q10. next step: only transfer to p167 after p37 reproducibility is at least Weak GO; use p167-specific smoke/audit.")
     lines.append("")
     lines.append("score0 is only a candidate until Sage verifies SDS, Goethals-Seidel construction, and HH^T=nI over ZZ.")
     with open(os.path.join(out_dir, "README.md"), "w") as f:
@@ -782,7 +853,7 @@ def write_next_actions(out_dir, decision):
     lines = []
     lines.append("# Next actions")
     lines.append("")
-    if decision.get("go_no_go") == "GO":
+    if decision.get("go_no_go") in ("STRONG_GO", "WEAK_GO"):
         lines.append("- Consider a p37 larger-budget rerun to confirm stability of the mixed3-guided yield.")
         lines.append("- Only after p37 stability, design a p167 c01/c05 generator smoke with normalized losses.")
     elif decision.get("go_no_go") == "NO_GO":
@@ -798,17 +869,25 @@ def output_all(out_dir, rows, config, p, ks, lam):
     ensure_dir(out_dir)
     annotate_unique_score0(rows)
     variant_rows = summarize(rows, "variant")
+    focus_rows = summarize([row for row in rows if row.get("variant") == "pair_profile_plus_mixed3_focus"], "variant")
     split_rows = summarize(rows, "selected_split")
     hyper_rows = hyperparam_summary(rows)
     score0_rows = [row for row in rows if row.get("is_score0_generated") or row.get("is_score0_after_repair")]
     late_rows = [row for row in rows if row.get("is_late_preclosure")]
     repair_rows = [row for row in rows if row.get("is_repairable_parent")]
     trap_rows = [row for row in rows if row.get("is_false_like_trap")]
+    nearhit_rows = [
+        row for row in rows
+        if int(row.get("score_generated", 10**9)) <= 50 or int(row.get("score_after_repair", 10**9)) <= 8
+    ]
+    histogram_rows = score_histogram(rows)
     decision = verdict(variant_rows)
     score0_jsons = write_score0_jsons(out_dir, score0_rows, p, ks, lam)
     validation = {
         "score0_candidate_count": len(score0_rows),
         "score0_candidate_jsons": score0_jsons,
+        "validated_score0_count": 0,
+        "validated_score0_candidates_jsonl": os.path.join(out_dir, "validated_score0_candidates.jsonl"),
         "sage_validation_required": bool(score0_jsons),
         "sage_validation_status": "pending_if_score0_present" if score0_jsons else "not_required_no_score0",
     }
@@ -818,26 +897,42 @@ def output_all(out_dir, rows, config, p, ks, lam):
         "score_generated", "score_after_repair", "is_score0_generated", "is_score0_after_repair",
         "canonical_hash", "is_unique_score0", "is_late_preclosure", "is_repairable_parent",
         "is_false_like_trap", "D_min_ratio", "P_4", "P_8", "P_16", "kappa_max",
+        "generated_score_le_4", "generated_score_le_8", "generated_score_le_16", "generated_score_le_50",
+        "after_repair_score_le_4", "after_repair_score_le_8", "after_repair_score_le_16", "after_repair_score_le_50",
         "closure_shell_score", "L_pair_final", "L_mixed3_final", "L_AP_final", "L_E_final",
         "L_triple_final", "repair_operator", "repair_steps_used", "notes",
         "used_mixed3_during_generation", "generation_loss_evaluations",
+        "is_explicit_reproduce_previous", "matches_previous_score0_hash",
     ]
     variant_fields = [
         "variant", "candidate_count", "score0_generated_count", "score0_after_repair_count",
-        "score0_rate", "unique_score0_children", "late_preclosure_count", "late_preclosure_rate",
+        "score0_rate", "unique_score0_children",
+        "generated_score_le_4_count", "generated_score_le_4_rate",
+        "generated_score_le_8_count", "generated_score_le_8_rate",
+        "generated_score_le_16_count", "generated_score_le_16_rate",
+        "generated_score_le_50_count", "generated_score_le_50_rate",
+        "after_repair_score_le_4_count", "after_repair_score_le_4_rate",
+        "after_repair_score_le_8_count", "after_repair_score_le_8_rate",
+        "after_repair_score_le_16_count", "after_repair_score_le_16_rate",
+        "after_repair_score_le_50_count", "after_repair_score_le_50_rate",
+        "late_preclosure_count", "late_preclosure_rate",
         "repairable_parent_count", "repairable_parent_rate", "false_like_trap_count",
         "false_like_trap_rate", "post_generation_repair_success_count",
         "post_generation_repair_success_rate", "same_compute_yield", "median_score_generated",
         "median_score_after_repair", "best_score_generated", "best_score_after_repair",
-        "diversity_hash_count",
+        "diversity_hash_count", "matches_previous_score0_hash_count", "explicit_reproduce_previous_count",
     ]
     write_csv(os.path.join(out_dir, "candidate_rows.csv"), rows, candidate_csv_fields)
     write_jsonl(os.path.join(out_dir, "candidate_rows.jsonl"), rows)
     write_csv(os.path.join(out_dir, "variant_summary.csv"), variant_rows, variant_fields)
     write_json(os.path.join(out_dir, "variant_summary.json"), {"rows": variant_rows})
+    write_csv(os.path.join(out_dir, "focus_summary.csv"), focus_rows, variant_fields)
     write_csv(os.path.join(out_dir, "split_summary.csv"), split_rows, ["selected_split"] + [f for f in variant_fields if f != "variant"])
     write_csv(os.path.join(out_dir, "hyperparam_summary.csv"), hyper_rows, sorted(set().union(*(row.keys() for row in hyper_rows))) if hyper_rows else [])
     write_jsonl(os.path.join(out_dir, "score0_candidates.jsonl"), score0_rows)
+    write_jsonl(os.path.join(out_dir, "validated_score0_candidates.jsonl"), [])
+    write_jsonl(os.path.join(out_dir, "nearhit_candidates.jsonl"), nearhit_rows)
+    write_csv(os.path.join(out_dir, "score_histogram_by_variant.csv"), histogram_rows, ["variant", "phase", "score", "count"])
     write_jsonl(os.path.join(out_dir, "late_preclosure_candidates.jsonl"), late_rows)
     write_jsonl(os.path.join(out_dir, "repairable_parent_candidates.jsonl"), repair_rows)
     write_jsonl(os.path.join(out_dir, "false_like_trap_examples.jsonl"), trap_rows[:200])
@@ -871,7 +966,7 @@ def aggregate(args):
 
 def config_from_args(args):
     return {
-        "experiment": "p37_mixed3_guided_generator_ablation",
+        "experiment": getattr(args, "experiment_name", "p37_mixed3_guided_generator_ablation"),
         "run_id": args.run_id,
         "p": int(args.p),
         "ks": [int(k) for k in args.ks],
@@ -890,6 +985,8 @@ def config_from_args(args):
         "shard_id": int(args.shard_id),
         "shard_count": int(args.shard_count),
         "base_seed": int(args.base_seed),
+        "previous_score0_hash": str(args.previous_score0_hash or ""),
+        "include_explicit_reproduce_previous": bool(args.include_explicit_reproduce_previous),
         "weights": {
             "w_pair": float(args.w_pair),
             "w3": float(args.w3),
@@ -925,6 +1022,17 @@ def run(args):
     for variant in variants:
         for attempt_id in range(int(args.candidates_per_variant)):
             rows.append(run_one(variant, attempt_id, args, context))
+    if bool(args.include_explicit_reproduce_previous) and int(args.shard_id) == 0 and "pair_profile_plus_mixed3" in variants:
+        explicit_context = dict(context)
+        explicit_context["explicit_override"] = {
+            "seed": 640108,
+            "beta": 0.05,
+            "top_M": 5,
+            "split_mode": "random_split",
+            "selected_split": "fixed_03_12",
+            "block_order_mode": "random",
+        }
+        rows.append(run_one("pair_profile_plus_mixed3", int(args.candidates_per_variant), args, explicit_context))
     config = config_from_args(args)
     output_all(args.out_dir, rows, config, p, ks, lam)
     print("candidate rows:", len(rows))
@@ -951,6 +1059,10 @@ def parse_args():
     parser.add_argument("--diagnostic-sample-count", type=int, default=128)
     parser.add_argument("--triple-sample-size", type=int, default=100)
     parser.add_argument("--base-seed", type=int, default=37003)
+    parser.add_argument("--previous-score0-hash", default=PREVIOUS_SCORE0_HASH_DEFAULT)
+    parser.add_argument("--include-explicit-reproduce-previous", action="store_true")
+    parser.add_argument("--experiment-name", default="p37_mixed3_guided_generator_ablation")
+    parser.add_argument("--output-root", default=None)
     parser.add_argument("--shard-id", "--shard-index", dest="shard_id", type=int, default=0)
     parser.add_argument("--shard-count", type=int, default=1)
     parser.add_argument("--w-pair", type=float, default=1.0)
@@ -963,7 +1075,8 @@ def parse_args():
     parser.add_argument("--aggregate-roots", default="")
     args = parser.parse_args()
     if args.out_dir is None:
-        args.out_dir = os.path.join("outputs", "p37_mixed3_guided_generator_ablation", now_stamp())
+        output_root = args.output_root or os.path.join("outputs", args.experiment_name)
+        args.out_dir = os.path.join(output_root, now_stamp())
     if not args.run_id:
         args.run_id = Path(args.out_dir).name
     if args.smoke:

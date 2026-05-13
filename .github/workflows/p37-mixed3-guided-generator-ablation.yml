@@ -16,6 +16,7 @@ on:
         options:
           - "remote-smoke"
           - "p37-mixed3-guided-generator-40"
+          - "p37-mixed3-reproducibility-40"
           - "custom"
       variants:
         description: "Comma-separated generator variants"
@@ -52,6 +53,16 @@ on:
         required: false
         default: "10"
         type: string
+      base_seed:
+        description: "Base random seed"
+        required: false
+        default: "37003"
+        type: string
+      include_explicit_reproduce_previous:
+        description: "Append one explicit reproduction of previous score0 seed/settings on shard 0"
+        required: false
+        default: false
+        type: boolean
       shard_count:
         description: "Shard count for fan-out"
         required: false
@@ -118,6 +129,10 @@ jobs:
       effective_repair_swap_sample_count: ${{ steps.matrix.outputs.effective_repair_swap_sample_count }}
       effective_diagnostic_sample_count: ${{ steps.matrix.outputs.effective_diagnostic_sample_count }}
       effective_triple_sample_size: ${{ steps.matrix.outputs.effective_triple_sample_size }}
+      effective_base_seed: ${{ steps.matrix.outputs.effective_base_seed }}
+      effective_include_explicit_reproduce_previous: ${{ steps.matrix.outputs.effective_include_explicit_reproduce_previous }}
+      effective_output_root: ${{ steps.matrix.outputs.effective_output_root }}
+      effective_experiment_name: ${{ steps.matrix.outputs.effective_experiment_name }}
     steps:
       - name: Build matrix
         id: matrix
@@ -130,6 +145,8 @@ jobs:
           REPAIR_SWAP_SAMPLE_COUNT: ${{ inputs.repair_swap_sample_count || '16' }}
           DIAGNOSTIC_SAMPLE_COUNT: ${{ inputs.diagnostic_sample_count || '16' }}
           TRIPLE_SAMPLE_SIZE: ${{ inputs.triple_sample_size || '10' }}
+          BASE_SEED: ${{ inputs.base_seed || '37003' }}
+          INCLUDE_EXPLICIT_REPRODUCE_PREVIOUS: ${{ inputs.include_explicit_reproduce_previous || false }}
           SHARD_COUNT: ${{ inputs.shard_count || '1' }}
           MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
         run: |
@@ -149,6 +166,24 @@ jobs:
               repair_swap_sample_count = "128"
               diagnostic_sample_count = "128"
               triple_sample_size = "100"
+              base_seed = "37003"
+              include_explicit_reproduce_previous = "false"
+              output_root = "outputs/p37_mixed3_guided_generator_ablation"
+              experiment_name = "p37_mixed3_guided_generator_ablation"
+          elif preset == "p37-mixed3-reproducibility-40":
+              shard_count = 40
+              max_parallel = 40
+              variants = "random_fixed_size,pair_profile_guided,pair_profile_plus_AP_E,pair_profile_plus_mixed3,pair_profile_plus_mixed3_focus,pair_profile_plus_mixed3_plus_AP_E,pair_profile_plus_mixed3_plus_sampled_triple"
+              candidates_per_variant = "500"
+              sample_count = "12"
+              repair_budget = "24"
+              repair_swap_sample_count = "128"
+              diagnostic_sample_count = "128"
+              triple_sample_size = "100"
+              base_seed = "91037"
+              include_explicit_reproduce_previous = "true"
+              output_root = "outputs/p37_mixed3_reproducibility"
+              experiment_name = "p37_mixed3_reproducibility"
           else:
               shard_count = int(os.environ.get("SHARD_COUNT") or "1")
               max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
@@ -159,6 +194,10 @@ jobs:
               repair_swap_sample_count = os.environ.get("REPAIR_SWAP_SAMPLE_COUNT") or "16"
               diagnostic_sample_count = os.environ.get("DIAGNOSTIC_SAMPLE_COUNT") or "16"
               triple_sample_size = os.environ.get("TRIPLE_SAMPLE_SIZE") or "10"
+              base_seed = os.environ.get("BASE_SEED") or "37003"
+              include_explicit_reproduce_previous = str(os.environ.get("INCLUDE_EXPLICIT_REPRODUCE_PREVIOUS") or "false").lower()
+              output_root = "outputs/p37_mixed3_guided_generator_ablation"
+              experiment_name = "p37_mixed3_guided_generator_ablation"
           if shard_count < 1:
               raise SystemExit("shard_count must be >= 1")
           if max_parallel < 1:
@@ -182,6 +221,10 @@ jobs:
           print("effective_repair_swap_sample_count={}".format(repair_swap_sample_count))
           print("effective_diagnostic_sample_count={}".format(diagnostic_sample_count))
           print("effective_triple_sample_size={}".format(triple_sample_size))
+          print("effective_base_seed={}".format(base_seed))
+          print("effective_include_explicit_reproduce_previous={}".format(include_explicit_reproduce_previous))
+          print("effective_output_root={}".format(output_root))
+          print("effective_experiment_name={}".format(experiment_name))
           PY
 
   run-shard:
@@ -208,15 +251,21 @@ jobs:
           REPAIR_SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.effective_repair_swap_sample_count }}
           DIAGNOSTIC_SAMPLE_COUNT: ${{ needs.define-shards.outputs.effective_diagnostic_sample_count }}
           TRIPLE_SAMPLE_SIZE: ${{ needs.define-shards.outputs.effective_triple_sample_size }}
+          BASE_SEED: ${{ needs.define-shards.outputs.effective_base_seed }}
+          INCLUDE_EXPLICIT_REPRODUCE_PREVIOUS: ${{ needs.define-shards.outputs.effective_include_explicit_reproduce_previous }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.effective_output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.effective_experiment_name }}
           SHARD_INDEX: ${{ matrix.shard_index }}
           SHARD_COUNT: ${{ matrix.shard_count }}
           SHARD_SUFFIX: ${{ matrix.shard_suffix }}
         run: |
           set -euo pipefail
           safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
-          out_dir="outputs/p37_mixed3_guided_generator_ablation/${safe_label}-${GITHUB_RUN_ID}-${SHARD_SUFFIX}"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-${SHARD_SUFFIX}"
           python3 analysis/p37_mixed3_guided_generator_ablation.py \
             --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
             --run-id "${safe_label}-${GITHUB_RUN_ID}" \
             --variants "$VARIANTS" \
             --candidates-per-variant "$CANDIDATES_PER_VARIANT" \
@@ -225,8 +274,10 @@ jobs:
             --repair-swap-sample-count "$REPAIR_SWAP_SAMPLE_COUNT" \
             --diagnostic-sample-count "$DIAGNOSTIC_SAMPLE_COUNT" \
             --triple-sample-size "$TRIPLE_SAMPLE_SIZE" \
+            --base-seed "$BASE_SEED" \
             --shard-id "$SHARD_INDEX" \
-            --shard-count "$SHARD_COUNT"
+            --shard-count "$SHARD_COUNT" \
+            $([ "$INCLUDE_EXPLICIT_REPRODUCE_PREVIOUS" = "true" ] && printf '%s' "--include-explicit-reproduce-previous" || true)
 
       - name: Upload shard artifact
         uses: actions/upload-artifact@v4
@@ -264,14 +315,19 @@ jobs:
           REPAIR_SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.effective_repair_swap_sample_count }}
           DIAGNOSTIC_SAMPLE_COUNT: ${{ needs.define-shards.outputs.effective_diagnostic_sample_count }}
           TRIPLE_SAMPLE_SIZE: ${{ needs.define-shards.outputs.effective_triple_sample_size }}
+          BASE_SEED: ${{ needs.define-shards.outputs.effective_base_seed }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.effective_output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.effective_experiment_name }}
         run: |
           set -euo pipefail
           safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
-          out_dir="outputs/p37_mixed3_guided_generator_ablation/${safe_label}-${GITHUB_RUN_ID}-aggregate"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-aggregate"
           python3 analysis/p37_mixed3_guided_generator_ablation.py \
             --aggregate \
             --aggregate-roots downloaded-artifacts \
             --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
             --run-id "${safe_label}-${GITHUB_RUN_ID}" \
             --variants "$VARIANTS" \
             --candidates-per-variant "$CANDIDATES_PER_VARIANT" \
@@ -279,12 +335,13 @@ jobs:
             --repair-budget "$REPAIR_BUDGET" \
             --repair-swap-sample-count "$REPAIR_SWAP_SAMPLE_COUNT" \
             --diagnostic-sample-count "$DIAGNOSTIC_SAMPLE_COUNT" \
-            --triple-sample-size "$TRIPLE_SAMPLE_SIZE"
+            --triple-sample-size "$TRIPLE_SAMPLE_SIZE" \
+            --base-seed "$BASE_SEED"
 
       - name: Validate score0 candidates if present
         run: |
           set -euo pipefail
-          score_dir="$(find outputs/p37_mixed3_guided_generator_ablation -path '*/score0_candidate_jsons' -type d | head -n 1 || true)"
+          score_dir="$(find outputs -path '*/score0_candidate_jsons' -type d | head -n 1 || true)"
           if [ -z "$score_dir" ] || ! find "$score_dir" -name '*.json' -type f | grep -q .; then
             echo "No score0 candidates to validate."
             exit 0
@@ -296,6 +353,7 @@ jobs:
             docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" sage sage/04_build_gs_from_sds.sage "$candidate"
           done < <(find "$score_dir" -name '*.json' -type f | sort)
           report="$(dirname "$score_dir")/validation_report.json"
+          cp "$(dirname "$score_dir")/score0_candidates.jsonl" "$(dirname "$score_dir")/validated_score0_candidates.jsonl"
           python3 - "$report" <<'PY'
           import json
           import sys
@@ -303,6 +361,7 @@ jobs:
           with open(path) as f:
               data = json.load(f)
           data["sage_validation_status"] = "passed"
+          data["validated_score0_count"] = data.get("score0_candidate_count", 0)
           data["sage_validation_note"] = "08_analyze, 05_validate, and 04_build_gs_from_sds completed for every score0 JSON."
           with open(path, "w") as f:
               json.dump(data, f, indent=2, sort_keys=True)
@@ -313,7 +372,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: p37-mixed3-guided-generator-ablation-${{ github.run_id }}
-          path: outputs/p37_mixed3_guided_generator_ablation/*-${{ github.run_id }}-aggregate
+          path: outputs/*/*-${{ github.run_id }}-aggregate
           if-no-files-found: error
           retention-days: 30
 
