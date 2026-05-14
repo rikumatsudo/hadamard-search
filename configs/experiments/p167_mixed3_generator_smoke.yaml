@@ -1,0 +1,81 @@
+experiment_name: p167_mixed3_generator_smoke_c01_c05_c09
+description: >
+  Generator-yield smoke for p167 tuple classes c01/c05/c09 using mixed3
+  and move-space guard losses during construction, not post-hoc filtering.
+
+p: 167
+tuple_registry: configs/fixtures/p167_tuple_classes.json
+tuple_classes:
+  - p167_c01
+  - p167_c05
+  - p167_c09
+
+variants:
+  - random_fixed_size
+  - pair_profile_guided
+  - pair_profile_plus_mixed3_focus
+  - mixed3_focus_plus_kappa_guard
+  - mixed3_focus_plus_closure_shell_guard
+
+focus_grid:
+  split_modes:
+    - fixed_01_23
+    - fixed_02_13
+    - fixed_03_12
+  beta_list:
+    - 0.05
+    - 0.10
+  top_M_list:
+    - 5
+    - 10
+  block_order_modes:
+    - random
+
+local_smoke:
+  candidates_per_variant_per_tuple: 1
+  sample_count: 3
+  repair_budget: 2
+  repair_swap_sample_count: 16
+  diagnostic_sample_count: 16
+  guard_sample_count: 4
+
+remote_smoke:
+  shard_count: 1
+  max_parallel: 1
+  candidates_per_variant_per_tuple: 1
+  sample_count: 3
+  repair_budget: 2
+  repair_swap_sample_count: 16
+  diagnostic_sample_count: 16
+  guard_sample_count: 4
+
+production_smoke_40:
+  shard_count: 40
+  max_parallel: 40
+  candidates_per_variant_per_tuple: 50
+  sample_count: 4
+  repair_budget: 8
+  repair_swap_sample_count: 96
+  diagnostic_sample_count: 96
+  guard_sample_count: 8
+  guard_tau_best: 0
+  guard_kappa_target: 1.25
+  guard_min_fill_fraction: 0.75
+
+score_thresholds:
+  - 300
+  - 240
+  - 200
+  - 180
+  - 160
+  - 120
+  - 100
+
+artifact_policy:
+  upload_raw_logs: false
+  summary_only: true
+
+notes:
+  - This is not a filter/classifier/reranker experiment.
+  - mixed3 and guard terms must enter construction loss.
+  - score0 is only a candidate until Sage validates SDS and HH^T = 668I.

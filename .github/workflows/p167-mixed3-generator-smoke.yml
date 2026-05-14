@@ -1,0 +1,382 @@
+name: p167-mixed3-generator-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Short label for artifacts and Slack messages"
+        required: false
+        default: "p167-mixed3-generator-smoke-remote-smoke"
+        type: string
+      preset:
+        description: "Preset input bundle"
+        required: false
+        default: "remote-smoke"
+        type: choice
+        options:
+          - "remote-smoke"
+          - "p167-mixed3-generator-smoke-40"
+          - "custom"
+      tuple_classes:
+        description: "Comma-separated p167 tuple classes"
+        required: false
+        default: "p167_c01,p167_c05,p167_c09"
+        type: string
+      variants:
+        description: "Comma-separated generator variants"
+        required: false
+        default: "random_fixed_size,pair_profile_plus_mixed3_focus"
+        type: string
+      candidates_per_variant_per_tuple:
+        description: "Candidates per tuple class and variant per shard"
+        required: false
+        default: "1"
+        type: string
+      sample_count:
+        description: "Point-addition sampled candidate count"
+        required: false
+        default: "3"
+        type: string
+      repair_budget:
+        description: "Greedy one-swap repair budget"
+        required: false
+        default: "2"
+        type: string
+      repair_swap_sample_count:
+        description: "Sampled repair swaps per repair step"
+        required: false
+        default: "16"
+        type: string
+      diagnostic_sample_count:
+        description: "Sampled one-swap diagnostics per candidate"
+        required: false
+        default: "16"
+        type: string
+      guard_sample_count:
+        description: "Sampled one-swap moves per guard evaluation"
+        required: false
+        default: "4"
+        type: string
+      base_seed:
+        description: "Base random seed"
+        required: false
+        default: "167003"
+        type: string
+      shard_count:
+        description: "Shard count for fan-out"
+        required: false
+        default: "1"
+        type: string
+      max_parallel:
+        description: "Maximum parallel shard jobs"
+        required: false
+        default: "1"
+        type: string
+  pull_request:
+    paths:
+      - "analysis/p167_mixed3_generator_smoke.py"
+      - ".github/workflows/p167-mixed3-generator-smoke.yml"
+      - "configs/experiments/p167_mixed3_generator_smoke.yaml"
+      - "scripts/dispatch_p167_mixed3_generator_smoke.py"
+      - "configs/fixtures/p167_tuple_classes.json"
+      - "analysis/p37_mixed3_movespace_guard.py"
+      - "sage/06_known_sds_regression.sage"
+      - "sage/08_analyze_sds_candidate.sage"
+      - "sage/05_validate_candidate_json.sage"
+      - "sage/04_build_gs_from_sds.sage"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: p167-mixed3-generator-smoke-${{ github.ref }}-${{ inputs.run_label || github.event_name }}
+  cancel-in-progress: false
+
+env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  known-regression:
+    name: Known SDS regression
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run known SDS regression
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            sage sage/06_known_sds_regression.sage
+
+  define-shards:
+    name: Define shard matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      effective_tuple_classes: ${{ steps.matrix.outputs.effective_tuple_classes }}
+      effective_variants: ${{ steps.matrix.outputs.effective_variants }}
+      effective_candidates_per_variant_per_tuple: ${{ steps.matrix.outputs.effective_candidates_per_variant_per_tuple }}
+      effective_sample_count: ${{ steps.matrix.outputs.effective_sample_count }}
+      effective_repair_budget: ${{ steps.matrix.outputs.effective_repair_budget }}
+      effective_repair_swap_sample_count: ${{ steps.matrix.outputs.effective_repair_swap_sample_count }}
+      effective_diagnostic_sample_count: ${{ steps.matrix.outputs.effective_diagnostic_sample_count }}
+      effective_guard_sample_count: ${{ steps.matrix.outputs.effective_guard_sample_count }}
+      effective_base_seed: ${{ steps.matrix.outputs.effective_base_seed }}
+      effective_output_root: ${{ steps.matrix.outputs.effective_output_root }}
+      effective_experiment_name: ${{ steps.matrix.outputs.effective_experiment_name }}
+    steps:
+      - name: Build matrix
+        id: matrix
+        env:
+          PRESET: ${{ inputs.preset || 'remote-smoke' }}
+          TUPLE_CLASSES: ${{ inputs.tuple_classes || 'p167_c01,p167_c05,p167_c09' }}
+          VARIANTS: ${{ inputs.variants || 'random_fixed_size,pair_profile_plus_mixed3_focus' }}
+          CANDIDATES_PER_VARIANT_PER_TUPLE: ${{ inputs.candidates_per_variant_per_tuple || '1' }}
+          SAMPLE_COUNT: ${{ inputs.sample_count || '3' }}
+          REPAIR_BUDGET: ${{ inputs.repair_budget || '2' }}
+          REPAIR_SWAP_SAMPLE_COUNT: ${{ inputs.repair_swap_sample_count || '16' }}
+          DIAGNOSTIC_SAMPLE_COUNT: ${{ inputs.diagnostic_sample_count || '16' }}
+          GUARD_SAMPLE_COUNT: ${{ inputs.guard_sample_count || '4' }}
+          BASE_SEED: ${{ inputs.base_seed || '167003' }}
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          preset = os.environ.get("PRESET") or "remote-smoke"
+          if preset == "p167-mixed3-generator-smoke-40":
+              shard_count = 40
+              max_parallel = 40
+              tuple_classes = "p167_c01,p167_c05,p167_c09"
+              variants = "random_fixed_size,pair_profile_guided,pair_profile_plus_mixed3_focus,mixed3_focus_plus_kappa_guard,mixed3_focus_plus_closure_shell_guard"
+              candidates = "50"
+              sample_count = "4"
+              repair_budget = "8"
+              repair_swap_sample_count = "96"
+              diagnostic_sample_count = "96"
+              guard_sample_count = "8"
+              base_seed = "167503"
+          else:
+              shard_count = int(os.environ.get("SHARD_COUNT") or "1")
+              max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
+              tuple_classes = os.environ.get("TUPLE_CLASSES") or "p167_c01,p167_c05,p167_c09"
+              variants = os.environ.get("VARIANTS") or "random_fixed_size,pair_profile_plus_mixed3_focus"
+              candidates = os.environ.get("CANDIDATES_PER_VARIANT_PER_TUPLE") or "1"
+              sample_count = os.environ.get("SAMPLE_COUNT") or "3"
+              repair_budget = os.environ.get("REPAIR_BUDGET") or "2"
+              repair_swap_sample_count = os.environ.get("REPAIR_SWAP_SAMPLE_COUNT") or "16"
+              diagnostic_sample_count = os.environ.get("DIAGNOSTIC_SAMPLE_COUNT") or "16"
+              guard_sample_count = os.environ.get("GUARD_SAMPLE_COUNT") or "4"
+              base_seed = os.environ.get("BASE_SEED") or "167003"
+          if shard_count < 1:
+              raise SystemExit("shard_count must be >= 1")
+          if max_parallel < 1:
+              raise SystemExit("max_parallel must be >= 1")
+          max_parallel = min(max_parallel, shard_count)
+          width = max(2, len(str(shard_count - 1)))
+          matrix = [
+              {
+                  "shard_index": idx,
+                  "shard_suffix": "single" if shard_count == 1 else f"s{idx:0{width}d}",
+                  "shard_count": shard_count,
+              }
+              for idx in range(shard_count)
+          ]
+          print("matrix={}".format(json.dumps({"include": matrix}, separators=(",", ":"))))
+          print("max_parallel={}".format(max_parallel))
+          print("effective_tuple_classes={}".format(tuple_classes))
+          print("effective_variants={}".format(variants))
+          print("effective_candidates_per_variant_per_tuple={}".format(candidates))
+          print("effective_sample_count={}".format(sample_count))
+          print("effective_repair_budget={}".format(repair_budget))
+          print("effective_repair_swap_sample_count={}".format(repair_swap_sample_count))
+          print("effective_diagnostic_sample_count={}".format(diagnostic_sample_count))
+          print("effective_guard_sample_count={}".format(guard_sample_count))
+          print("effective_base_seed={}".format(base_seed))
+          print("effective_output_root=outputs/p167_mixed3_generator_smoke")
+          print("effective_experiment_name=p167_mixed3_generator_smoke_c01_c05_c09")
+          PY
+
+  run-shard:
+    name: Generator shard ${{ matrix.shard_suffix }}
+    needs:
+      - known-regression
+      - define-shards
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.define-shards.outputs.max_parallel) }}
+      matrix: ${{ fromJSON(needs.define-shards.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run p167 mixed3 generator smoke shard
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-mixed3-generator-smoke-remote-smoke' }}
+          TUPLE_CLASSES: ${{ needs.define-shards.outputs.effective_tuple_classes }}
+          VARIANTS: ${{ needs.define-shards.outputs.effective_variants }}
+          CANDIDATES_PER_VARIANT_PER_TUPLE: ${{ needs.define-shards.outputs.effective_candidates_per_variant_per_tuple }}
+          SAMPLE_COUNT: ${{ needs.define-shards.outputs.effective_sample_count }}
+          REPAIR_BUDGET: ${{ needs.define-shards.outputs.effective_repair_budget }}
+          REPAIR_SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.effective_repair_swap_sample_count }}
+          DIAGNOSTIC_SAMPLE_COUNT: ${{ needs.define-shards.outputs.effective_diagnostic_sample_count }}
+          GUARD_SAMPLE_COUNT: ${{ needs.define-shards.outputs.effective_guard_sample_count }}
+          BASE_SEED: ${{ needs.define-shards.outputs.effective_base_seed }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.effective_output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.effective_experiment_name }}
+          SHARD_INDEX: ${{ matrix.shard_index }}
+          SHARD_COUNT: ${{ matrix.shard_count }}
+          SHARD_SUFFIX: ${{ matrix.shard_suffix }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-${SHARD_SUFFIX}"
+          python3 analysis/p167_mixed3_generator_smoke.py \
+            --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
+            --run-id "${safe_label}-${GITHUB_RUN_ID}" \
+            --tuple-classes "$TUPLE_CLASSES" \
+            --variants "$VARIANTS" \
+            --candidates-per-variant-per-tuple "$CANDIDATES_PER_VARIANT_PER_TUPLE" \
+            --sample-count "$SAMPLE_COUNT" \
+            --repair-budget "$REPAIR_BUDGET" \
+            --repair-swap-sample-count "$REPAIR_SWAP_SAMPLE_COUNT" \
+            --diagnostic-sample-count "$DIAGNOSTIC_SAMPLE_COUNT" \
+            --guard-sample-count "$GUARD_SAMPLE_COUNT" \
+            --base-seed "$BASE_SEED" \
+            --shard-id "$SHARD_INDEX" \
+            --shard-count "$SHARD_COUNT"
+
+      - name: Upload shard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p167_mixed3_generator_smoke-${{ matrix.shard_suffix }}-${{ github.run_id }}
+          path: ${{ needs.define-shards.outputs.effective_output_root }}/*-${{ github.run_id }}-${{ matrix.shard_suffix }}
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    name: Aggregate p167 mixed3 generator smoke
+    needs:
+      - define-shards
+      - run-shard
+    runs-on: ubuntu-24.04
+    if: always() && needs.run-shard.result == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download shard artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: downloaded-artifacts
+          pattern: p167_mixed3_generator_smoke-*-${{ github.run_id }}
+          merge-multiple: false
+
+      - name: Aggregate shard outputs
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-mixed3-generator-smoke-remote-smoke' }}
+          TUPLE_CLASSES: ${{ needs.define-shards.outputs.effective_tuple_classes }}
+          VARIANTS: ${{ needs.define-shards.outputs.effective_variants }}
+          CANDIDATES_PER_VARIANT_PER_TUPLE: ${{ needs.define-shards.outputs.effective_candidates_per_variant_per_tuple }}
+          SAMPLE_COUNT: ${{ needs.define-shards.outputs.effective_sample_count }}
+          REPAIR_BUDGET: ${{ needs.define-shards.outputs.effective_repair_budget }}
+          REPAIR_SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.effective_repair_swap_sample_count }}
+          DIAGNOSTIC_SAMPLE_COUNT: ${{ needs.define-shards.outputs.effective_diagnostic_sample_count }}
+          GUARD_SAMPLE_COUNT: ${{ needs.define-shards.outputs.effective_guard_sample_count }}
+          BASE_SEED: ${{ needs.define-shards.outputs.effective_base_seed }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.effective_output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.effective_experiment_name }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-aggregate"
+          python3 analysis/p167_mixed3_generator_smoke.py \
+            --aggregate \
+            --aggregate-input-dir downloaded-artifacts \
+            --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
+            --run-id "${safe_label}-${GITHUB_RUN_ID}" \
+            --tuple-classes "$TUPLE_CLASSES" \
+            --variants "$VARIANTS" \
+            --candidates-per-variant-per-tuple "$CANDIDATES_PER_VARIANT_PER_TUPLE" \
+            --sample-count "$SAMPLE_COUNT" \
+            --repair-budget "$REPAIR_BUDGET" \
+            --repair-swap-sample-count "$REPAIR_SWAP_SAMPLE_COUNT" \
+            --diagnostic-sample-count "$DIAGNOSTIC_SAMPLE_COUNT" \
+            --guard-sample-count "$GUARD_SAMPLE_COUNT" \
+            --base-seed "$BASE_SEED"
+
+      - name: Validate score0 candidates if present
+        run: |
+          set -euo pipefail
+          score_jsons="$(find outputs/p167_mixed3_generator_smoke -path '*aggregate/score0_candidate_*.json' -type f | sort || true)"
+          if [ -z "$score_jsons" ]; then
+            echo "No score0 candidates to validate."
+            exit 0
+          fi
+          while IFS= read -r candidate; do
+            [ -n "$candidate" ] || continue
+            echo "Validating score0 candidate: $candidate"
+            docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" sage sage/08_analyze_sds_candidate.sage "$candidate"
+            docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" sage sage/05_validate_candidate_json.sage "$candidate"
+            docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" sage sage/04_build_gs_from_sds.sage "$candidate"
+          done <<< "$score_jsons"
+          aggregate_dir="$(find outputs/p167_mixed3_generator_smoke -maxdepth 1 -type d -name '*aggregate' | head -n 1)"
+          cp "$aggregate_dir/score0_candidates.jsonl" "$aggregate_dir/validated_score0_candidates.jsonl"
+          python3 - "$aggregate_dir/validation_report.json" <<'PY'
+          import json
+          import sys
+          path = sys.argv[1]
+          with open(path) as f:
+              data = json.load(f)
+          data["sage_validation_status"] = "passed"
+          data["validated_score0_count"] = data.get("score0_candidates", 0)
+          data["sage_validation_note"] = "08_analyze, 05_validate, and 04_build_gs_from_sds completed for every score0 JSON."
+          with open(path, "w") as f:
+              json.dump(data, f, indent=2, sort_keys=True)
+              f.write("\n")
+          PY
+
+      - name: Upload aggregate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p167_mixed3_generator_smoke_${{ github.run_id }}
+          path: outputs/p167_mixed3_generator_smoke/*-${{ github.run_id }}-aggregate
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Slack notify
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-mixed3-generator-smoke-remote-smoke' }}
+          STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          payload=$(python3 - <<'PY'
+          import json
+          import os
+          text = "p167 mixed3 generator smoke {status}: {label} run {run_id}".format(
+              status=os.environ.get("STATUS"),
+              label=os.environ.get("RUN_LABEL"),
+              run_id=os.environ.get("GITHUB_RUN_ID"),
+          )
+          print(json.dumps({"text": text}))
+          PY
+          )
+          curl -sS -X POST -H 'Content-Type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null
