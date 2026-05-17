@@ -27,6 +27,7 @@ PRESETS = {
     "p167-targeted-deep-frontier-repair-40": {
         "run_label": "p167-targeted-deep-frontier-repair-40x",
         "frontier_count": "90",
+        "frontier_files": "configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl",
         "operators": (
             "score_only_1swap_greedy,"
             "exact_joint_2swap_beam_deep,"
@@ -47,12 +48,37 @@ PRESETS = {
         "max_parallel": "40",
         "base_seed": "168337",
     },
+    "p167-softwall-escape-frontier-repair-40": {
+        "run_label": "p167-softwall-escape-frontier-repair-40x",
+        "frontier_count": "66",
+        "frontier_files": "configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl",
+        "operators": (
+            "score_only_1swap_greedy,"
+            "defect_targeted_destroy_repair_deep,"
+            "defect_targeted_softwall_escape_lns,"
+            "closure_shell_softwall_escape_lns,"
+            "pair_level_softwall_escape_lns,"
+            "annealed_exact_joint_radius7_lns"
+        ),
+        "max_repair_steps": "40",
+        "pool_size": "56",
+        "lns_pool_size": "72",
+        "lns_radius": "7",
+        "beam_width": "24",
+        "eval_cap_per_step": "7000",
+        "dmin_sample_count": "640",
+        "max_wall_time_ms": "180000",
+        "shard_count": "40",
+        "max_parallel": "40",
+        "base_seed": "168943",
+    },
 }
 
 
 INPUT_ORDER = [
     "run_label",
     "frontier_count",
+    "frontier_files",
     "operators",
     "max_repair_steps",
     "pool_size",
@@ -70,7 +96,7 @@ INPUT_ORDER = [
 
 def validate(values):
     for key in INPUT_ORDER:
-        if key in {"run_label", "operators"}:
+        if key in {"run_label", "frontier_files", "operators"}:
             continue
         if int(values[key]) < 1:
             raise ValueError("{} must be positive".format(key))
