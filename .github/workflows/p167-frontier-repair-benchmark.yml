@@ -1,0 +1,395 @@
+name: p167-frontier-repair-benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Short label for artifacts and Slack messages"
+        required: false
+        default: "p167-frontier-repair-benchmark-remote-smoke"
+        type: string
+      preset:
+        description: "Preset input bundle"
+        required: false
+        default: "remote-smoke"
+        type: choice
+        options:
+          - "remote-smoke"
+          - "p167-frontier-repair-40"
+          - "custom"
+      frontier_count:
+        description: "Total frontier candidates to benchmark"
+        required: false
+        default: "3"
+        type: string
+      operators:
+        description: "Comma-separated repair operators"
+        required: false
+        default: "score_only_1swap_greedy,exact_joint_2swap_beam"
+        type: string
+      max_repair_steps:
+        description: "Max repair steps per candidate/operator"
+        required: false
+        default: "1"
+        type: string
+      pool_size:
+        description: "Candidate remove/add pool size"
+        required: false
+        default: "8"
+        type: string
+      lns_pool_size:
+        description: "Restricted LNS remove/add pool size"
+        required: false
+        default: "10"
+        type: string
+      lns_radius:
+        description: "Restricted LNS maximum radius"
+        required: false
+        default: "2"
+        type: string
+      beam_width:
+        description: "Beam width metadata and search cap"
+        required: false
+        default: "4"
+        type: string
+      eval_cap_per_step:
+        description: "Exact joint evaluations per step cap"
+        required: false
+        default: "40"
+        type: string
+      dmin_sample_count:
+        description: "Restricted D_min diagnostic sample cap"
+        required: false
+        default: "20"
+        type: string
+      max_wall_time_ms:
+        description: "Per candidate/operator wall-time cap"
+        required: false
+        default: "2000"
+        type: string
+      base_seed:
+        description: "Base random seed"
+        required: false
+        default: "167991"
+        type: string
+      shard_count:
+        description: "Shard count for fan-out"
+        required: false
+        default: "1"
+        type: string
+      max_parallel:
+        description: "Maximum parallel shard jobs"
+        required: false
+        default: "1"
+        type: string
+  pull_request:
+    paths:
+      - "analysis/p167_frontier_repair_benchmark.py"
+      - ".github/workflows/p167-frontier-repair-benchmark.yml"
+      - "configs/experiments/p167_frontier_repair_benchmark.yaml"
+      - "scripts/dispatch_p167_frontier_repair_benchmark.py"
+      - "configs/fixtures/p167_frontier_repair_seed_candidates.jsonl"
+      - "configs/fixtures/p167_focused_nearhit_candidates.jsonl"
+      - "configs/fixtures/p167_tuple_classes.json"
+      - "analysis/p37_mixed3_movespace_guard.py"
+      - "sage/06_known_sds_regression.sage"
+      - "sage/08_analyze_sds_candidate.sage"
+      - "sage/05_validate_candidate_json.sage"
+      - "sage/04_build_gs_from_sds.sage"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: p167-frontier-repair-benchmark-${{ github.ref }}-${{ inputs.run_label || github.event_name }}
+  cancel-in-progress: false
+
+env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  known-regression:
+    name: Known SDS regression
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run known SDS regression
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            sage sage/06_known_sds_regression.sage
+
+  define-shards:
+    name: Define shard matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      frontier_count: ${{ steps.matrix.outputs.frontier_count }}
+      operators: ${{ steps.matrix.outputs.operators }}
+      max_repair_steps: ${{ steps.matrix.outputs.max_repair_steps }}
+      pool_size: ${{ steps.matrix.outputs.pool_size }}
+      lns_pool_size: ${{ steps.matrix.outputs.lns_pool_size }}
+      lns_radius: ${{ steps.matrix.outputs.lns_radius }}
+      beam_width: ${{ steps.matrix.outputs.beam_width }}
+      eval_cap_per_step: ${{ steps.matrix.outputs.eval_cap_per_step }}
+      dmin_sample_count: ${{ steps.matrix.outputs.dmin_sample_count }}
+      max_wall_time_ms: ${{ steps.matrix.outputs.max_wall_time_ms }}
+      base_seed: ${{ steps.matrix.outputs.base_seed }}
+      shard_count: ${{ steps.matrix.outputs.shard_count }}
+      output_root: ${{ steps.matrix.outputs.output_root }}
+      experiment_name: ${{ steps.matrix.outputs.experiment_name }}
+    steps:
+      - name: Build matrix
+        id: matrix
+        env:
+          PRESET: ${{ inputs.preset || 'remote-smoke' }}
+          FRONTIER_COUNT: ${{ inputs.frontier_count || '3' }}
+          OPERATORS: ${{ inputs.operators || 'score_only_1swap_greedy,exact_joint_2swap_beam' }}
+          MAX_REPAIR_STEPS: ${{ inputs.max_repair_steps || '1' }}
+          POOL_SIZE: ${{ inputs.pool_size || '8' }}
+          LNS_POOL_SIZE: ${{ inputs.lns_pool_size || '10' }}
+          LNS_RADIUS: ${{ inputs.lns_radius || '2' }}
+          BEAM_WIDTH: ${{ inputs.beam_width || '4' }}
+          EVAL_CAP_PER_STEP: ${{ inputs.eval_cap_per_step || '40' }}
+          DMIN_SAMPLE_COUNT: ${{ inputs.dmin_sample_count || '20' }}
+          MAX_WALL_TIME_MS: ${{ inputs.max_wall_time_ms || '2000' }}
+          BASE_SEED: ${{ inputs.base_seed || '167991' }}
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          preset = os.environ.get("PRESET") or "remote-smoke"
+          if preset == "p167-frontier-repair-40":
+              shard_count = 40
+              max_parallel = 40
+              frontier_count = "120"
+              operators = (
+                  "score_only_1swap_greedy,"
+                  "exact_joint_2swap_beam,"
+                  "exact_joint_3swap_beam,"
+                  "defect_targeted_destroy_repair,"
+                  "pair_level_partial_defect_repair,"
+                  "restricted_exact_joint_lns"
+              )
+              max_repair_steps = "5"
+              pool_size = "18"
+              lns_pool_size = "22"
+              lns_radius = "4"
+              beam_width = "8"
+              eval_cap_per_step = "600"
+              dmin_sample_count = "160"
+              max_wall_time_ms = "15000"
+              base_seed = "167991"
+          else:
+              shard_count = int(os.environ.get("SHARD_COUNT") or "1")
+              max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
+              frontier_count = os.environ.get("FRONTIER_COUNT") or "3"
+              operators = os.environ.get("OPERATORS") or "score_only_1swap_greedy,exact_joint_2swap_beam"
+              max_repair_steps = os.environ.get("MAX_REPAIR_STEPS") or "1"
+              pool_size = os.environ.get("POOL_SIZE") or "8"
+              lns_pool_size = os.environ.get("LNS_POOL_SIZE") or "10"
+              lns_radius = os.environ.get("LNS_RADIUS") or "2"
+              beam_width = os.environ.get("BEAM_WIDTH") or "4"
+              eval_cap_per_step = os.environ.get("EVAL_CAP_PER_STEP") or "40"
+              dmin_sample_count = os.environ.get("DMIN_SAMPLE_COUNT") or "20"
+              max_wall_time_ms = os.environ.get("MAX_WALL_TIME_MS") or "2000"
+              base_seed = os.environ.get("BASE_SEED") or "167991"
+          if shard_count < 1:
+              raise SystemExit("shard_count must be >= 1")
+          if max_parallel < 1:
+              raise SystemExit("max_parallel must be >= 1")
+          max_parallel = min(max_parallel, shard_count)
+          width = max(2, len(str(shard_count - 1)))
+          matrix = [
+              {
+                  "shard_index": idx,
+                  "shard_suffix": "single" if shard_count == 1 else f"s{idx:0{width}d}",
+                  "shard_count": shard_count,
+              }
+              for idx in range(shard_count)
+          ]
+          print("matrix={}".format(json.dumps({"include": matrix}, separators=(",", ":"))))
+          print("max_parallel={}".format(max_parallel))
+          print("frontier_count={}".format(frontier_count))
+          print("operators={}".format(operators))
+          print("max_repair_steps={}".format(max_repair_steps))
+          print("pool_size={}".format(pool_size))
+          print("lns_pool_size={}".format(lns_pool_size))
+          print("lns_radius={}".format(lns_radius))
+          print("beam_width={}".format(beam_width))
+          print("eval_cap_per_step={}".format(eval_cap_per_step))
+          print("dmin_sample_count={}".format(dmin_sample_count))
+          print("max_wall_time_ms={}".format(max_wall_time_ms))
+          print("base_seed={}".format(base_seed))
+          print("shard_count={}".format(shard_count))
+          print("output_root=outputs/p167_frontier_repair_benchmark")
+          print("experiment_name=p167_frontier_repair_benchmark")
+          PY
+
+  run-shard:
+    name: Frontier repair shard ${{ matrix.shard_suffix }}
+    needs:
+      - known-regression
+      - define-shards
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJson(needs.define-shards.outputs.max_parallel) }}
+      matrix: ${{ fromJson(needs.define-shards.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run p167 frontier repair benchmark shard
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-frontier-repair-benchmark-remote-smoke' }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.experiment_name }}
+          FRONTIER_COUNT: ${{ needs.define-shards.outputs.frontier_count }}
+          OPERATORS: ${{ needs.define-shards.outputs.operators }}
+          MAX_REPAIR_STEPS: ${{ needs.define-shards.outputs.max_repair_steps }}
+          POOL_SIZE: ${{ needs.define-shards.outputs.pool_size }}
+          LNS_POOL_SIZE: ${{ needs.define-shards.outputs.lns_pool_size }}
+          LNS_RADIUS: ${{ needs.define-shards.outputs.lns_radius }}
+          BEAM_WIDTH: ${{ needs.define-shards.outputs.beam_width }}
+          EVAL_CAP_PER_STEP: ${{ needs.define-shards.outputs.eval_cap_per_step }}
+          DMIN_SAMPLE_COUNT: ${{ needs.define-shards.outputs.dmin_sample_count }}
+          MAX_WALL_TIME_MS: ${{ needs.define-shards.outputs.max_wall_time_ms }}
+          BASE_SEED: ${{ needs.define-shards.outputs.base_seed }}
+          SHARD_COUNT: ${{ needs.define-shards.outputs.shard_count }}
+          SHARD_INDEX: ${{ matrix.shard_index }}
+          SHARD_SUFFIX: ${{ matrix.shard_suffix }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-${SHARD_SUFFIX}"
+          python3 analysis/p167_frontier_repair_benchmark.py \
+            --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
+            --run-id "${safe_label}-${GITHUB_RUN_ID}" \
+            --frontier-count "$FRONTIER_COUNT" \
+            --operators "$OPERATORS" \
+            --max-repair-steps "$MAX_REPAIR_STEPS" \
+            --pool-size "$POOL_SIZE" \
+            --lns-pool-size "$LNS_POOL_SIZE" \
+            --lns-radius "$LNS_RADIUS" \
+            --beam-width "$BEAM_WIDTH" \
+            --eval-cap-per-step "$EVAL_CAP_PER_STEP" \
+            --dmin-sample-count "$DMIN_SAMPLE_COUNT" \
+            --max-wall-time-ms "$MAX_WALL_TIME_MS" \
+            --base-seed "$BASE_SEED" \
+            --shard-id "$SHARD_INDEX" \
+            --shard-count "$SHARD_COUNT"
+      - name: Upload shard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p167_frontier_repair_benchmark-${{ matrix.shard_suffix }}-${{ github.run_id }}
+          path: outputs/p167_frontier_repair_benchmark/
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    name: Aggregate p167 frontier repair benchmark
+    needs:
+      - define-shards
+      - run-shard
+    if: always() && needs.run-shard.result == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Download shard artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: p167_frontier_repair_benchmark-*-${{ github.run_id }}
+          path: shard-artifacts
+          merge-multiple: true
+      - name: Aggregate shard outputs
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-frontier-repair-benchmark-remote-smoke' }}
+          OUTPUT_ROOT: outputs/p167_frontier_repair_benchmark
+          OPERATORS: ${{ needs.define-shards.outputs.operators }}
+          FRONTIER_COUNT: ${{ needs.define-shards.outputs.frontier_count }}
+          MAX_REPAIR_STEPS: ${{ needs.define-shards.outputs.max_repair_steps }}
+          POOL_SIZE: ${{ needs.define-shards.outputs.pool_size }}
+          LNS_POOL_SIZE: ${{ needs.define-shards.outputs.lns_pool_size }}
+          LNS_RADIUS: ${{ needs.define-shards.outputs.lns_radius }}
+          BEAM_WIDTH: ${{ needs.define-shards.outputs.beam_width }}
+          EVAL_CAP_PER_STEP: ${{ needs.define-shards.outputs.eval_cap_per_step }}
+          DMIN_SAMPLE_COUNT: ${{ needs.define-shards.outputs.dmin_sample_count }}
+          MAX_WALL_TIME_MS: ${{ needs.define-shards.outputs.max_wall_time_ms }}
+          BASE_SEED: ${{ needs.define-shards.outputs.base_seed }}
+          SHARD_COUNT: ${{ needs.define-shards.outputs.shard_count }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-aggregate"
+          python3 analysis/p167_frontier_repair_benchmark.py \
+            --aggregate \
+            --aggregate-input-dir shard-artifacts \
+            --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --run-id "${safe_label}-${GITHUB_RUN_ID}" \
+            --frontier-count "$FRONTIER_COUNT" \
+            --operators "$OPERATORS" \
+            --max-repair-steps "$MAX_REPAIR_STEPS" \
+            --pool-size "$POOL_SIZE" \
+            --lns-pool-size "$LNS_POOL_SIZE" \
+            --lns-radius "$LNS_RADIUS" \
+            --beam-width "$BEAM_WIDTH" \
+            --eval-cap-per-step "$EVAL_CAP_PER_STEP" \
+            --dmin-sample-count "$DMIN_SAMPLE_COUNT" \
+            --max-wall-time-ms "$MAX_WALL_TIME_MS" \
+            --base-seed "$BASE_SEED" \
+            --shard-count "$SHARD_COUNT"
+      - name: Validate score0 candidates if present
+        run: |
+          set -euo pipefail
+          score0_files=(outputs/p167_frontier_repair_benchmark/*-aggregate/score0_candidate_*.json)
+          if [ ! -e "${score0_files[0]}" ]; then
+            echo "No score0 candidates to validate."
+            exit 0
+          fi
+          for candidate in "${score0_files[@]}"; do
+            docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" sage sage/08_analyze_sds_candidate.sage "$candidate"
+            docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" sage sage/05_validate_candidate_json.sage "$candidate"
+            docker run --rm --user root -v "$PWD":/work -w /work -e DOT_SAGE=/tmp/sage-dot "$SAGE_DOCKER_IMAGE" sage sage/04_build_gs_from_sds.sage "$candidate"
+          done
+      - name: Upload aggregate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p167_frontier_repair_benchmark_${{ github.run_id }}
+          path: outputs/p167_frontier_repair_benchmark/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Slack notify
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        run: |
+          set -euo pipefail
+          status="${{ job.status }}"
+          text="p167 frontier repair benchmark ${status}: run ${{ github.run_id }}"
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          webhook = os.environ.get("SLACK_WEBHOOK_URL")
+          text = os.environ.get("SLACK_TEXT", "p167 frontier repair benchmark completed")
+          if webhook:
+              req = urllib.request.Request(webhook, data=json.dumps({"text": text}).encode(), headers={"Content-Type": "application/json"})
+              urllib.request.urlopen(req, timeout=10).read()
+          PY
+        env:
+          SLACK_TEXT: "p167 frontier repair benchmark ${{ job.status }}: run ${{ github.run_id }}"
