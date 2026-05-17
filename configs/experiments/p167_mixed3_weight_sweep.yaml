@@ -1,0 +1,77 @@
+experiment_name: p167_mixed3_weight_sweep
+description: >
+  Normalized p167 generator-time loss sweep over w3 and w_guard for c01/c05/c09.
+  This is not a filter/classifier/reranker experiment.
+
+p: 167
+tuple_registry: configs/fixtures/p167_tuple_classes.json
+tuple_classes:
+  - p167_c01
+  - p167_c05
+  - p167_c09
+
+guard_types:
+  - closure_shell_guard
+  - kappa_guard
+
+w3_values: [0.0, 0.25, 0.5, 1.0, 2.0, 4.0]
+w_guard_values: [0.0, 0.25, 0.5, 1.0, 2.0, 4.0]
+
+loss:
+  formula: "L_gen = L_pair_tilde + w3 * L_mixed3_tilde + w_guard * L_guard_tilde"
+  normalization: "L_tilde = L / (median_pair_profile_guided(L) + epsilon)"
+  normalization_scope: per_tuple_class
+
+focus_grid:
+  split_modes:
+    - fixed_01_23
+    - fixed_02_13
+    - fixed_03_12
+  beta_list:
+    - 0.05
+    - 0.10
+  top_M_list:
+    - 5
+    - 10
+  block_order_modes:
+    - random
+
+remote_smoke:
+  shard_count: 1
+  max_parallel: 1
+  guard_types: [closure_shell_guard]
+  w3_values: [1.0]
+  w_guard_values: [1.0]
+  candidates_per_cell: 1
+  sample_count: 3
+  repair_budget: 2
+  repair_swap_sample_count: 16
+  diagnostic_sample_count: 16
+  normalization_calibration_count: 2
+
+production_sweep_40:
+  shard_count: 40
+  max_parallel: 40
+  # 3 tuples * 2 guard types * 36 cells * 3 candidates * 40 shards = 25,920 rows.
+  # Previous 30k-row p167 mixed3 smoke took about 3.5h, so this stays within the 6h Actions limit.
+  candidates_per_cell: 3
+  sample_count: 4
+  repair_budget: 8
+  repair_swap_sample_count: 96
+  diagnostic_sample_count: 96
+  normalization_calibration_count: 4
+  normalization_sample_count: 3
+  guard_sample_count: 8
+  guard_tau_best: 0
+  guard_kappa_target: 1.25
+  guard_min_fill_fraction: 0.75
+
+score_thresholds: [300, 240, 200, 180, 160, 120, 100]
+
+artifact_policy:
+  upload_raw_logs: false
+  summary_only: true
+
+notes:
+  - Score0 is only a candidate until Sage validates SDS and HH^T = 668I.
+  - c09 is benchmark/trap control; max-min objective optimizes c01/c05.
