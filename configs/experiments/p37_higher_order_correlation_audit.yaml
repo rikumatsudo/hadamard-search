@@ -1,0 +1,40 @@
+experiment: p37_higher_order_correlation_audit
+description: >
+  Audit p=37 exact-derived, false-like, focused-success, and late-preclosure
+  candidates with AP count, additive energy, full/sampled triple correlation,
+  sampled four-point correlation, and combined higher-order proxy scores.
+p: 37
+n: 148
+ks: [13, 16, 18, 18]
+lambda: 28
+exact_json: outputs/candidates/small_p/exact_v37_djokovic_2009_g_matrices_order37.json
+parent_fixture: configs/fixtures/p37_focused_defect_random_walk_parents.jsonl
+success_fixture: configs/fixtures/p37_focused_success_preclosure_states.jsonl
+triple_sample_sizes: [50, 100, 300, 1000, full]
+fourpoint_sample_sizes: [100, 300, 1000]
+exact_derived_count: 100
+random_control_count: 100
+shard_count: 40
+outputs:
+  - input_p37_higher_order_candidates.jsonl
+  - p37_ap_features.jsonl
+  - p37_additive_energy_features.jsonl
+  - p37_triple_correlation_features.jsonl
+  - p37_fourpoint_sampled_features.jsonl
+  - p37_higher_order_combined_features.jsonl
+  - higher_order_feature_separation_summary.csv
+  - higher_order_feature_separation_summary.json
+  - sampled_triple_stability.csv
+  - sampled_triple_stability.json
+  - sampled_fourpoint_stability.csv
+  - sampled_fourpoint_stability.json
+  - p37_higher_order_exact_template.json
+  - p37_higher_order_false_template.json
+  - hypothesis_evaluation.json
+  - p37_higher_order_correlation_audit_summary.md
+notes:
+  - This is a theory-diagnostic run, not a Hadamard 668 construction run.
+  - This is not a new score0 search.
+  - AP and additive energy are cheap proxies and should not be overinterpreted alone.
+  - Higher-order separation is diagnostic evidence, not a theorem.
+  - p37 feature behavior must not be transferred to p167 without a p167 audit.
