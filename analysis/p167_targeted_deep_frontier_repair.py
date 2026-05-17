@@ -2,7 +2,9 @@
 import argparse
 import csv
 import json
+import math
 import os
+import random
 import time
 from pathlib import Path
 
@@ -22,6 +24,12 @@ OPERATORS_DEFAULT = (
     "pair_level_partial_defect_repair_deep",
     "restricted_exact_joint_lns_radius3_5",
 )
+SOFTWALL_OPERATORS = (
+    "defect_targeted_softwall_escape_lns",
+    "closure_shell_softwall_escape_lns",
+    "pair_level_softwall_escape_lns",
+    "annealed_exact_joint_radius7_lns",
+)
 THRESHOLDS = (1000, 800, 600, 500, 400, 300, 240, 200, 180, 160, 120, 100)
 OPERATOR_ALIASES = {
     "exact_joint_2swap_beam_deep": "exact_joint_2swap_beam",
@@ -29,10 +37,223 @@ OPERATOR_ALIASES = {
     "pair_level_partial_defect_repair_deep": "pair_level_partial_defect_repair",
     "restricted_exact_joint_lns_radius3_5": "restricted_exact_joint_lns",
 }
+REPAIR_FIELDS = list(base.REPAIR_FIELDS) + [
+    "escape_final_score",
+    "escape_best_score",
+    "escape_accepted_uphill_count",
+    "escape_stall_count",
+    "escape_objective_mode",
+    "escape_uphill_margin",
+    "escape_temperature",
+]
 
 
 def canonical_operator(operator):
     return OPERATOR_ALIASES.get(operator, operator)
+
+
+def is_softwall_operator(operator):
+    return operator in SOFTWALL_OPERATORS
+
+
+def rho_shell_metrics(p, blocks, lam):
+    rho = base.rho_vector(p, blocks, lam)
+    support_size = sum(1 for d in range(1, p) if int(rho[d]) != 0)
+    max_abs = max([abs(int(rho[d])) for d in range(1, p)] or [0])
+    score = base.score_from_rho(rho)
+    return rho, int(score), int(support_size), int(max_abs)
+
+
+def softwall_objective(p, blocks, lam, score, operator, selected_split, args):
+    """Objective used inside softwall repair, not as a post-hoc candidate filter."""
+    objective = float(score)
+    if operator in {"closure_shell_softwall_escape_lns", "annealed_exact_joint_radius7_lns"}:
+        _rho, _score, support_size, max_abs = rho_shell_metrics(p, blocks, lam)
+        objective += float(args.shell_gap_weight) * abs(float(score) - float(support_size))
+        objective += float(args.max_abs_weight) * max(0.0, float(max_abs) - 1.0)
+    if operator in {"pair_level_softwall_escape_lns", "annealed_exact_joint_radius7_lns"}:
+        objective += float(args.pair_loss_weight) * base.pair_loss(p, blocks, lam, selected_split)
+    return float(objective)
+
+
+def softwall_config(operator, args):
+    if operator == "defect_targeted_softwall_escape_lns":
+        return list(range(1, int(args.lns_radius) + 1)), int(args.lns_pool_size), "score"
+    if operator == "closure_shell_softwall_escape_lns":
+        return list(range(1, int(args.lns_radius) + 1)), int(args.lns_pool_size), "closure_shell"
+    if operator == "pair_level_softwall_escape_lns":
+        return list(range(1, min(int(args.lns_radius), 5) + 1)), int(args.pool_size), "pair_level"
+    if operator == "annealed_exact_joint_radius7_lns":
+        return list(range(1, int(args.lns_radius) + 1)), int(args.lns_pool_size), "annealed_mixed"
+    raise ValueError("unknown softwall operator {}".format(operator))
+
+
+def softwall_candidate_moves(
+    p,
+    blocks,
+    lam,
+    rho,
+    current_score,
+    operator,
+    radii,
+    pool_size,
+    eval_cap,
+    rng,
+    selected_split,
+    args,
+    started,
+):
+    pools = base.build_pools(p, blocks, rho, pool_size, rng, mode="defect")
+    per_block_cap = max(1, int(eval_cap) // max(1, len(blocks) * len(radii)))
+    choices = []
+    evaluated = 0
+    exact_evals = 0
+    timed_out = False
+    current_objective = softwall_objective(p, blocks, lam, current_score, operator, selected_split, args)
+    for radius in radii:
+        for bidx, (removes, adds) in enumerate(pools):
+            if len(removes) < radius or len(adds) < radius:
+                continue
+            for rcombo, acombo in base.joint_move_candidates(removes, adds, radius, rng, per_block_cap):
+                if (time.time() - started) * 1000.0 >= float(args.max_wall_time_ms):
+                    timed_out = True
+                    return choices, evaluated, exact_evals, timed_out
+                score, _delta = base.exact_joint_score(p, rho, current_score, blocks[bidx], rcombo, acombo)
+                exact_evals += 1
+                evaluated += 1
+                if int(score) > int(current_score) + int(args.escape_uphill_margin):
+                    continue
+                trial_blocks = base.apply_joint_move(blocks, bidx, rcombo, acombo)
+                objective = softwall_objective(p, trial_blocks, lam, score, operator, selected_split, args)
+                if int(score) < int(current_score):
+                    kind = "improve"
+                elif objective <= current_objective + float(args.escape_objective_margin):
+                    kind = "uphill"
+                else:
+                    continue
+                choices.append(
+                    {
+                        "score": int(score),
+                        "objective": float(objective),
+                        "kind": kind,
+                        "bidx": int(bidx),
+                        "removes": [int(x) for x in rcombo],
+                        "adds": [int(x) for x in acombo],
+                        "radius": int(radius),
+                        "trial_blocks": trial_blocks,
+                    }
+                )
+    return choices, evaluated, exact_evals, timed_out
+
+
+def choose_softwall_move(choices, current_score, rng, temperature, seen_hashes):
+    improving = [move for move in choices if move["kind"] == "improve"]
+    pool = improving if improving else choices
+    if not pool:
+        return None
+    if improving:
+        ordered = sorted(pool, key=lambda m: (int(m["score"]), float(m["objective"])))
+    else:
+        ordered = sorted(pool, key=lambda m: (float(m["objective"]), int(m["score"])))
+    top = ordered[: min(len(ordered), 24)]
+    if not improving and float(temperature) > 0.0:
+        weighted = []
+        for move in top:
+            penalty = max(0, int(move["score"]) - int(current_score))
+            weight = math.exp(-float(penalty) / max(1e-9, float(temperature)))
+            weighted.append((move, weight))
+        total = sum(weight for _move, weight in weighted)
+        if total > 0:
+            pick = rng.random() * total
+            acc = 0.0
+            for move, weight in weighted:
+                acc += weight
+                if acc >= pick:
+                    top = [move] + [m for m, _w in weighted if m is not move]
+                    break
+    for move in top:
+        h = base.canonical_hash(move["trial_blocks"])
+        if h not in seen_hashes:
+            return move
+    return None
+
+
+def repair_candidate_with_softwall_operator(p, blocks, lam, operator, seed, args):
+    rng = random.Random(int(seed))
+    current = [set(block) for block in blocks]
+    current_score = base.P37.score_blocks(p, current, lam)
+    best_score = int(current_score)
+    best_blocks = [set(block) for block in current]
+    started = time.time()
+    steps = 0
+    stall = 0
+    accepted_uphill = 0
+    total_evaluated = 0
+    total_exact = 0
+    timeout = False
+    selected_split = base.choose_pair_split(seed)
+    radii, pool_size, objective_mode = softwall_config(operator, args)
+    seen_hashes = {base.canonical_hash(current)}
+    while steps < int(args.max_repair_steps) and best_score > 0:
+        if stall >= int(args.escape_stall_steps):
+            break
+        if (time.time() - started) * 1000.0 >= float(args.max_wall_time_ms):
+            timeout = True
+            break
+        rho = base.rho_vector(p, current, lam)
+        choices, evaluated, exact_evals, step_timeout = softwall_candidate_moves(
+            p,
+            current,
+            lam,
+            rho,
+            current_score,
+            operator,
+            radii,
+            pool_size,
+            int(args.eval_cap_per_step),
+            rng,
+            selected_split,
+            args,
+            started,
+        )
+        total_evaluated += evaluated
+        total_exact += exact_evals
+        timeout = timeout or step_timeout
+        move = choose_softwall_move(choices, current_score, rng, float(args.escape_temperature), seen_hashes)
+        if move is None:
+            break
+        current = move["trial_blocks"]
+        current_score = int(move["score"])
+        seen_hashes.add(base.canonical_hash(current))
+        steps += 1
+        if move["kind"] == "uphill":
+            accepted_uphill += 1
+            stall += 1
+        elif current_score < best_score:
+            best_score = int(current_score)
+            best_blocks = [set(block) for block in current]
+            stall = 0
+        else:
+            stall += 1
+    elapsed_ms = int(round((time.time() - started) * 1000.0))
+    return {
+        "blocks_after": best_blocks,
+        "score_after": int(best_score),
+        "best_intermediate_score": int(best_score),
+        "steps_used": int(steps),
+        "beam_width": int(args.beam_width),
+        "pool_size_remove": int(pool_size),
+        "pool_size_add": int(pool_size),
+        "evaluated_moves_count": int(total_evaluated),
+        "exact_joint_evaluations_count": int(total_exact),
+        "wall_time_ms": int(elapsed_ms),
+        "timeout_flag": bool(timeout),
+        "escape_final_score": int(current_score),
+        "escape_best_score": int(best_score),
+        "escape_accepted_uphill_count": int(accepted_uphill),
+        "escape_stall_count": int(stall),
+        "escape_objective_mode": objective_mode,
+    }
 
 
 def now_stamp():
@@ -55,7 +276,10 @@ def build_repair_row(frontier, operator, args):
     )
     score_before = base.P37.score_blocks(p, blocks, lam)
     behavior = canonical_operator(operator)
-    result = base.repair_candidate_with_operator(p, blocks, lam, behavior, seed, args)
+    if is_softwall_operator(operator):
+        result = repair_candidate_with_softwall_operator(p, blocks, lam, operator, seed, args)
+    else:
+        result = base.repair_candidate_with_operator(p, blocks, lam, behavior, seed, args)
     after = result["score_after"]
     improvement = int(score_before) - int(after)
     diagnostic_cap = int(args.dmin_sample_count)
@@ -103,6 +327,13 @@ def build_repair_row(frontier, operator, args):
         "canonical_hash_after": base.canonical_hash(result["blocks_after"]),
         "candidate_json_path_if_saved": "",
         "blocks_after": base.candidate_json(result["blocks_after"], p, [len(b) for b in result["blocks_after"]], lam)["blocks"],
+        "escape_final_score": result.get("escape_final_score"),
+        "escape_best_score": result.get("escape_best_score"),
+        "escape_accepted_uphill_count": result.get("escape_accepted_uphill_count", 0),
+        "escape_stall_count": result.get("escape_stall_count", 0),
+        "escape_objective_mode": result.get("escape_objective_mode", ""),
+        "escape_uphill_margin": int(args.escape_uphill_margin) if is_softwall_operator(operator) else "",
+        "escape_temperature": float(args.escape_temperature) if is_softwall_operator(operator) else "",
     }
     for threshold in THRESHOLDS:
         row["score_after_le_{}".format(threshold)] = bool(int(after) <= threshold)
@@ -247,6 +478,7 @@ def write_readme(out_dir, config, frontier, frontier_summary, operator_summary, 
         "- score0, if present, is only a candidate until Sage verifies SDS and HH^T = 668I.",
         "- This run does not claim a Hadamard 668 construction.",
         "- D_min r>=2 diagnostics are restricted sampled/beam proxies unless explicitly marked full.",
+        "- Softwall escape operators may accept bounded uphill moves during repair, but `score_after` is the best visited state under the operator budget, not a post-hoc filter across candidates.",
     ]
     with open(os.path.join(out_dir, "README.md"), "w") as f:
         f.write("\n".join(lines) + "\n")
@@ -279,6 +511,13 @@ def write_outputs(args, rows, frontier, out_dir):
         "beam_width": int(args.beam_width),
         "eval_cap_per_step": int(args.eval_cap_per_step),
         "max_wall_time_ms": int(args.max_wall_time_ms),
+        "escape_uphill_margin": int(args.escape_uphill_margin),
+        "escape_objective_margin": float(args.escape_objective_margin),
+        "escape_temperature": float(args.escape_temperature),
+        "escape_stall_steps": int(args.escape_stall_steps),
+        "pair_loss_weight": float(args.pair_loss_weight),
+        "shell_gap_weight": float(args.shell_gap_weight),
+        "max_abs_weight": float(args.max_abs_weight),
         "shard_id": int(args.shard_id),
         "shard_count": int(args.shard_count),
     }
@@ -287,7 +526,7 @@ def write_outputs(args, rows, frontier, out_dir):
     base.write_jsonl(os.path.join(out_dir, "frontier_candidates.jsonl"), frontier)
     base.write_csv(os.path.join(out_dir, "frontier_selection_summary.csv"), frontier_summary, sorted({k for row in frontier_summary for k in row}))
     base.write_jsonl(os.path.join(out_dir, "repair_rows.jsonl"), rows)
-    base.write_csv(os.path.join(out_dir, "repair_rows.csv"), rows, base.REPAIR_FIELDS)
+    base.write_csv(os.path.join(out_dir, "repair_rows.csv"), rows, REPAIR_FIELDS)
     base.write_csv(os.path.join(out_dir, "operator_summary.csv"), operator_summary, sorted({k for row in operator_summary for k in row}))
     base.write_csv(os.path.join(out_dir, "tuple_operator_summary.csv"), tuple_operator_summary, sorted({k for row in tuple_operator_summary for k in row}))
     base.write_csv(os.path.join(out_dir, "bucket_operator_summary.csv"), bucket_operator_summary, sorted({k for row in bucket_operator_summary for k in row}))
@@ -295,7 +534,7 @@ def write_outputs(args, rows, frontier, out_dir):
     for threshold in (1000, 500, 300, 240, 200, 180, 160, 120, 100):
         base.write_jsonl(os.path.join(out_dir, "score_under_{}_candidates.jsonl".format(threshold)), threshold_rows(rows, threshold))
     audit = closure_shell_audit_rows(rows)
-    base.write_csv(os.path.join(out_dir, "closure_shell_audit.csv"), audit, base.REPAIR_FIELDS)
+    base.write_csv(os.path.join(out_dir, "closure_shell_audit.csv"), audit, REPAIR_FIELDS)
     write_readme(out_dir, config, frontier, frontier_summary, operator_summary, tuple_operator_summary, bucket_operator_summary, rows)
 
 
@@ -315,6 +554,13 @@ def parse_args():
     parser.add_argument("--eval-cap-per-step", type=int, default=3000)
     parser.add_argument("--max-wall-time-ms", type=int, default=60000)
     parser.add_argument("--dmin-sample-count", type=int, default=320)
+    parser.add_argument("--escape-uphill-margin", type=int, default=36)
+    parser.add_argument("--escape-objective-margin", type=float, default=48.0)
+    parser.add_argument("--escape-temperature", type=float, default=16.0)
+    parser.add_argument("--escape-stall-steps", type=int, default=8)
+    parser.add_argument("--pair-loss-weight", type=float, default=0.02)
+    parser.add_argument("--shell-gap-weight", type=float, default=0.5)
+    parser.add_argument("--max-abs-weight", type=float, default=18.0)
     parser.add_argument("--base-seed", type=int, default=168337)
     parser.add_argument("--shard-id", type=int, default=0)
     parser.add_argument("--shard-count", type=int, default=1)
