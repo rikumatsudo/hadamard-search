@@ -1,0 +1,75 @@
+experiment: p167_pair_profile_lift_smoke
+description: >
+  Broad, shallow test of the pair split profile -> block lift representation
+  for p167 c01/c05 wall candidates. This is not a filter, classifier,
+  reranker, or deep repair experiment.
+
+problem:
+  p: 167
+  split: fixed_01_23
+  tuple_classes:
+    - p167_c01
+    - p167_c05
+  candidates:
+    fixture: configs/fixtures/p167_local_branching_wall_candidates.jsonl
+    required:
+      - c01 score168
+      - c05 score164
+
+representation:
+  pair_a: [0, 1]
+  pair_b: [2, 3]
+  pair_profiles:
+    A: "A(d) = n_X0(d) + n_X1(d)"
+    C: "C(d) = n_X2(d) + n_X3(d)"
+    condition: "A(d) + C(d) = lambda for d != 0"
+  lift_problem: >
+    Generate target T(d), lift pair A to T(d), lift pair B to lambda - T(d),
+    then combine blocks and evaluate the full SDS score.
+
+target_modes:
+  - midpoint
+  - seed_left
+  - seed_right_complement
+  - lambda_half
+  - jitter_midpoint
+
+init_modes:
+  - random
+  - seed
+  - perturbed_seed
+
+local_lift:
+  restarts_per_cell: 12
+  lift_steps: 60
+  swap_sample_count: 128
+  temperature: 0.0
+  perturb_swaps: 8
+  repair_budget: 6
+  repair_swap_sample_count: 96
+
+github_actions:
+  workflow: .github/workflows/p167-pair-profile-lift-smoke.yml
+  production_preset: p167-pair-profile-lift-smoke-40
+  shard_count: 40
+  max_parallel: 40
+
+outputs:
+  root: outputs/p167_pair_profile_lift_smoke
+  required:
+    - candidate_list.jsonl
+    - lift_rows.csv
+    - lift_rows.jsonl
+    - tuple_summary.csv
+    - target_mode_summary.csv
+    - init_mode_summary.csv
+    - tuple_target_summary.csv
+    - best_lift_candidates.jsonl
+    - score_under_300_candidates.jsonl
+    - score_under_200_candidates.jsonl
+    - score_under_160_candidates.jsonl
+    - score0_candidates.jsonl
+    - validation_report.json
+    - run_config.json
+    - README.md
+    - next_actions.md
