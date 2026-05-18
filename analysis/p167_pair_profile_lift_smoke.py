@@ -18,9 +18,12 @@ FRONTIER_FIXTURE_DEFAULT = "configs/fixtures/p167_local_branching_wall_candidate
 OUTPUT_ROOT_DEFAULT = "outputs/p167_pair_profile_lift_smoke"
 EXPERIMENT_DEFAULT = "p167_pair_profile_lift_smoke"
 TUPLE_CLASSES_DEFAULT = "p167_c01,p167_c05"
-PAIR_SPLIT = "fixed_01_23"
-LEFT_PAIR = (0, 1)
-RIGHT_PAIR = (2, 3)
+ALL_TUPLE_CLASSES = ",".join("p167_c{:02d}".format(i) for i in range(1, 11))
+SPLITS = {
+    "fixed_01_23": ((0, 1), (2, 3)),
+    "fixed_02_13": ((0, 2), (1, 3)),
+    "fixed_03_12": ((0, 3), (1, 2)),
+}
 THRESHOLDS = (1000, 500, 300, 240, 200, 180, 160, 120, 100)
 
 
@@ -120,15 +123,23 @@ def pair_profile_loss(profile, target):
     return int(sum((int(profile[d]) - int(target[d])) ** 2 for d in range(1, len(profile))))
 
 
-def split_pair_residual_loss(p, blocks, lam):
-    left = pair_profile(p, blocks, LEFT_PAIR)
-    right = pair_profile(p, blocks, RIGHT_PAIR)
+def split_pairs(split_mode):
+    if split_mode not in SPLITS:
+        raise ValueError("unknown split mode {}".format(split_mode))
+    return SPLITS[split_mode]
+
+
+def split_pair_residual_loss(p, blocks, lam, split_mode):
+    left_pair, right_pair = split_pairs(split_mode)
+    left = pair_profile(p, blocks, left_pair)
+    right = pair_profile(p, blocks, right_pair)
     return int(sum((int(left[d]) + int(right[d]) - int(lam)) ** 2 for d in range(1, p)))
 
 
-def make_pair_targets(p, source_blocks, lam, target_mode, rng):
-    left = pair_profile(p, source_blocks, LEFT_PAIR)
-    right = pair_profile(p, source_blocks, RIGHT_PAIR)
+def make_pair_targets(p, source_blocks, lam, target_mode, split_mode, rng):
+    left_pair, right_pair = split_pairs(split_mode)
+    left = pair_profile(p, source_blocks, left_pair)
+    right = pair_profile(p, source_blocks, right_pair)
     target = [0] * p
     if target_mode == "seed_left":
         for d in range(1, p):
@@ -286,32 +297,35 @@ def flags(prefix, score):
     return {"{}_score_le_{}".format(prefix, threshold): bool(int(score) <= threshold) for threshold in THRESHOLDS}
 
 
-def task_key(candidate, target_mode, left_init, right_init, restart_id):
-    return "{}::{}::{}::{}::{}".format(candidate["frontier_candidate_id"], target_mode, left_init, right_init, restart_id)
+def task_key(candidate, split_mode, target_mode, left_init, right_init, restart_id):
+    return "{}::{}::{}::{}::{}::{}".format(candidate["frontier_candidate_id"], split_mode, target_mode, left_init, right_init, restart_id)
 
 
-def shard_tasks(candidates, target_modes, init_modes, restarts, shard_id, shard_count):
+def shard_tasks(candidates, split_modes, target_modes, init_modes, restarts, shard_id, shard_count):
     tasks = []
     for candidate in candidates:
-        for target_mode in target_modes:
-            for left_init in init_modes:
-                for right_init in init_modes:
-                    for restart_id in range(int(restarts)):
-                        key = task_key(candidate, target_mode, left_init, right_init, restart_id)
-                        if stable_int(key) % int(shard_count) == int(shard_id):
-                            tasks.append((candidate, target_mode, left_init, right_init, restart_id))
+        for split_mode in split_modes:
+            for target_mode in target_modes:
+                for left_init in init_modes:
+                    for right_init in init_modes:
+                        for restart_id in range(int(restarts)):
+                            key = task_key(candidate, split_mode, target_mode, left_init, right_init, restart_id)
+                            if stable_int(key) % int(shard_count) == int(shard_id):
+                                tasks.append((candidate, split_mode, target_mode, left_init, right_init, restart_id))
     return tasks
 
 
-def run_one(candidate, target_mode, left_init, right_init, restart_id, args):
+def run_one(candidate, split_mode, target_mode, left_init, right_init, restart_id, args):
     p = int(args.p)
     source_blocks = [set(int(x) for x in block) for block in candidate["blocks"]]
     lam = int(candidate["lambda"])
     ks = [len(block) for block in source_blocks]
+    left_pair, right_pair = split_pairs(split_mode)
     seed = (
         int(args.base_seed)
         + int(args.shard_id) * 10000000
         + stable_int(candidate["frontier_candidate_id"]) % 100000
+        + stable_int(split_mode) % 10000
         + stable_int(target_mode) % 10000
         + stable_int(left_init) % 1000
         + stable_int(right_init) % 1000
@@ -319,16 +333,20 @@ def run_one(candidate, target_mode, left_init, right_init, restart_id, args):
     )
     rng = random.Random(seed)
     source_score = base.P37.score_blocks(p, source_blocks, lam)
-    source_pair_residual = split_pair_residual_loss(p, source_blocks, lam)
-    left_target, right_target = make_pair_targets(p, source_blocks, lam, target_mode, rng)
-    left_sizes = [ks[0], ks[1]]
-    right_sizes = [ks[2], ks[3]]
+    source_pair_residual = split_pair_residual_loss(p, source_blocks, lam, split_mode)
+    left_target, right_target = make_pair_targets(p, source_blocks, lam, target_mode, split_mode, rng)
+    left_sizes = [ks[left_pair[0]], ks[left_pair[1]]]
+    right_sizes = [ks[right_pair[0]], ks[right_pair[1]]]
     started = time.time()
-    left = lift_pair_to_target(p, source_blocks, LEFT_PAIR, left_sizes, left_target, left_init, args, rng)
-    right = lift_pair_to_target(p, source_blocks, RIGHT_PAIR, right_sizes, right_target, right_init, args, rng)
-    generated = [set(left["blocks"][0]), set(left["blocks"][1]), set(right["blocks"][0]), set(right["blocks"][1])]
+    left = lift_pair_to_target(p, source_blocks, left_pair, left_sizes, left_target, left_init, args, rng)
+    right = lift_pair_to_target(p, source_blocks, right_pair, right_sizes, right_target, right_init, args, rng)
+    generated = [set() for _ in range(4)]
+    generated[left_pair[0]] = set(left["blocks"][0])
+    generated[left_pair[1]] = set(left["blocks"][1])
+    generated[right_pair[0]] = set(right["blocks"][0])
+    generated[right_pair[1]] = set(right["blocks"][1])
     score_generated = base.P37.score_blocks(p, generated, lam)
-    pair_residual = split_pair_residual_loss(p, generated, lam)
+    pair_residual = split_pair_residual_loss(p, generated, lam, split_mode)
     repaired, score_after, repair_steps, repair_improved = run_score_repair(p, generated, lam, args, seed + 99991)
     elapsed_ms = int(round((time.time() - started) * 1000.0))
     row = {
@@ -342,6 +360,7 @@ def run_one(candidate, target_mode, left_init, right_init, restart_id, args):
         "ks": ks,
         "source_score": int(source_score),
         "source_pair_residual": int(source_pair_residual),
+        "split_mode": split_mode,
         "target_mode": target_mode,
         "left_init_mode": left_init,
         "right_init_mode": right_init,
@@ -405,6 +424,130 @@ def summarize_group(rows, keys):
     return out
 
 
+def normalize_tuple_classes(text):
+    values = parse_csv(text)
+    if len(values) == 1 and values[0].lower() == "all":
+        return parse_csv(ALL_TUPLE_CLASSES)
+    return [base.normalize_tuple_id(value) for value in values]
+
+
+def load_fixture_candidates(args, wanted):
+    tuple_registry = base.load_tuple_registry(args.tuple_registry)
+    rows = []
+    if not str(args.frontier_files).strip():
+        return rows
+    for path in parse_csv(args.frontier_files):
+        if not path or not os.path.exists(path):
+            continue
+        for idx, raw in enumerate(base.read_jsonl(path)):
+            blocks = [set(int(x) % int(args.p) for x in block) for block in raw.get("blocks", [])]
+            if len(blocks) != 4:
+                continue
+            ks = [len(block) for block in blocks]
+            lam = int(raw.get("lambda", raw.get("lam", 0)))
+            tuple_class = base.normalize_tuple_id(raw.get("tuple_class") or raw.get("tuple_class_id") or "")
+            if not tuple_class:
+                tuple_class = base.infer_tuple_class(ks, lam, tuple_registry)
+            if tuple_class not in wanted:
+                continue
+            score = int(raw.get("score", raw.get("initial_score", base.P37.score_blocks(int(args.p), blocks, lam))))
+            rows.append(
+                {
+                    "frontier_candidate_id": raw.get("frontier_candidate_id") or raw.get("candidate_id") or "{}:{:05d}".format(path, idx),
+                    "source_file": raw.get("source_file", path),
+                    "source_run": raw.get("source_run", ""),
+                    "source_label": raw.get("source_label") or raw.get("label", ""),
+                    "source_method": raw.get("source_method", ""),
+                    "tuple_class": tuple_class,
+                    "frontier_bucket": raw.get("frontier_bucket") or base.bucket_for_candidate(tuple_class, score, raw),
+                    "initial_score": score,
+                    "lambda": lam,
+                    "ks": ks,
+                    "blocks": [[int(x) for x in sorted(block)] for block in blocks],
+                    "canonical_hash_before": raw.get("candidate_hash") or raw.get("canonical_hash_before") or base.canonical_hash(blocks),
+                }
+            )
+    deduped = []
+    seen = set()
+    for row in sorted(rows, key=lambda r: (r["tuple_class"], int(r["initial_score"]), r["frontier_bucket"], r["frontier_candidate_id"])):
+        if row["canonical_hash_before"] in seen:
+            continue
+        seen.add(row["canonical_hash_before"])
+        deduped.append(row)
+    return deduped
+
+
+def synthetic_candidate_for_tuple(tuple_class, tuple_row, rep_idx, args):
+    p = int(args.p)
+    seed = int(args.base_seed) + stable_int("synthetic:{}:{}".format(tuple_class, rep_idx)) % 100000000
+    rng = random.Random(seed)
+    blocks = [random_block(p, int(size), rng) for size in tuple_row["ks"]]
+    if int(args.source_repair_budget) > 0:
+        blocks, _, _, _ = base.P37.repair_candidate(
+            p,
+            [set(block) for block in blocks],
+            int(tuple_row["lambda"]),
+            int(args.source_repair_budget),
+            seed + 31337,
+            int(args.source_repair_swap_sample_count),
+        )
+    score = base.P37.score_blocks(p, blocks, int(tuple_row["lambda"]))
+    return {
+        "frontier_candidate_id": "synthetic_{}_{:02d}".format(tuple_class, rep_idx),
+        "source_file": "synthetic_from_tuple_registry",
+        "source_run": "",
+        "source_label": "deterministic_random_fixed_size_source",
+        "source_method": "random_fixed_size_source_repair_budget_{}".format(int(args.source_repair_budget)),
+        "tuple_class": tuple_class,
+        "frontier_bucket": "synthetic_tuple_representative",
+        "initial_score": int(score),
+        "lambda": int(tuple_row["lambda"]),
+        "ks": [int(x) for x in tuple_row["ks"]],
+        "blocks": [[int(x) for x in sorted(block)] for block in blocks],
+        "canonical_hash_before": base.canonical_hash(blocks),
+    }
+
+
+def load_lift_candidates(args):
+    wanted = normalize_tuple_classes(args.tuple_classes)
+    tuple_registry = base.load_tuple_registry(args.tuple_registry)
+    rows = load_fixture_candidates(args, set(wanted))
+    by_tuple = {tuple_class: [] for tuple_class in wanted}
+    seen = set()
+    for row in rows:
+        key = row["canonical_hash_before"]
+        if key in seen:
+            continue
+        seen.add(key)
+        by_tuple.setdefault(row["tuple_class"], []).append(row)
+    reps = max(1, int(args.representatives_per_tuple))
+    if args.auto_tuple_representatives:
+        for tuple_class in wanted:
+            tuple_row = tuple_registry.get(tuple_class)
+            if not tuple_row:
+                continue
+            rep_idx = 0
+            while len(by_tuple.get(tuple_class, [])) < reps:
+                candidate = synthetic_candidate_for_tuple(tuple_class, tuple_row, rep_idx, args)
+                rep_idx += 1
+                if candidate["canonical_hash_before"] in seen:
+                    continue
+                seen.add(candidate["canonical_hash_before"])
+                by_tuple.setdefault(tuple_class, []).append(candidate)
+    selected = []
+    for tuple_class in wanted:
+        selected.extend(by_tuple.get(tuple_class, [])[:reps])
+    if int(args.frontier_count) > 0 and not args.auto_tuple_representatives:
+        selected = selected[: int(args.frontier_count)]
+    for idx, row in enumerate(selected):
+        row["frontier_candidate_id"] = "frontier_{:04d}".format(idx)
+    if args.smoke:
+        selected = selected[: max(1, int(args.frontier_count))]
+    if not selected:
+        raise ValueError("no lift candidates loaded")
+    return selected
+
+
 def best_rows(rows, limit=100):
     return sorted(rows, key=lambda row: (int(row["score_after_repair"]), int(row["score_generated"]), int(row["target_loss_total"])))[:limit]
 
@@ -424,6 +567,7 @@ ROW_FIELDS = [
     "ks",
     "source_score",
     "source_pair_residual",
+    "split_mode",
     "target_mode",
     "left_init_mode",
     "right_init_mode",
@@ -455,6 +599,7 @@ ROW_FIELDS = [
 
 def write_readme(out_dir, config, rows, tuple_summary, target_summary):
     best = best_rows(rows, 10)
+    non_seed_seed = [row for row in rows if not (row["left_init_mode"] == "seed" and row["right_init_mode"] == "seed")]
     lines = [
         "# p167 pair profile lift smoke",
         "",
@@ -467,6 +612,8 @@ def write_readme(out_dir, config, rows, tuple_summary, target_summary):
         "- run_id: `{}`".format(config["run_id"]),
         "- row_count: `{}`".format(len(rows)),
         "- candidate_count: `{}`".format(config["candidate_count"]),
+        "- tuple_classes: `{}`".format(config["tuple_classes"]),
+        "- split_modes: `{}`".format(config["split_modes"]),
         "- target_modes: `{}`".format(config["target_modes"]),
         "- init_modes: `{}`".format(config["init_modes"]),
         "- lift_steps: `{}`".format(config["lift_steps"]),
@@ -481,10 +628,11 @@ def write_readme(out_dir, config, rows, tuple_summary, target_summary):
         "4. Did pair-profile lift repair to score <= 200: `{}`".format(any(int(row["score_after_repair"]) <= 200 for row in rows)),
         "5. Did score0 appear: `{}`".format(any(int(row["score_after_repair"]) == 0 or int(row["score_generated"]) == 0 for row in rows)),
         "6. Did lift beat the source wall after repair: `{}`".format(any(int(row["score_after_repair"]) < int(row["source_score"]) for row in rows)),
+        "7. Best non-seed/seed after-repair score: `{}`".format(min([int(row["score_after_repair"]) for row in non_seed_seed], default=None)),
         "",
         "## Best Rows",
         "",
-        base.markdown_table(best, ["tuple_class", "source_score", "score_generated", "score_after_repair", "target_mode", "left_init_mode", "right_init_mode", "target_loss_total", "pair_residual_generated", "repair_steps_used"], limit=10),
+        base.markdown_table(best, ["tuple_class", "source_score", "score_generated", "score_after_repair", "split_mode", "target_mode", "left_init_mode", "right_init_mode", "target_loss_total", "pair_residual_generated", "repair_steps_used"], limit=10),
         "",
         "## Tuple Summary",
         "",
@@ -517,7 +665,7 @@ def write_next_actions(out_dir, rows):
         "",
         "Best observed rows:",
         "",
-        base.markdown_table(best, ["tuple_class", "source_score", "score_generated", "score_after_repair", "target_mode", "left_init_mode", "right_init_mode", "target_loss_total"], limit=5),
+        base.markdown_table(best, ["tuple_class", "source_score", "score_generated", "score_after_repair", "split_mode", "target_mode", "left_init_mode", "right_init_mode", "target_loss_total"], limit=5),
         "",
     ]
     with open(os.path.join(out_dir, "next_actions.md"), "w") as f:
@@ -527,15 +675,22 @@ def write_next_actions(out_dir, rows):
 def write_outputs(args, rows, candidates, out_dir):
     ensure_dir(out_dir)
     tuple_summary = summarize_group(rows, ["tuple_class"])
+    split_summary = summarize_group(rows, ["split_mode"])
     target_summary = summarize_group(rows, ["target_mode"])
     init_summary = summarize_group(rows, ["left_init_mode", "right_init_mode"])
     tuple_target_summary = summarize_group(rows, ["tuple_class", "target_mode"])
+    tuple_split_summary = summarize_group(rows, ["tuple_class", "split_mode"])
     config = {
         "experiment_name": args.experiment_name,
         "run_id": args.run_id,
         "candidate_count": len(candidates),
         "row_count": len(rows),
         "frontier_files": args.frontier_files,
+        "tuple_classes": args.tuple_classes,
+        "representatives_per_tuple": int(args.representatives_per_tuple),
+        "auto_tuple_representatives": bool(args.auto_tuple_representatives),
+        "source_repair_budget": int(args.source_repair_budget),
+        "split_modes": args.split_modes,
         "target_modes": args.target_modes,
         "init_modes": args.init_modes,
         "restarts_per_cell": int(args.restarts_per_cell),
@@ -551,9 +706,11 @@ def write_outputs(args, rows, candidates, out_dir):
     write_jsonl(os.path.join(out_dir, "lift_rows.jsonl"), rows)
     write_csv(os.path.join(out_dir, "lift_rows.csv"), rows, ROW_FIELDS)
     write_csv(os.path.join(out_dir, "tuple_summary.csv"), tuple_summary, sorted({k for row in tuple_summary for k in row}))
+    write_csv(os.path.join(out_dir, "split_summary.csv"), split_summary, sorted({k for row in split_summary for k in row}))
     write_csv(os.path.join(out_dir, "target_mode_summary.csv"), target_summary, sorted({k for row in target_summary for k in row}))
     write_csv(os.path.join(out_dir, "init_mode_summary.csv"), init_summary, sorted({k for row in init_summary for k in row}))
     write_csv(os.path.join(out_dir, "tuple_target_summary.csv"), tuple_target_summary, sorted({k for row in tuple_target_summary for k in row}))
+    write_csv(os.path.join(out_dir, "tuple_split_summary.csv"), tuple_split_summary, sorted({k for row in tuple_split_summary for k in row}))
     write_jsonl(os.path.join(out_dir, "best_lift_candidates.jsonl"), best_rows(rows, 100))
     for threshold in THRESHOLDS:
         write_jsonl(os.path.join(out_dir, "score_under_{}_candidates.jsonl".format(threshold)), threshold_rows(rows, threshold))
@@ -576,27 +733,29 @@ def write_outputs(args, rows, candidates, out_dir):
 
 
 def run_mode(args):
-    candidates = base.load_frontier_candidates(args)
+    candidates = load_lift_candidates(args)
+    split_modes = parse_csv(args.split_modes)
     target_modes = parse_csv(args.target_modes)
     init_modes = parse_csv(args.init_modes)
-    tasks = shard_tasks(candidates, target_modes, init_modes, int(args.restarts_per_cell), int(args.shard_id), int(args.shard_count))
+    tasks = shard_tasks(candidates, split_modes, target_modes, init_modes, int(args.restarts_per_cell), int(args.shard_id), int(args.shard_count))
     if args.smoke:
         tasks = tasks[: max(1, int(args.smoke_task_limit))]
     print(
-        "pair-profile-lift-start shard={}/{} candidates={} tasks={} target_modes={} init_modes={}".format(
-            args.shard_id, args.shard_count, len(candidates), len(tasks), target_modes, init_modes
+        "pair-profile-lift-start shard={}/{} candidates={} tasks={} split_modes={} target_modes={} init_modes={}".format(
+            args.shard_id, args.shard_count, len(candidates), len(tasks), split_modes, target_modes, init_modes
         ),
         flush=True,
     )
     rows = []
-    for idx, (candidate, target_mode, left_init, right_init, restart_id) in enumerate(tasks, start=1):
+    for idx, (candidate, split_mode, target_mode, left_init, right_init, restart_id) in enumerate(tasks, start=1):
         print(
-            "task {}/{} candidate={} tuple={} score={} target={} left_init={} right_init={} restart={}".format(
+            "task {}/{} candidate={} tuple={} score={} split={} target={} left_init={} right_init={} restart={}".format(
                 idx,
                 len(tasks),
                 candidate["frontier_candidate_id"],
                 candidate["tuple_class"],
                 candidate["initial_score"],
+                split_mode,
                 target_mode,
                 left_init,
                 right_init,
@@ -604,7 +763,7 @@ def run_mode(args):
             ),
             flush=True,
         )
-        rows.append(run_one(candidate, target_mode, left_init, right_init, restart_id, args))
+        rows.append(run_one(candidate, split_mode, target_mode, left_init, right_init, restart_id, args))
     write_outputs(args, rows, candidates, args.out_dir)
     print("wrote {} lift rows to {}".format(len(rows), args.out_dir), flush=True)
 
@@ -629,6 +788,9 @@ def parse_args():
     parser.add_argument("--tuple-registry", default=base.TUPLE_REGISTRY_DEFAULT)
     parser.add_argument("--tuple-classes", default=TUPLE_CLASSES_DEFAULT)
     parser.add_argument("--frontier-count", "--candidate-count", dest="frontier_count", type=int, default=2)
+    parser.add_argument("--representatives-per-tuple", type=int, default=1)
+    parser.add_argument("--auto-tuple-representatives", action="store_true")
+    parser.add_argument("--split-modes", default="fixed_01_23")
     parser.add_argument("--target-modes", default="midpoint,seed_left,seed_right_complement,lambda_half,jitter_midpoint")
     parser.add_argument("--init-modes", default="random,seed,perturbed_seed")
     parser.add_argument("--restarts-per-cell", type=int, default=12)
@@ -638,6 +800,8 @@ def parse_args():
     parser.add_argument("--perturb-swaps", type=int, default=8)
     parser.add_argument("--repair-budget", type=int, default=6)
     parser.add_argument("--repair-swap-sample-count", type=int, default=96)
+    parser.add_argument("--source-repair-budget", type=int, default=0)
+    parser.add_argument("--source-repair-swap-sample-count", type=int, default=96)
     parser.add_argument("--max-wall-time-ms-per-lift", type=int, default=15000)
     parser.add_argument("--out-dir", default="")
     parser.add_argument("--output-root", default=OUTPUT_ROOT_DEFAULT)
