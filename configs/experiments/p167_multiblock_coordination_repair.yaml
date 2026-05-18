@@ -1,0 +1,73 @@
+experiment: p167_multiblock_coordination_repair
+description: >
+  Multi-block coordinated exact-joint repair diagnostic for p167 c01/c05 wall
+  candidates. This is not a generator, filter, classifier, or reranker
+  experiment.
+
+problem:
+  p: 167
+  tuple_classes:
+    - p167_c01
+    - p167_c05
+  candidates:
+    fixture: configs/fixtures/p167_local_branching_wall_candidates.jsonl
+    required:
+      - c01 score168
+      - c05 score164
+
+coordination_model:
+  objective: score
+  exact_joint_update: "Delta n = h*f_tilde + f*h_tilde + h*h_tilde"
+  cross_block_score_formula: "Delta S_total = sum_i Delta S_i + 2 * sum_{i<j} <delta_i, delta_j>"
+  radius_definition: "sum_i |X_i triangle X_i0| / 2"
+  note: >
+    The experiment keeps per-block exact-joint move libraries and explicitly
+    evaluates coordinated selections across two, three, or four blocks. The
+    key signal is whether cross-block terms produce improvements that no
+    single-block move can produce.
+
+parameters:
+  pool_modes:
+    - defect
+    - hybrid
+  pool_size_list:
+    - 6
+    - 8
+    - 10
+  block_radius_list:
+    - 1
+    - 2
+  coordination_orders:
+    - 2
+    - 3
+    - 4
+  max_total_radius: 6
+  restarts_per_cell: 4
+  move_cap_per_block: 4000
+  combo_sample_cap_per_block_radius: 50000
+  combination_eval_cap: 2000000
+  max_wall_time_ms: 120000
+
+github_actions:
+  workflow: .github/workflows/p167-multiblock-coordination-repair.yml
+  production_preset: p167-multiblock-coordination-40
+  shard_count: 40
+  max_parallel: 40
+
+outputs:
+  root: outputs/p167_multiblock_coordination_repair
+  required:
+    - candidate_list.jsonl
+    - coordination_rows.csv
+    - coordination_rows.jsonl
+    - candidate_summary.csv
+    - parameter_summary.csv
+    - best_coordinated_moves.jsonl
+    - score_under_160_candidates.jsonl
+    - score_under_120_candidates.jsonl
+    - score_under_100_candidates.jsonl
+    - score0_candidates.jsonl
+    - validation_report.json
+    - run_config.json
+    - README.md
+    - next_actions.md

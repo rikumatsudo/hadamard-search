@@ -1,0 +1,398 @@
+name: p167-multiblock-coordination-repair
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Short label for artifacts and Slack messages"
+        required: false
+        default: "p167-multiblock-coordination-repair-remote-smoke"
+        type: string
+      preset:
+        description: "Preset input bundle"
+        required: false
+        default: "remote-smoke"
+        type: choice
+        options:
+          - "remote-smoke"
+          - "p167-multiblock-coordination-40"
+          - "custom"
+      candidate_count:
+        description: "Candidate count"
+        required: false
+        default: "1"
+        type: string
+      frontier_files:
+        description: "Comma-separated candidate fixture files"
+        required: false
+        default: "configs/fixtures/p167_local_branching_wall_candidates.jsonl"
+        type: string
+      pool_modes:
+        description: "Comma-separated pool modes"
+        required: false
+        default: "defect"
+        type: string
+      pool_size_list:
+        description: "Comma-separated restricted pool sizes"
+        required: false
+        default: "4"
+        type: string
+      block_radius_list:
+        description: "Comma-separated per-block move radii"
+        required: false
+        default: "1"
+        type: string
+      coordination_orders:
+        description: "Comma-separated coordinated block counts"
+        required: false
+        default: "2"
+        type: string
+      max_total_radius:
+        description: "Maximum total multi-block radius"
+        required: false
+        default: "2"
+        type: string
+      restarts_per_cell:
+        description: "Restarts per candidate/parameter cell"
+        required: false
+        default: "1"
+        type: string
+      move_cap_per_block:
+        description: "Retained exact-joint moves per block"
+        required: false
+        default: "128"
+        type: string
+      combo_sample_cap_per_block_radius:
+        description: "Sample/eval cap for raw per-block move generation"
+        required: false
+        default: "2000"
+        type: string
+      combination_eval_cap:
+        description: "Global coordinated combination eval cap per row"
+        required: false
+        default: "20000"
+        type: string
+      max_wall_time_ms:
+        description: "Wall-time cap per row"
+        required: false
+        default: "10000"
+        type: string
+      base_seed:
+        description: "Base random seed"
+        required: false
+        default: "167431"
+        type: string
+      shard_count:
+        description: "Shard count for fan-out"
+        required: false
+        default: "1"
+        type: string
+      max_parallel:
+        description: "Maximum parallel shard jobs"
+        required: false
+        default: "1"
+        type: string
+  pull_request:
+    paths:
+      - "analysis/p167_multiblock_coordination_repair.py"
+      - ".github/workflows/p167-multiblock-coordination-repair.yml"
+      - "configs/experiments/p167_multiblock_coordination_repair.yaml"
+      - "configs/fixtures/p167_local_branching_wall_candidates.jsonl"
+      - "scripts/dispatch_p167_multiblock_coordination_repair.py"
+      - "configs/fixtures/p167_tuple_classes.json"
+      - "sage/06_known_sds_regression.sage"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: p167-multiblock-coordination-repair-${{ github.ref }}-${{ inputs.run_label || github.event_name }}
+  cancel-in-progress: false
+
+env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  known-regression:
+    name: Known SDS regression
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run known SDS regression
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            sage sage/06_known_sds_regression.sage
+
+  define-shards:
+    name: Define shard matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      candidate_count: ${{ steps.matrix.outputs.candidate_count }}
+      frontier_files: ${{ steps.matrix.outputs.frontier_files }}
+      pool_modes: ${{ steps.matrix.outputs.pool_modes }}
+      pool_size_list: ${{ steps.matrix.outputs.pool_size_list }}
+      block_radius_list: ${{ steps.matrix.outputs.block_radius_list }}
+      coordination_orders: ${{ steps.matrix.outputs.coordination_orders }}
+      max_total_radius: ${{ steps.matrix.outputs.max_total_radius }}
+      restarts_per_cell: ${{ steps.matrix.outputs.restarts_per_cell }}
+      move_cap_per_block: ${{ steps.matrix.outputs.move_cap_per_block }}
+      combo_sample_cap_per_block_radius: ${{ steps.matrix.outputs.combo_sample_cap_per_block_radius }}
+      combination_eval_cap: ${{ steps.matrix.outputs.combination_eval_cap }}
+      max_wall_time_ms: ${{ steps.matrix.outputs.max_wall_time_ms }}
+      base_seed: ${{ steps.matrix.outputs.base_seed }}
+      shard_count: ${{ steps.matrix.outputs.shard_count }}
+      output_root: ${{ steps.matrix.outputs.output_root }}
+      experiment_name: ${{ steps.matrix.outputs.experiment_name }}
+    steps:
+      - name: Build matrix
+        id: matrix
+        env:
+          PRESET: ${{ inputs.preset || 'remote-smoke' }}
+          CANDIDATE_COUNT: ${{ inputs.candidate_count || '1' }}
+          FRONTIER_FILES: ${{ inputs.frontier_files || 'configs/fixtures/p167_local_branching_wall_candidates.jsonl' }}
+          POOL_MODES: ${{ inputs.pool_modes || 'defect' }}
+          POOL_SIZE_LIST: ${{ inputs.pool_size_list || '4' }}
+          BLOCK_RADIUS_LIST: ${{ inputs.block_radius_list || '1' }}
+          COORDINATION_ORDERS: ${{ inputs.coordination_orders || '2' }}
+          MAX_TOTAL_RADIUS: ${{ inputs.max_total_radius || '2' }}
+          RESTARTS_PER_CELL: ${{ inputs.restarts_per_cell || '1' }}
+          MOVE_CAP_PER_BLOCK: ${{ inputs.move_cap_per_block || '128' }}
+          COMBO_SAMPLE_CAP_PER_BLOCK_RADIUS: ${{ inputs.combo_sample_cap_per_block_radius || '2000' }}
+          COMBINATION_EVAL_CAP: ${{ inputs.combination_eval_cap || '20000' }}
+          MAX_WALL_TIME_MS: ${{ inputs.max_wall_time_ms || '10000' }}
+          BASE_SEED: ${{ inputs.base_seed || '167431' }}
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          preset = os.environ.get("PRESET") or "remote-smoke"
+          if preset == "p167-multiblock-coordination-40":
+              shard_count = 40
+              max_parallel = 40
+              candidate_count = "2"
+              frontier_files = "configs/fixtures/p167_local_branching_wall_candidates.jsonl"
+              pool_modes = "defect,hybrid,broad_hybrid"
+              pool_size_list = "6,8,10"
+              block_radius_list = "1,2"
+              coordination_orders = "2,3,4"
+              max_total_radius = "6"
+              restarts_per_cell = "4"
+              move_cap_per_block = "4000"
+              combo_sample_cap_per_block_radius = "50000"
+              combination_eval_cap = "2000000"
+              max_wall_time_ms = "120000"
+              base_seed = "167431"
+          else:
+              shard_count = int(os.environ.get("SHARD_COUNT") or "1")
+              max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
+              candidate_count = os.environ.get("CANDIDATE_COUNT") or "1"
+              frontier_files = os.environ.get("FRONTIER_FILES") or "configs/fixtures/p167_local_branching_wall_candidates.jsonl"
+              pool_modes = os.environ.get("POOL_MODES") or "defect"
+              pool_size_list = os.environ.get("POOL_SIZE_LIST") or "4"
+              block_radius_list = os.environ.get("BLOCK_RADIUS_LIST") or "1"
+              coordination_orders = os.environ.get("COORDINATION_ORDERS") or "2"
+              max_total_radius = os.environ.get("MAX_TOTAL_RADIUS") or "2"
+              restarts_per_cell = os.environ.get("RESTARTS_PER_CELL") or "1"
+              move_cap_per_block = os.environ.get("MOVE_CAP_PER_BLOCK") or "128"
+              combo_sample_cap_per_block_radius = os.environ.get("COMBO_SAMPLE_CAP_PER_BLOCK_RADIUS") or "2000"
+              combination_eval_cap = os.environ.get("COMBINATION_EVAL_CAP") or "20000"
+              max_wall_time_ms = os.environ.get("MAX_WALL_TIME_MS") or "10000"
+              base_seed = os.environ.get("BASE_SEED") or "167431"
+          output_root = "outputs/p167_multiblock_coordination_repair"
+          experiment_name = "p167_multiblock_coordination_repair"
+          matrix = {"include": [{"shard": i, "suffix": "s{:02d}".format(i)} for i in range(int(shard_count))]}
+          print("matrix={}".format(json.dumps(matrix, separators=(",", ":"))))
+          print("max_parallel={}".format(int(max_parallel)))
+          print("candidate_count={}".format(candidate_count))
+          print("frontier_files={}".format(frontier_files))
+          print("pool_modes={}".format(pool_modes))
+          print("pool_size_list={}".format(pool_size_list))
+          print("block_radius_list={}".format(block_radius_list))
+          print("coordination_orders={}".format(coordination_orders))
+          print("max_total_radius={}".format(max_total_radius))
+          print("restarts_per_cell={}".format(restarts_per_cell))
+          print("move_cap_per_block={}".format(move_cap_per_block))
+          print("combo_sample_cap_per_block_radius={}".format(combo_sample_cap_per_block_radius))
+          print("combination_eval_cap={}".format(combination_eval_cap))
+          print("max_wall_time_ms={}".format(max_wall_time_ms))
+          print("base_seed={}".format(base_seed))
+          print("shard_count={}".format(int(shard_count)))
+          print("output_root={}".format(output_root))
+          print("experiment_name={}".format(experiment_name))
+          PY
+
+  shard:
+    name: Multiblock coordination shard ${{ matrix.suffix }}
+    runs-on: ubuntu-24.04
+    needs:
+      - known-regression
+      - define-shards
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJson(needs.define-shards.outputs.max_parallel) }}
+      matrix: ${{ fromJson(needs.define-shards.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run p167 multiblock coordination repair shard
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-multiblock-coordination-repair' }}
+          CANDIDATE_COUNT: ${{ needs.define-shards.outputs.candidate_count }}
+          FRONTIER_FILES: ${{ needs.define-shards.outputs.frontier_files }}
+          POOL_MODES: ${{ needs.define-shards.outputs.pool_modes }}
+          POOL_SIZE_LIST: ${{ needs.define-shards.outputs.pool_size_list }}
+          BLOCK_RADIUS_LIST: ${{ needs.define-shards.outputs.block_radius_list }}
+          COORDINATION_ORDERS: ${{ needs.define-shards.outputs.coordination_orders }}
+          MAX_TOTAL_RADIUS: ${{ needs.define-shards.outputs.max_total_radius }}
+          RESTARTS_PER_CELL: ${{ needs.define-shards.outputs.restarts_per_cell }}
+          MOVE_CAP_PER_BLOCK: ${{ needs.define-shards.outputs.move_cap_per_block }}
+          COMBO_SAMPLE_CAP_PER_BLOCK_RADIUS: ${{ needs.define-shards.outputs.combo_sample_cap_per_block_radius }}
+          COMBINATION_EVAL_CAP: ${{ needs.define-shards.outputs.combination_eval_cap }}
+          MAX_WALL_TIME_MS: ${{ needs.define-shards.outputs.max_wall_time_ms }}
+          BASE_SEED: ${{ needs.define-shards.outputs.base_seed }}
+          SHARD_COUNT: ${{ needs.define-shards.outputs.shard_count }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.experiment_name }}
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_SUFFIX: ${{ matrix.suffix }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-${SHARD_SUFFIX}"
+          python3 analysis/p167_multiblock_coordination_repair.py \
+            --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
+            --run-id "${safe_label}-${GITHUB_RUN_ID}" \
+            --frontier-files "$FRONTIER_FILES" \
+            --candidate-count "$CANDIDATE_COUNT" \
+            --pool-modes "$POOL_MODES" \
+            --pool-size-list "$POOL_SIZE_LIST" \
+            --block-radius-list "$BLOCK_RADIUS_LIST" \
+            --coordination-orders "$COORDINATION_ORDERS" \
+            --max-total-radius "$MAX_TOTAL_RADIUS" \
+            --restarts-per-cell "$RESTARTS_PER_CELL" \
+            --move-cap-per-block "$MOVE_CAP_PER_BLOCK" \
+            --combo-sample-cap-per-block-radius "$COMBO_SAMPLE_CAP_PER_BLOCK_RADIUS" \
+            --combination-eval-cap "$COMBINATION_EVAL_CAP" \
+            --max-wall-time-ms "$MAX_WALL_TIME_MS" \
+            --base-seed "$BASE_SEED" \
+            --shard-id "$SHARD_INDEX" \
+            --shard-count "$SHARD_COUNT"
+      - name: Upload shard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p167_multiblock_coordination_repair-${{ matrix.suffix }}-${{ github.run_id }}
+          path: outputs/p167_multiblock_coordination_repair/**/*
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    name: Aggregate p167 multiblock coordination repair
+    runs-on: ubuntu-24.04
+    needs:
+      - define-shards
+      - shard
+    if: always() && needs.shard.result == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Download shard artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: p167_multiblock_coordination_repair-*-${{ github.run_id }}
+          path: shard-artifacts
+      - name: Aggregate shard outputs
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-multiblock-coordination-repair' }}
+          CANDIDATE_COUNT: ${{ needs.define-shards.outputs.candidate_count }}
+          POOL_MODES: ${{ needs.define-shards.outputs.pool_modes }}
+          POOL_SIZE_LIST: ${{ needs.define-shards.outputs.pool_size_list }}
+          BLOCK_RADIUS_LIST: ${{ needs.define-shards.outputs.block_radius_list }}
+          COORDINATION_ORDERS: ${{ needs.define-shards.outputs.coordination_orders }}
+          MAX_TOTAL_RADIUS: ${{ needs.define-shards.outputs.max_total_radius }}
+          RESTARTS_PER_CELL: ${{ needs.define-shards.outputs.restarts_per_cell }}
+          MOVE_CAP_PER_BLOCK: ${{ needs.define-shards.outputs.move_cap_per_block }}
+          COMBO_SAMPLE_CAP_PER_BLOCK_RADIUS: ${{ needs.define-shards.outputs.combo_sample_cap_per_block_radius }}
+          COMBINATION_EVAL_CAP: ${{ needs.define-shards.outputs.combination_eval_cap }}
+          MAX_WALL_TIME_MS: ${{ needs.define-shards.outputs.max_wall_time_ms }}
+          SHARD_COUNT: ${{ needs.define-shards.outputs.shard_count }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.experiment_name }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-aggregate"
+          python3 analysis/p167_multiblock_coordination_repair.py \
+            --aggregate \
+            --aggregate-input-dir shard-artifacts \
+            --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
+            --run-id "${safe_label}-${GITHUB_RUN_ID}" \
+            --candidate-count "$CANDIDATE_COUNT" \
+            --pool-modes "$POOL_MODES" \
+            --pool-size-list "$POOL_SIZE_LIST" \
+            --block-radius-list "$BLOCK_RADIUS_LIST" \
+            --coordination-orders "$COORDINATION_ORDERS" \
+            --max-total-radius "$MAX_TOTAL_RADIUS" \
+            --restarts-per-cell "$RESTARTS_PER_CELL" \
+            --move-cap-per-block "$MOVE_CAP_PER_BLOCK" \
+            --combo-sample-cap-per-block-radius "$COMBO_SAMPLE_CAP_PER_BLOCK_RADIUS" \
+            --combination-eval-cap "$COMBINATION_EVAL_CAP" \
+            --max-wall-time-ms "$MAX_WALL_TIME_MS" \
+            --shard-count "$SHARD_COUNT"
+      - name: Validate score0 candidates if present
+        run: |
+          set -euo pipefail
+          mapfile -t score0_jsons < <(find outputs/p167_multiblock_coordination_repair -path '*aggregate/score0_candidate_jsons/*.json' -type f | sort)
+          if [ "${#score0_jsons[@]}" -eq 0 ]; then
+            echo "No score0 candidates to validate."
+            exit 0
+          fi
+          printf '%s\n' "${score0_jsons[@]}" > tmp_score0_paths.txt
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            bash -lc 'set -euo pipefail; while read -r path; do sage sage/08_analyze_sds_candidate.sage "$path"; sage sage/05_validate_candidate_json.sage "$path"; sage sage/04_build_gs_from_sds.sage "$path"; done < tmp_score0_paths.txt'
+      - name: Upload aggregate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p167_multiblock_coordination_repair_${{ github.run_id }}
+          path: outputs/p167_multiblock_coordination_repair/**/*aggregate/**/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Slack notify
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          webhook = os.environ.get("SLACK_WEBHOOK_URL")
+          text = os.environ.get("SLACK_TEXT", "p167 multiblock coordination repair completed")
+          if webhook:
+              req = urllib.request.Request(webhook, data=json.dumps({"text": text}).encode("utf-8"), headers={"Content-Type": "application/json"})
+              urllib.request.urlopen(req, timeout=10).read()
+          PY
+        env:
+          SLACK_TEXT: p167 multiblock coordination repair ${{ job.status }} run ${{ github.run_id }}
