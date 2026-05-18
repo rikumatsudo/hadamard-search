@@ -39,6 +39,7 @@ OPERATOR_ALIASES = {
     "restricted_exact_joint_lns_radius3_5": "restricted_exact_joint_lns",
 }
 REPAIR_FIELDS = list(base.REPAIR_FIELDS) + [
+    "restart_id",
     "escape_final_score",
     "escape_best_score",
     "escape_accepted_uphill_count",
@@ -340,22 +341,25 @@ def progress(args, message):
         print("[progress] {}".format(message), flush=True)
 
 
-def task_label(frontier, operator):
-    return "{} {} {} initial={}".format(
+def task_label(frontier, operator, restart_id=None):
+    restart_text = "" if restart_id is None else " restart={}".format(int(restart_id))
+    return "{} {} {}{} initial={}".format(
         frontier.get("frontier_candidate_id"),
         frontier.get("tuple_class"),
         operator,
+        restart_text,
         frontier.get("initial_score"),
     )
 
 
-def build_repair_row(frontier, operator, args):
+def build_repair_row(frontier, operator, args, restart_id=0):
     p = int(args.p)
     blocks = [set(int(x) for x in block) for block in frontier["blocks"]]
     lam = int(frontier["lambda"])
     seed = (
         int(args.base_seed)
         + int(args.shard_id) * 10000000
+        + int(restart_id) * 1000000
         + base.stable_int(frontier["frontier_candidate_id"]) % 100000
         + base.stable_int(operator) % 10000
     )
@@ -375,6 +379,7 @@ def build_repair_row(frontier, operator, args):
     row = {
         "run_id": args.run_id,
         "shard_id": int(args.shard_id),
+        "restart_id": int(restart_id),
         "frontier_candidate_id": frontier["frontier_candidate_id"],
         "source_file": frontier.get("source_file"),
         "tuple_class": frontier["tuple_class"],
@@ -425,13 +430,14 @@ def build_repair_row(frontier, operator, args):
     return row
 
 
-def shard_tasks(frontier, operators, shard_id, shard_count):
+def shard_tasks(frontier, operators, restarts_per_operator, shard_id, shard_count):
     tasks = []
     for cand in frontier:
         for operator in operators:
-            key = "{}::{}".format(cand["frontier_candidate_id"], operator)
-            if base.stable_int(key) % int(shard_count) == int(shard_id):
-                tasks.append((cand, operator))
+            for restart_id in range(int(restarts_per_operator)):
+                key = "{}::{}::{}".format(cand["frontier_candidate_id"], operator, restart_id)
+                if base.stable_int(key) % int(shard_count) == int(shard_id):
+                    tasks.append((cand, operator, int(restart_id)))
     return tasks
 
 
@@ -439,11 +445,11 @@ def run_mode(args):
     base.ensure_dir(args.out_dir)
     frontier = base.load_frontier_candidates(args)
     operators = parse_csv(args.operators)
-    tasks = shard_tasks(frontier, operators, int(args.shard_id), int(args.shard_count))
+    tasks = shard_tasks(frontier, operators, int(args.restarts_per_operator), int(args.shard_id), int(args.shard_count))
     if args.smoke:
         tasks = tasks[: max(1, int(args.smoke_task_limit))]
-    operator_counts = collections.Counter(operator for _cand, operator in tasks)
-    tuple_counts = collections.Counter(cand.get("tuple_class") for cand, _operator in tasks)
+    operator_counts = collections.Counter(operator for _cand, operator, _restart_id in tasks)
+    tuple_counts = collections.Counter(cand.get("tuple_class") for cand, _operator, _restart_id in tasks)
     progress(
         args,
         "shard-start shard={}/{} frontier_count={} operator_count={} task_count={} out_dir={}".format(
@@ -455,15 +461,16 @@ def run_mode(args):
             args.out_dir,
         ),
     )
+    progress(args, "shard-restarts-per-operator {}".format(int(args.restarts_per_operator)))
     progress(args, "shard-operator-counts {}".format(dict(sorted(operator_counts.items()))))
     progress(args, "shard-tuple-counts {}".format(dict(sorted(tuple_counts.items()))))
     rows = []
     run_started = time.time()
     best_so_far = None
-    for idx, (cand, operator) in enumerate(tasks, 1):
+    for idx, (cand, operator, restart_id) in enumerate(tasks, 1):
         pct_start = 100.0 * float(idx - 1) / float(max(1, len(tasks)))
-        progress(args, "task-start {}/{} {:.1f}% {}".format(idx, len(tasks), pct_start, task_label(cand, operator)))
-        row = build_repair_row(cand, operator, args)
+        progress(args, "task-start {}/{} {:.1f}% {}".format(idx, len(tasks), pct_start, task_label(cand, operator, restart_id)))
+        row = build_repair_row(cand, operator, args, restart_id)
         rows.append(row)
         score_after = int(row["score_after"])
         if best_so_far is None or score_after < int(best_so_far):
@@ -475,7 +482,7 @@ def run_mode(args):
                 idx,
                 len(tasks),
                 pct_done,
-                task_label(cand, operator),
+                task_label(cand, operator, restart_id),
                 int(row["score_before"]),
                 score_after,
                 int(row["steps_used"]),
@@ -532,12 +539,19 @@ def best_by_tuple(rows, tuple_class):
 
 
 def decision(rows, operator_summary):
+    focus_mode = any("best_frontier_focus" in str(row.get("frontier_bucket") or "") for row in rows)
     c01 = best_by_tuple(rows, "p167_c01")
     c05 = best_by_tuple(rows, "p167_c05")
     any_300 = any(int(row["score_after"]) <= 300 for row in rows)
     any_240 = any(int(row["score_after"]) <= 240 for row in rows)
     any_200 = any(int(row["score_after"]) <= 200 for row in rows)
     c09_improved_160 = any(row["tuple_class"] == "p167_c09" and int(row["initial_score"]) <= 164 and int(row["score_after"]) < int(row["initial_score"]) for row in rows)
+    if focus_mode:
+        if (c01 and int(c01["score_after"]) < 172) or (c05 and int(c05["score_after"]) < 164):
+            return "Strong GO"
+        if any(int(row["score_after"]) < int(row["initial_score"]) for row in rows):
+            return "Weak GO"
+        return "No GO"
     if (c01 and int(c01["score_after"]) < 348) or (c05 and int(c05["score_after"]) < 340):
         return "Strong GO"
     if any_300 or any_240 or any_200 or c09_improved_160:
@@ -579,6 +593,7 @@ def write_readme(out_dir, config, frontier, frontier_summary, operator_summary, 
         "- frontier candidates: `{}`".format(config["frontier_candidate_count"]),
         "- repair rows: `{}`".format(config["total_repair_rows"]),
         "- operators: `{}`".format(config["operators"]),
+        "- restarts_per_operator: `{}`".format(config.get("restarts_per_operator", 1)),
         "- shard_count: `{}`".format(config["shard_count"]),
         "- c09 score160 fixture included: `{}`".format(c09_score160_included(frontier)),
         "",
@@ -592,6 +607,8 @@ def write_readme(out_dir, config, frontier, frontier_summary, operator_summary, 
         "",
         "1. c01 best 348 improved: `{}` (best now `{}`).".format(bool(c01 and int(c01["score_after"]) < 348), c01["score_after"] if c01 else "none"),
         "2. c05 best 340 improved: `{}` (best now `{}`).".format(bool(c05 and int(c05["score_after"]) < 340), c05["score_after"] if c05 else "none"),
+        "2b. c01 focus best 172 improved: `{}`.".format(bool(c01 and int(c01["score_after"]) < 172)),
+        "2c. c05 focus best 164 improved: `{}`.".format(bool(c05 and int(c05["score_after"]) < 164)),
         "3. c09 score160/164/176 fixture moved: `{}` (score160 moved: `{}`, best c09 `{}`).".format(any(row["tuple_class"] == "p167_c09" and int(row["score_after"]) < int(row["initial_score"]) for row in rows), score160_moved, c09["score_after"] if c09 else "none"),
         "4. score300 or below count: `{}`.".format(sum(1 for row in rows if int(row["score_after"]) <= 300)),
         "5. score240 or below count: `{}`.".format(sum(1 for row in rows if int(row["score_after"]) <= 240)),
@@ -652,6 +669,7 @@ def write_outputs(args, rows, frontier, out_dir):
         "escape_objective_margin": float(args.escape_objective_margin),
         "escape_temperature": float(args.escape_temperature),
         "escape_stall_steps": int(args.escape_stall_steps),
+        "restarts_per_operator": int(args.restarts_per_operator),
         "pair_loss_weight": float(args.pair_loss_weight),
         "shell_gap_weight": float(args.shell_gap_weight),
         "max_abs_weight": float(args.max_abs_weight),
@@ -685,6 +703,7 @@ def parse_args():
     parser.add_argument("--operators", default=",".join(OPERATORS_DEFAULT))
     parser.add_argument("--frontier-count", type=int, default=90)
     parser.add_argument("--max-repair-steps", type=int, default=16)
+    parser.add_argument("--restarts-per-operator", type=int, default=1)
     parser.add_argument("--pool-size", type=int, default=40)
     parser.add_argument("--lns-pool-size", type=int, default=48)
     parser.add_argument("--lns-radius", type=int, default=5)

@@ -13,6 +13,7 @@ PRESETS = {
         "frontier_count": "3",
         "operators": "score_only_1swap_greedy,exact_joint_2swap_beam_deep",
         "max_repair_steps": "1",
+        "restarts_per_operator": "1",
         "pool_size": "8",
         "lns_pool_size": "10",
         "lns_radius": "2",
@@ -37,6 +38,7 @@ PRESETS = {
             "restricted_exact_joint_lns_radius3_5"
         ),
         "max_repair_steps": "16",
+        "restarts_per_operator": "1",
         "pool_size": "40",
         "lns_pool_size": "48",
         "lns_radius": "5",
@@ -61,6 +63,7 @@ PRESETS = {
             "annealed_exact_joint_radius7_lns"
         ),
         "max_repair_steps": "40",
+        "restarts_per_operator": "1",
         "pool_size": "56",
         "lns_pool_size": "72",
         "lns_radius": "7",
@@ -72,6 +75,31 @@ PRESETS = {
         "max_parallel": "40",
         "base_seed": "168943",
     },
+    "p167-c01-c05-best-frontier-focus-40": {
+        "run_label": "p167-c01-c05-best-frontier-focus-40x",
+        "frontier_count": "2",
+        "frontier_files": "configs/fixtures/p167_c01_c05_best_frontier_focus_candidates.jsonl",
+        "operators": (
+            "score_only_1swap_greedy,"
+            "exact_joint_2swap_beam_deep,"
+            "exact_joint_3swap_beam,"
+            "defect_targeted_destroy_repair_deep,"
+            "pair_level_partial_defect_repair_deep,"
+            "restricted_exact_joint_lns_radius3_5"
+        ),
+        "max_repair_steps": "80",
+        "restarts_per_operator": "10",
+        "pool_size": "72",
+        "lns_pool_size": "72",
+        "lns_radius": "7",
+        "beam_width": "24",
+        "eval_cap_per_step": "10000",
+        "dmin_sample_count": "960",
+        "max_wall_time_ms": "180000",
+        "shard_count": "40",
+        "max_parallel": "40",
+        "base_seed": "169211",
+    },
 }
 
 
@@ -81,6 +109,7 @@ INPUT_ORDER = [
     "frontier_files",
     "operators",
     "max_repair_steps",
+    "restarts_per_operator",
     "pool_size",
     "lns_pool_size",
     "lns_radius",
