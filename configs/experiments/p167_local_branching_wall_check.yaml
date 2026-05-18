@@ -18,6 +18,14 @@ local_branching:
   objective: score
   exact_joint_update: "Delta n = h*f_tilde + f*h_tilde + h*h_tilde"
   radius_definition: "sum_i |X_i triangle X_i0| / 2 <= r"
+  solver_modes:
+    - dfs
+    - mitm
+    - cp_sat
+  solver_notes:
+    dfs: "Plain exact DFS over retained block moves."
+    mitm: "Meet-in-the-middle over block pairs, exact over retained block moves and uncapped pair states."
+    cp_sat: "OR-Tools CP-SAT linearization over retained block moves; exact when OPTIMAL and uncapped."
   pool_modes:
     - defect
     - hybrid
@@ -31,12 +39,18 @@ local_branching:
     - 4
   restarts_per_cell: 4
   block_candidate_cap_per_radius: 50000
+  solver_move_cap_per_block: 5000
+  mitm_state_cap_per_radius: 50000
+  cp_sat_move_cap_per_block: 64
+  cp_sat_time_limit_seconds: 30
+  cp_sat_workers: 1
   global_eval_cap: 4000000
   max_wall_time_ms: 120000
 
 github_actions:
   workflow: .github/workflows/p167-local-branching-wall-check.yml
   production_preset: p167-local-branching-wall-check-40
+  cp_sat_production_preset: p167-local-branching-cpsat-40
   shard_count: 40
   max_parallel: 40
 
