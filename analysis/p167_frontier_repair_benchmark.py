@@ -382,20 +382,30 @@ def build_pools(p, blocks, rho, pool_size, rng, mode="defect"):
 
 
 def joint_move_candidates(removes, adds, radius, rng, cap):
-    remove_combos = list(itertools.combinations(removes, int(radius)))
-    add_combos = list(itertools.combinations(adds, int(radius)))
-    total = len(remove_combos) * len(add_combos)
-    if total <= int(cap):
-        for rcombo in remove_combos:
-            for acombo in add_combos:
+    radius = int(radius)
+    cap = int(cap)
+    if radius <= 0 or cap <= 0:
+        return
+    removes = list(removes)
+    adds = list(adds)
+    if len(removes) < radius or len(adds) < radius:
+        return
+    remove_count = math.comb(len(removes), radius)
+    add_count = math.comb(len(adds), radius)
+    total = remove_count * add_count
+    if total <= cap:
+        for rcombo in itertools.combinations(removes, radius):
+            for acombo in itertools.combinations(adds, radius):
                 yield rcombo, acombo
         return
     seen = set()
     attempts = 0
-    while len(seen) < int(cap) and attempts < int(cap) * 10:
+    # Do not materialize combinations for large radius/pools. For p167 radius 7,
+    # 72 choose 7 is enormous; sample capped joint moves lazily instead.
+    while len(seen) < cap and attempts < cap * 20:
         attempts += 1
-        rcombo = tuple(rng.choice(remove_combos))
-        acombo = tuple(rng.choice(add_combos))
+        rcombo = tuple(sorted(rng.sample(removes, radius)))
+        acombo = tuple(sorted(rng.sample(adds, radius)))
         key = (rcombo, acombo)
         if key in seen:
             continue
