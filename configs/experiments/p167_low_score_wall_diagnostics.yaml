@@ -1,0 +1,96 @@
+experiment_name: p167_low_score_wall_diagnostics
+description: >
+  Repair failure and low-score wall diagnostics for p167 c01/c05/c09 frontier
+  candidates. This is not a generator, filter, classifier, or reranker run.
+
+problem:
+  p: 167
+  n: 668
+  tuple_classes:
+    - p167_c01
+    - p167_c05
+    - p167_c09
+
+inputs:
+  frontier_files:
+    - configs/fixtures/p167_c01_c05_best_frontier_focus_candidates.jsonl
+    - configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl
+    - configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl
+    - configs/fixtures/p167_frontier_repair_seed_candidates.jsonl
+    - configs/fixtures/benchmark_traps/p167_score164_176.jsonl
+    - configs/fixtures/p167_focused_nearhit_candidates.jsonl
+  tuple_registry: configs/fixtures/p167_tuple_classes.json
+
+core_wall_candidates:
+  - tuple_class: p167_c01
+    score: 172
+    source_run: 26007574431
+  - tuple_class: p167_c05
+    score: 164
+    source_run: 26007574431
+  - tuple_class: p167_c09
+    score: 160
+  - tuple_class: p167_c09
+    score: 164
+  - tuple_class: p167_c09
+    score: 176
+
+diagnostics:
+  defect_geometry: true
+  full_1swap_shell: true
+  restricted_2swap_shell: true
+  restricted_3swap_shell: true
+  restricted_5swap_shell: true
+  pair_level_diagnostics: true
+  coordination_diagnostics: true
+  stubborn_defect_diagnostics: true
+  operator_failure_diagnostics: true
+  exact_joint_update: "Delta n = h*f_tilde + f*h_tilde + h*h_tilde"
+
+presets:
+  remote_smoke:
+    candidate_count: 3
+    shard_count: 1
+    max_parallel: 1
+    rswap_pool_size: 12
+    rswap_eval_cap: 80
+    max_wall_time_ms: 10000
+    base_seed: 170167
+  p167_low_score_wall_diagnostics_40:
+    candidate_count: 60
+    shard_count: 40
+    max_parallel: 40
+    rswap_pool_size: 48
+    rswap_eval_cap: 8000
+    max_wall_time_ms: 120000
+    base_seed: 170167
+
+outputs:
+  output_root: outputs/p167_low_score_wall_diagnostics
+  required_files:
+    - candidate_list.jsonl
+    - candidate_selection_summary.csv
+    - defect_geometry.csv
+    - full_1swap_shell.csv
+    - two_swap_shell.csv
+    - restricted_rswap_shell.csv
+    - pair_level_diagnostics.csv
+    - coordination_diagnostics.csv
+    - stubborn_defect_diagnostics.csv
+    - operator_failure_diagnostics.csv
+    - wall_comparison_summary.csv
+    - candidate_case_studies.md
+    - run_config.json
+    - validation_report.json
+    - README.md
+    - next_actions.md
+
+decision_labels:
+  - Strong diagnostic result
+  - Weak diagnostic result
+  - No diagnostic result
+
+notes:
+  - Do not claim Hadamard 668 construction.
+  - Do not treat score0 as mathematical success until Sage SDS and HH^T validation passes.
+  - r>=2 shell diagnostics are restricted/beam unless explicitly marked full.

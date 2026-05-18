@@ -1,0 +1,289 @@
+name: p167-low-score-wall-diagnostics
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Short label for artifacts and Slack messages"
+        required: false
+        default: "p167-low-score-wall-diagnostics-remote-smoke"
+        type: string
+      preset:
+        description: "Preset input bundle"
+        required: false
+        default: "remote-smoke"
+        type: choice
+        options:
+          - "remote-smoke"
+          - "p167-low-score-wall-diagnostics-40"
+          - "custom"
+      candidate_count:
+        description: "Total candidates to diagnose"
+        required: false
+        default: "3"
+        type: string
+      frontier_files:
+        description: "Comma-separated candidate fixture files"
+        required: false
+        default: "configs/fixtures/p167_c01_c05_best_frontier_focus_candidates.jsonl,configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl,configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl,configs/fixtures/p167_frontier_repair_seed_candidates.jsonl,configs/fixtures/benchmark_traps/p167_score164_176.jsonl,configs/fixtures/p167_focused_nearhit_candidates.jsonl"
+        type: string
+      rswap_pool_size:
+        description: "Restricted r-swap remove/add pool size"
+        required: false
+        default: "12"
+        type: string
+      rswap_eval_cap:
+        description: "Restricted r-swap exact joint eval cap per radius"
+        required: false
+        default: "80"
+        type: string
+      max_wall_time_ms:
+        description: "Per candidate wall-time cap"
+        required: false
+        default: "10000"
+        type: string
+      base_seed:
+        description: "Base random seed"
+        required: false
+        default: "170167"
+        type: string
+      shard_count:
+        description: "Shard count for fan-out"
+        required: false
+        default: "1"
+        type: string
+      max_parallel:
+        description: "Maximum parallel shard jobs"
+        required: false
+        default: "1"
+        type: string
+  pull_request:
+    paths:
+      - "analysis/p167_low_score_wall_diagnostics.py"
+      - ".github/workflows/p167-low-score-wall-diagnostics.yml"
+      - "configs/experiments/p167_low_score_wall_diagnostics.yaml"
+      - "scripts/dispatch_p167_low_score_wall_diagnostics.py"
+      - "configs/fixtures/p167_c01_c05_best_frontier_focus_candidates.jsonl"
+      - "configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl"
+      - "configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl"
+      - "configs/fixtures/p167_frontier_repair_seed_candidates.jsonl"
+      - "configs/fixtures/benchmark_traps/p167_score164_176.jsonl"
+      - "configs/fixtures/p167_focused_nearhit_candidates.jsonl"
+      - "configs/fixtures/p167_tuple_classes.json"
+      - "sage/06_known_sds_regression.sage"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: p167-low-score-wall-diagnostics-${{ github.ref }}-${{ inputs.run_label || github.event_name }}
+  cancel-in-progress: false
+
+env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  known-regression:
+    name: Known SDS regression
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run known SDS regression
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            sage sage/06_known_sds_regression.sage
+
+  define-shards:
+    name: Define shard matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      candidate_count: ${{ steps.matrix.outputs.candidate_count }}
+      frontier_files: ${{ steps.matrix.outputs.frontier_files }}
+      rswap_pool_size: ${{ steps.matrix.outputs.rswap_pool_size }}
+      rswap_eval_cap: ${{ steps.matrix.outputs.rswap_eval_cap }}
+      max_wall_time_ms: ${{ steps.matrix.outputs.max_wall_time_ms }}
+      base_seed: ${{ steps.matrix.outputs.base_seed }}
+      shard_count: ${{ steps.matrix.outputs.shard_count }}
+      output_root: ${{ steps.matrix.outputs.output_root }}
+      experiment_name: ${{ steps.matrix.outputs.experiment_name }}
+    steps:
+      - name: Build matrix
+        id: matrix
+        env:
+          PRESET: ${{ inputs.preset || 'remote-smoke' }}
+          CANDIDATE_COUNT: ${{ inputs.candidate_count || '3' }}
+          FRONTIER_FILES: ${{ inputs.frontier_files || 'configs/fixtures/p167_c01_c05_best_frontier_focus_candidates.jsonl,configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl,configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl,configs/fixtures/p167_frontier_repair_seed_candidates.jsonl,configs/fixtures/benchmark_traps/p167_score164_176.jsonl,configs/fixtures/p167_focused_nearhit_candidates.jsonl' }}
+          RSWAP_POOL_SIZE: ${{ inputs.rswap_pool_size || '12' }}
+          RSWAP_EVAL_CAP: ${{ inputs.rswap_eval_cap || '80' }}
+          MAX_WALL_TIME_MS: ${{ inputs.max_wall_time_ms || '10000' }}
+          BASE_SEED: ${{ inputs.base_seed || '170167' }}
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          preset = os.environ.get("PRESET") or "remote-smoke"
+          default_files = "configs/fixtures/p167_c01_c05_best_frontier_focus_candidates.jsonl,configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl,configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl,configs/fixtures/p167_frontier_repair_seed_candidates.jsonl,configs/fixtures/benchmark_traps/p167_score164_176.jsonl,configs/fixtures/p167_focused_nearhit_candidates.jsonl"
+          if preset == "p167-low-score-wall-diagnostics-40":
+              shard_count = 40
+              max_parallel = 40
+              candidate_count = "60"
+              frontier_files = default_files
+              rswap_pool_size = "48"
+              rswap_eval_cap = "8000"
+              max_wall_time_ms = "120000"
+              base_seed = "170167"
+              output_root = "outputs/p167_low_score_wall_diagnostics"
+              experiment_name = "p167_low_score_wall_diagnostics"
+          else:
+              shard_count = int(os.environ.get("SHARD_COUNT") or "1")
+              max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
+              candidate_count = os.environ.get("CANDIDATE_COUNT") or "3"
+              frontier_files = os.environ.get("FRONTIER_FILES") or default_files
+              rswap_pool_size = os.environ.get("RSWAP_POOL_SIZE") or "12"
+              rswap_eval_cap = os.environ.get("RSWAP_EVAL_CAP") or "80"
+              max_wall_time_ms = os.environ.get("MAX_WALL_TIME_MS") or "10000"
+              base_seed = os.environ.get("BASE_SEED") or "170167"
+              output_root = "outputs/p167_low_score_wall_diagnostics"
+              experiment_name = "p167_low_score_wall_diagnostics"
+
+          matrix = {"include": [{"shard": i, "suffix": "s{:02d}".format(i)} for i in range(int(shard_count))]}
+          print("matrix={}".format(json.dumps(matrix, separators=(",", ":"))))
+          print("max_parallel={}".format(int(max_parallel)))
+          print("candidate_count={}".format(candidate_count))
+          print("frontier_files={}".format(frontier_files))
+          print("rswap_pool_size={}".format(rswap_pool_size))
+          print("rswap_eval_cap={}".format(rswap_eval_cap))
+          print("max_wall_time_ms={}".format(max_wall_time_ms))
+          print("base_seed={}".format(base_seed))
+          print("shard_count={}".format(int(shard_count)))
+          print("output_root={}".format(output_root))
+          print("experiment_name={}".format(experiment_name))
+          PY
+
+  shard:
+    name: Wall diagnostics shard ${{ matrix.suffix }}
+    runs-on: ubuntu-24.04
+    needs:
+      - known-regression
+      - define-shards
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJson(needs.define-shards.outputs.max_parallel) }}
+      matrix: ${{ fromJson(needs.define-shards.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run p167 wall diagnostics shard
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-low-score-wall-diagnostics' }}
+          CANDIDATE_COUNT: ${{ needs.define-shards.outputs.candidate_count }}
+          FRONTIER_FILES: ${{ needs.define-shards.outputs.frontier_files }}
+          RSWAP_POOL_SIZE: ${{ needs.define-shards.outputs.rswap_pool_size }}
+          RSWAP_EVAL_CAP: ${{ needs.define-shards.outputs.rswap_eval_cap }}
+          MAX_WALL_TIME_MS: ${{ needs.define-shards.outputs.max_wall_time_ms }}
+          BASE_SEED: ${{ needs.define-shards.outputs.base_seed }}
+          SHARD_COUNT: ${{ needs.define-shards.outputs.shard_count }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.experiment_name }}
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_SUFFIX: ${{ matrix.suffix }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-${SHARD_SUFFIX}"
+          python3 analysis/p167_low_score_wall_diagnostics.py \
+            --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
+            --run-id "${safe_label}-${GITHUB_RUN_ID}" \
+            --frontier-files "$FRONTIER_FILES" \
+            --candidate-count "$CANDIDATE_COUNT" \
+            --rswap-pool-size "$RSWAP_POOL_SIZE" \
+            --rswap-eval-cap "$RSWAP_EVAL_CAP" \
+            --max-wall-time-ms "$MAX_WALL_TIME_MS" \
+            --base-seed "$BASE_SEED" \
+            --shard-id "$SHARD_INDEX" \
+            --shard-count "$SHARD_COUNT"
+      - name: Upload shard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p167_low_score_wall_diagnostics-${{ matrix.suffix }}-${{ github.run_id }}
+          path: outputs/p167_low_score_wall_diagnostics/**/*
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    name: Aggregate p167 wall diagnostics
+    runs-on: ubuntu-24.04
+    needs:
+      - define-shards
+      - shard
+    if: always() && needs.shard.result == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Download shard artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: p167_low_score_wall_diagnostics-*-${{ github.run_id }}
+          path: shard-artifacts
+      - name: Aggregate shard outputs
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-low-score-wall-diagnostics' }}
+          CANDIDATE_COUNT: ${{ needs.define-shards.outputs.candidate_count }}
+          SHARD_COUNT: ${{ needs.define-shards.outputs.shard_count }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.experiment_name }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-aggregate"
+          python3 analysis/p167_low_score_wall_diagnostics.py \
+            --aggregate \
+            --aggregate-input-dir shard-artifacts \
+            --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
+            --run-id "${safe_label}-${GITHUB_RUN_ID}" \
+            --candidate-count "$CANDIDATE_COUNT" \
+            --shard-count "$SHARD_COUNT"
+      - name: Upload aggregate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p167_low_score_wall_diagnostics_${{ github.run_id }}
+          path: outputs/p167_low_score_wall_diagnostics/**/*aggregate/**/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Slack notify
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        run: |
+          set -euo pipefail
+          status="${{ job.status }}"
+          text="p167 low score wall diagnostics ${status}: run ${{ github.run_id }}"
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          webhook = os.environ.get("SLACK_WEBHOOK_URL")
+          text = os.environ.get("SLACK_TEXT", "p167 low score wall diagnostics completed")
+          if webhook:
+              req = urllib.request.Request(webhook, data=json.dumps({"text": text}).encode("utf-8"), headers={"Content-Type": "application/json"})
+              urllib.request.urlopen(req, timeout=10).read()
+          PY
+        env:
+          SLACK_TEXT: p167 low score wall diagnostics ${{ job.status }} run ${{ github.run_id }}
