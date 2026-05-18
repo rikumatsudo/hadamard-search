@@ -1,0 +1,59 @@
+experiment: p167_local_branching_wall_check
+description: >
+  Restricted local-branching check for p167 c01/c05 wall candidates.
+  This is not a generator, filter, classifier, or reranker experiment.
+
+problem:
+  p: 167
+  tuple_classes:
+    - p167_c01
+    - p167_c05
+  candidates:
+    fixture: configs/fixtures/p167_local_branching_wall_candidates.jsonl
+    required:
+      - c01 score168
+      - c05 score164
+
+local_branching:
+  objective: score
+  exact_joint_update: "Delta n = h*f_tilde + f*h_tilde + h*h_tilde"
+  radius_definition: "sum_i |X_i triangle X_i0| / 2 <= r"
+  pool_modes:
+    - defect
+    - hybrid
+  pool_size_list:
+    - 6
+    - 8
+    - 10
+  radius_list:
+    - 2
+    - 3
+    - 4
+  restarts_per_cell: 4
+  block_candidate_cap_per_radius: 50000
+  global_eval_cap: 4000000
+  max_wall_time_ms: 120000
+
+github_actions:
+  workflow: .github/workflows/p167-local-branching-wall-check.yml
+  production_preset: p167-local-branching-wall-check-40
+  shard_count: 40
+  max_parallel: 40
+
+outputs:
+  root: outputs/p167_local_branching_wall_check
+  required:
+    - candidate_list.jsonl
+    - local_branch_rows.csv
+    - local_branch_rows.jsonl
+    - candidate_summary.csv
+    - parameter_summary.csv
+    - best_moves.jsonl
+    - score_under_160_candidates.jsonl
+    - score_under_120_candidates.jsonl
+    - score_under_100_candidates.jsonl
+    - score0_candidates.jsonl
+    - validation_report.json
+    - run_config.json
+    - README.md
+    - next_actions.md
