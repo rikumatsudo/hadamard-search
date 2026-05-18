@@ -1,0 +1,110 @@
+experiment_name: p167_fixed0123_nonmonotone_pair_lns
+description: >
+  fixed_01_23 non-monotone pair-level LNS on existing p167 low-score wall
+  candidates. This is not a generator, filter, classifier, or reranker run.
+
+problem:
+  p: 167
+  n: 668
+  tuple_classes:
+    - p167_c01
+    - p167_c05
+    - p167_c09
+
+inputs:
+  frontier_files:
+    - configs/fixtures/p167_c01_c05_best_frontier_focus_candidates.jsonl
+    - configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl
+    - configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl
+    - configs/fixtures/p167_frontier_repair_seed_candidates.jsonl
+    - configs/fixtures/benchmark_traps/p167_score164_176.jsonl
+    - configs/fixtures/p167_focused_nearhit_candidates.jsonl
+  tuple_registry: configs/fixtures/p167_tuple_classes.json
+
+fixed_split:
+  name: fixed_01_23
+  A: [0, 1]
+  B: [2, 3]
+  formula: "L_pair0123 = sum_{d != 0} (A(d)-B(d))^2"
+
+objective:
+  formula: "Obj = S + alpha L_pair0123"
+  exact_joint_update: "Delta n = h*f_tilde + f*h_tilde + h*h_tilde"
+  final_success_metric: score_after
+  intermediate_uphill_allowed: true
+
+operators:
+  - O0
+  - O1
+  - O2
+  - O3
+  - O4
+  - O5
+
+operator_names:
+  O0: score_only_baseline
+  O1: fixed0123_threshold_beam_r3
+  O2: fixed0123_threshold_beam_r5
+  O3: fixed0123_threshold_beam_r7
+  O4: fixed0123_pair_balanced_lns
+  O5: fixed0123_uphill_then_repair
+
+presets:
+  remote_smoke:
+    candidate_count: 3
+    operators: O0,O1
+    alpha_values: "0.0"
+    max_uphill_values: "16"
+    restarts_per_candidate_operator: 1
+    pool_size: 12
+    beam_width: 4
+    eval_cap_per_attempt: 80
+    max_wall_time_ms: 10000
+    shard_count: 1
+    max_parallel: 1
+    base_seed: 172123
+  p167_fixed0123_nonmonotone_pair_lns_40:
+    candidate_count: 40
+    operators: O0,O1,O2,O3,O4,O5
+    alpha_values: "0.0,0.1,0.25"
+    max_uphill_values: "32,64,128"
+    restarts_per_candidate_operator: 2
+    pool_size: 48
+    beam_width: 24
+    eval_cap_per_attempt: 3000
+    max_wall_time_ms: 90000
+    shard_count: 40
+    max_parallel: 40
+    base_seed: 172123
+
+outputs:
+  output_root: outputs/p167_fixed0123_nonmonotone_pair_lns
+  required_files:
+    - candidate_list.jsonl
+    - candidate_selection_summary.csv
+    - repair_rows.csv
+    - repair_rows.jsonl
+    - operator_summary.csv
+    - parameter_summary.csv
+    - candidate_operator_summary.csv
+    - wall_candidate_case_studies.md
+    - score_under_200_candidates.jsonl
+    - score_under_180_candidates.jsonl
+    - score_under_160_candidates.jsonl
+    - score_under_120_candidates.jsonl
+    - score_under_100_candidates.jsonl
+    - score0_candidates.jsonl
+    - validation_report.json
+    - run_config.json
+    - README.md
+    - next_actions.md
+
+decision_labels:
+  - Strong GO
+  - Weak GO
+  - No GO
+
+notes:
+  - Do not claim Hadamard 668 construction.
+  - Do not treat score0 as mathematical success until Sage SDS and HH^T validation passes.
+  - This run applies repair operators to existing candidates; it is not a filter experiment.
