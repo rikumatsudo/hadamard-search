@@ -207,8 +207,13 @@ def build_fixed0123_pools(p, blocks, rho, pool_size, rng):
 
 
 def random_allocation(total_radius, block_count, rng, balanced=False):
+    total_radius = int(total_radius)
+    if total_radius <= 0 or block_count <= 0:
+        return None
     max_blocks = min(block_count, total_radius)
     if balanced:
+        if total_radius <= 1:
+            return [(rng.randrange(block_count), total_radius)]
         # One left-pair and one right-pair block when possible.
         blocks = [rng.choice([0, 1]), rng.choice([2, 3])]
         if total_radius >= 3 and rng.random() < 0.35:
@@ -225,6 +230,8 @@ def random_allocation(total_radius, block_count, rng, balanced=False):
             r = remaining
         else:
             max_r = remaining - slots_left
+            if max_r < 1:
+                return None
             r = rng.randint(1, max_r)
         remaining -= r
         allocation.append((bidx, r))
@@ -233,6 +240,8 @@ def random_allocation(total_radius, block_count, rng, balanced=False):
 
 def sample_plan(p, pools, radius, rng, balanced=False):
     allocation = random_allocation(int(radius), len(pools), rng, balanced=balanced)
+    if not allocation:
+        return None
     plan = []
     for bidx, r in allocation:
         removes, adds = pools[bidx]
