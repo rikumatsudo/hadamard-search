@@ -17,6 +17,7 @@ on:
           - "remote-smoke"
           - "p167-targeted-deep-frontier-repair-40"
           - "p167-softwall-escape-frontier-repair-40"
+          - "p167-c01-c05-best-frontier-focus-40"
           - "custom"
       frontier_count:
         description: "Total frontier candidates to benchmark"
@@ -35,6 +36,11 @@ on:
         type: string
       max_repair_steps:
         description: "Max repair steps per candidate/operator"
+        required: false
+        default: "1"
+        type: string
+      restarts_per_operator:
+        description: "Restart attempts per frontier candidate and operator"
         required: false
         default: "1"
         type: string
@@ -96,6 +102,7 @@ on:
       - "scripts/dispatch_p167_targeted_deep_frontier_repair.py"
       - "configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl"
       - "configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl"
+      - "configs/fixtures/p167_c01_c05_best_frontier_focus_candidates.jsonl"
       - "configs/fixtures/p167_focused_nearhit_candidates.jsonl"
       - "configs/fixtures/p167_tuple_classes.json"
       - "analysis/p37_mixed3_movespace_guard.py"
@@ -144,6 +151,7 @@ jobs:
       frontier_files: ${{ steps.matrix.outputs.frontier_files }}
       operators: ${{ steps.matrix.outputs.operators }}
       max_repair_steps: ${{ steps.matrix.outputs.max_repair_steps }}
+      restarts_per_operator: ${{ steps.matrix.outputs.restarts_per_operator }}
       pool_size: ${{ steps.matrix.outputs.pool_size }}
       lns_pool_size: ${{ steps.matrix.outputs.lns_pool_size }}
       lns_radius: ${{ steps.matrix.outputs.lns_radius }}
@@ -164,6 +172,7 @@ jobs:
           FRONTIER_FILES: ${{ inputs.frontier_files || 'configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl' }}
           OPERATORS: ${{ inputs.operators || 'score_only_1swap_greedy,exact_joint_2swap_beam_deep' }}
           MAX_REPAIR_STEPS: ${{ inputs.max_repair_steps || '1' }}
+          RESTARTS_PER_OPERATOR: ${{ inputs.restarts_per_operator || '1' }}
           POOL_SIZE: ${{ inputs.pool_size || '8' }}
           LNS_POOL_SIZE: ${{ inputs.lns_pool_size || '10' }}
           LNS_RADIUS: ${{ inputs.lns_radius || '2' }}
@@ -195,6 +204,7 @@ jobs:
                   "restricted_exact_joint_lns_radius3_5"
               )
               max_repair_steps = "16"
+              restarts_per_operator = "1"
               pool_size = "40"
               lns_pool_size = "48"
               lns_radius = "5"
@@ -219,6 +229,7 @@ jobs:
                   "annealed_exact_joint_radius7_lns"
               )
               max_repair_steps = "40"
+              restarts_per_operator = "1"
               pool_size = "56"
               lns_pool_size = "72"
               lns_radius = "7"
@@ -229,6 +240,31 @@ jobs:
               base_seed = "168943"
               output_root = "outputs/p167_softwall_escape_frontier_repair"
               experiment_name = "p167_softwall_escape_frontier_repair"
+          elif preset == "p167-c01-c05-best-frontier-focus-40":
+              shard_count = 40
+              max_parallel = 40
+              frontier_count = "2"
+              frontier_files = "configs/fixtures/p167_c01_c05_best_frontier_focus_candidates.jsonl"
+              operators = (
+                  "score_only_1swap_greedy,"
+                  "exact_joint_2swap_beam_deep,"
+                  "exact_joint_3swap_beam,"
+                  "defect_targeted_destroy_repair_deep,"
+                  "pair_level_partial_defect_repair_deep,"
+                  "restricted_exact_joint_lns_radius3_5"
+              )
+              max_repair_steps = "80"
+              restarts_per_operator = "10"
+              pool_size = "72"
+              lns_pool_size = "72"
+              lns_radius = "7"
+              beam_width = "24"
+              eval_cap_per_step = "10000"
+              dmin_sample_count = "960"
+              max_wall_time_ms = "180000"
+              base_seed = "169211"
+              output_root = "outputs/p167_c01_c05_best_frontier_focus_repair"
+              experiment_name = "p167_c01_c05_best_frontier_focus_repair"
           else:
               shard_count = int(os.environ.get("SHARD_COUNT") or "1")
               max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
@@ -236,6 +272,7 @@ jobs:
               frontier_files = os.environ.get("FRONTIER_FILES") or "configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl"
               operators = os.environ.get("OPERATORS") or "score_only_1swap_greedy,exact_joint_2swap_beam_deep"
               max_repair_steps = os.environ.get("MAX_REPAIR_STEPS") or "1"
+              restarts_per_operator = os.environ.get("RESTARTS_PER_OPERATOR") or "1"
               pool_size = os.environ.get("POOL_SIZE") or "8"
               lns_pool_size = os.environ.get("LNS_POOL_SIZE") or "10"
               lns_radius = os.environ.get("LNS_RADIUS") or "2"
@@ -266,6 +303,7 @@ jobs:
           print("frontier_files={}".format(frontier_files))
           print("operators={}".format(operators))
           print("max_repair_steps={}".format(max_repair_steps))
+          print("restarts_per_operator={}".format(restarts_per_operator))
           print("pool_size={}".format(pool_size))
           print("lns_pool_size={}".format(lns_pool_size))
           print("lns_radius={}".format(lns_radius))
@@ -301,6 +339,7 @@ jobs:
           FRONTIER_FILES: ${{ needs.define-shards.outputs.frontier_files }}
           OPERATORS: ${{ needs.define-shards.outputs.operators }}
           MAX_REPAIR_STEPS: ${{ needs.define-shards.outputs.max_repair_steps }}
+          RESTARTS_PER_OPERATOR: ${{ needs.define-shards.outputs.restarts_per_operator }}
           POOL_SIZE: ${{ needs.define-shards.outputs.pool_size }}
           LNS_POOL_SIZE: ${{ needs.define-shards.outputs.lns_pool_size }}
           LNS_RADIUS: ${{ needs.define-shards.outputs.lns_radius }}
@@ -325,6 +364,7 @@ jobs:
             --frontier-count "$FRONTIER_COUNT" \
             --operators "$OPERATORS" \
             --max-repair-steps "$MAX_REPAIR_STEPS" \
+            --restarts-per-operator "$RESTARTS_PER_OPERATOR" \
             --pool-size "$POOL_SIZE" \
             --lns-pool-size "$LNS_POOL_SIZE" \
             --lns-radius "$LNS_RADIUS" \
@@ -367,6 +407,7 @@ jobs:
           OPERATORS: ${{ needs.define-shards.outputs.operators }}
           FRONTIER_COUNT: ${{ needs.define-shards.outputs.frontier_count }}
           MAX_REPAIR_STEPS: ${{ needs.define-shards.outputs.max_repair_steps }}
+          RESTARTS_PER_OPERATOR: ${{ needs.define-shards.outputs.restarts_per_operator }}
           POOL_SIZE: ${{ needs.define-shards.outputs.pool_size }}
           LNS_POOL_SIZE: ${{ needs.define-shards.outputs.lns_pool_size }}
           LNS_RADIUS: ${{ needs.define-shards.outputs.lns_radius }}
@@ -390,6 +431,7 @@ jobs:
             --frontier-count "$FRONTIER_COUNT" \
             --operators "$OPERATORS" \
             --max-repair-steps "$MAX_REPAIR_STEPS" \
+            --restarts-per-operator "$RESTARTS_PER_OPERATOR" \
             --pool-size "$POOL_SIZE" \
             --lns-pool-size "$LNS_POOL_SIZE" \
             --lns-radius "$LNS_RADIUS" \
