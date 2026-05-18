@@ -49,6 +49,23 @@ PRESETS = {
         "max_parallel": "40",
         "base_seed": "172123",
     },
+    "p167-fixed0123-c01-mobile-lns-40": {
+        "run_label": "p167-fixed0123-c01-mobile-lns-40x",
+        "candidate_count": "1",
+        "frontier_files": "configs/fixtures/p167_c01_fixed0123_score168.jsonl",
+        "tuple_classes": "p167_c01",
+        "operators": "O0,O1,O2,O5",
+        "alpha_values": "0.0,0.05,0.1,0.2,0.25,0.35",
+        "max_uphill_values": "16,24,32,48,64,96,128",
+        "restarts_per_candidate_operator": "8",
+        "pool_size": "72",
+        "beam_width": "36",
+        "eval_cap_per_attempt": "6000",
+        "max_wall_time_ms": "120000",
+        "shard_count": "40",
+        "max_parallel": "40",
+        "base_seed": "168431",
+    },
 }
 
 
@@ -56,6 +73,7 @@ INPUT_ORDER = [
     "run_label",
     "candidate_count",
     "frontier_files",
+    "tuple_classes",
     "operators",
     "alpha_values",
     "max_uphill_values",

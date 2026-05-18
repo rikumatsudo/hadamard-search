@@ -16,6 +16,7 @@ on:
         options:
           - "remote-smoke"
           - "p167-fixed0123-nonmonotone-pair-lns-40"
+          - "p167-fixed0123-c01-mobile-lns-40"
           - "custom"
       candidate_count:
         description: "Total candidates to repair"
@@ -26,6 +27,11 @@ on:
         description: "Comma-separated candidate fixture files"
         required: false
         default: "configs/fixtures/p167_c01_c05_best_frontier_focus_candidates.jsonl,configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl,configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl,configs/fixtures/p167_frontier_repair_seed_candidates.jsonl,configs/fixtures/benchmark_traps/p167_score164_176.jsonl,configs/fixtures/p167_focused_nearhit_candidates.jsonl"
+        type: string
+      tuple_classes:
+        description: "Comma-separated tuple classes to include"
+        required: false
+        default: "p167_c01,p167_c05,p167_c09"
         type: string
       operators:
         description: "Comma-separated operator ids"
@@ -91,6 +97,7 @@ on:
       - "analysis/p167_frontier_repair_benchmark.py"
       - "analysis/p167_low_score_wall_diagnostics.py"
       - "configs/fixtures/p167_c01_c05_best_frontier_focus_candidates.jsonl"
+      - "configs/fixtures/p167_c01_fixed0123_score168.jsonl"
       - "configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl"
       - "configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl"
       - "configs/fixtures/p167_frontier_repair_seed_candidates.jsonl"
@@ -137,6 +144,7 @@ jobs:
       max_parallel: ${{ steps.matrix.outputs.max_parallel }}
       candidate_count: ${{ steps.matrix.outputs.candidate_count }}
       frontier_files: ${{ steps.matrix.outputs.frontier_files }}
+      tuple_classes: ${{ steps.matrix.outputs.tuple_classes }}
       operators: ${{ steps.matrix.outputs.operators }}
       alpha_values: ${{ steps.matrix.outputs.alpha_values }}
       max_uphill_values: ${{ steps.matrix.outputs.max_uphill_values }}
@@ -156,6 +164,7 @@ jobs:
           PRESET: ${{ inputs.preset || 'remote-smoke' }}
           CANDIDATE_COUNT: ${{ inputs.candidate_count || '3' }}
           FRONTIER_FILES: ${{ inputs.frontier_files || 'configs/fixtures/p167_c01_c05_best_frontier_focus_candidates.jsonl,configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl,configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl,configs/fixtures/p167_frontier_repair_seed_candidates.jsonl,configs/fixtures/benchmark_traps/p167_score164_176.jsonl,configs/fixtures/p167_focused_nearhit_candidates.jsonl' }}
+          TUPLE_CLASSES: ${{ inputs.tuple_classes || 'p167_c01,p167_c05,p167_c09' }}
           OPERATORS: ${{ inputs.operators || 'O0,O1' }}
           ALPHA_VALUES: ${{ inputs.alpha_values || '0.0' }}
           MAX_UPHILL_VALUES: ${{ inputs.max_uphill_values || '16' }}
@@ -189,11 +198,28 @@ jobs:
               eval_cap = "3000"
               max_wall = "90000"
               base_seed = "172123"
+              tuple_classes = "p167_c01,p167_c05,p167_c09"
+          elif preset == "p167-fixed0123-c01-mobile-lns-40":
+              shard_count = 40
+              max_parallel = 40
+              candidate_count = "1"
+              frontier_files = "configs/fixtures/p167_c01_fixed0123_score168.jsonl"
+              tuple_classes = "p167_c01"
+              operators = "O0,O1,O2,O5"
+              alpha_values = "0.0,0.05,0.1,0.2,0.25,0.35"
+              max_uphill_values = "16,24,32,48,64,96,128"
+              restarts = "8"
+              pool_size = "72"
+              beam_width = "36"
+              eval_cap = "6000"
+              max_wall = "120000"
+              base_seed = "168431"
           else:
               shard_count = int(os.environ.get("SHARD_COUNT") or "1")
               max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
               candidate_count = os.environ.get("CANDIDATE_COUNT") or "3"
               frontier_files = os.environ.get("FRONTIER_FILES") or default_files
+              tuple_classes = os.environ.get("TUPLE_CLASSES") or "p167_c01,p167_c05,p167_c09"
               operators = os.environ.get("OPERATORS") or "O0,O1"
               alpha_values = os.environ.get("ALPHA_VALUES") or "0.0"
               max_uphill_values = os.environ.get("MAX_UPHILL_VALUES") or "16"
@@ -210,6 +236,7 @@ jobs:
           print("max_parallel={}".format(int(max_parallel)))
           print("candidate_count={}".format(candidate_count))
           print("frontier_files={}".format(frontier_files))
+          print("tuple_classes={}".format(tuple_classes))
           print("operators={}".format(operators))
           print("alpha_values={}".format(alpha_values))
           print("max_uphill_values={}".format(max_uphill_values))
@@ -242,6 +269,7 @@ jobs:
           RUN_LABEL: ${{ inputs.run_label || 'p167-fixed0123-nonmonotone-pair-lns' }}
           CANDIDATE_COUNT: ${{ needs.define-shards.outputs.candidate_count }}
           FRONTIER_FILES: ${{ needs.define-shards.outputs.frontier_files }}
+          TUPLE_CLASSES: ${{ needs.define-shards.outputs.tuple_classes }}
           OPERATORS: ${{ needs.define-shards.outputs.operators }}
           ALPHA_VALUES: ${{ needs.define-shards.outputs.alpha_values }}
           MAX_UPHILL_VALUES: ${{ needs.define-shards.outputs.max_uphill_values }}
@@ -266,6 +294,7 @@ jobs:
             --experiment-name "$EXPERIMENT_NAME" \
             --run-id "${safe_label}-${GITHUB_RUN_ID}" \
             --frontier-files "$FRONTIER_FILES" \
+            --tuple-classes "$TUPLE_CLASSES" \
             --candidate-count "$CANDIDATE_COUNT" \
             --operators "$OPERATORS" \
             --alpha-values "$ALPHA_VALUES" \
