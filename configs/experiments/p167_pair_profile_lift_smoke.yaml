@@ -1,20 +1,33 @@
 experiment: p167_pair_profile_lift_smoke
 description: >
   Broad, shallow test of the pair split profile -> block lift representation
-  for p167 c01/c05 wall candidates. This is not a filter, classifier,
-  reranker, or deep repair experiment.
+  for p167 c01/c05 wall candidates and tuple-wide representatives. This is
+  not a filter, classifier, reranker, or deep repair experiment.
 
 problem:
   p: 167
-  split: fixed_01_23
+  split_modes:
+    - fixed_01_23
+    - fixed_02_13
+    - fixed_03_12
   tuple_classes:
     - p167_c01
+    - p167_c02
+    - p167_c03
+    - p167_c04
     - p167_c05
+    - p167_c06
+    - p167_c07
+    - p167_c08
+    - p167_c09
+    - p167_c10
   candidates:
     fixture: configs/fixtures/p167_local_branching_wall_candidates.jsonl
-    required:
-      - c01 score168
-      - c05 score164
+    tuplewide_policy: >
+      Use up to three existing fixture candidates per tuple class where
+      available; fill missing tuple classes with deterministic tuple-registry
+      representatives. Synthetic representatives are source seeds only, not
+      post-hoc selected outputs.
 
 representation:
   pair_a: [0, 1]
@@ -51,6 +64,7 @@ local_lift:
 github_actions:
   workflow: .github/workflows/p167-pair-profile-lift-smoke.yml
   production_preset: p167-pair-profile-lift-smoke-40
+  tuplewide_preset: p167-pair-profile-lift-tuplewide-40
   shard_count: 40
   max_parallel: 40
 
@@ -64,6 +78,8 @@ outputs:
     - target_mode_summary.csv
     - init_mode_summary.csv
     - tuple_target_summary.csv
+    - split_summary.csv
+    - tuple_split_summary.csv
     - best_lift_candidates.jsonl
     - score_under_300_candidates.jsonl
     - score_under_200_candidates.jsonl

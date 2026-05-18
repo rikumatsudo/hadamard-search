@@ -16,16 +16,37 @@ on:
         options:
           - "remote-smoke"
           - "p167-pair-profile-lift-smoke-40"
+          - "p167-pair-profile-lift-tuplewide-40"
           - "custom"
       candidate_count:
         description: "Candidate count"
         required: false
         default: "1"
         type: string
+      tuple_classes:
+        description: "Tuple classes, or all"
+        required: false
+        default: "p167_c01,p167_c05"
+        type: string
+      representatives_per_tuple:
+        description: "Representatives per tuple for tuple-wide runs"
+        required: false
+        default: "1"
+        type: string
+      auto_tuple_representatives:
+        description: "Fill missing tuple representatives deterministically"
+        required: false
+        default: "false"
+        type: string
       frontier_files:
         description: "Comma-separated candidate fixture files"
         required: false
         default: "configs/fixtures/p167_local_branching_wall_candidates.jsonl"
+        type: string
+      split_modes:
+        description: "Comma-separated pair split modes"
+        required: false
+        default: "fixed_01_23"
         type: string
       target_modes:
         description: "Comma-separated pair target modes"
@@ -71,6 +92,16 @@ on:
         description: "Sampled swaps per repair step"
         required: false
         default: "16"
+        type: string
+      source_repair_budget:
+        description: "Repair budget for synthetic source representatives"
+        required: false
+        default: "0"
+        type: string
+      source_repair_swap_sample_count:
+        description: "Sampled swaps for synthetic source repair"
+        required: false
+        default: "96"
         type: string
       max_wall_time_ms_per_lift:
         description: "Wall time cap per pair lift"
@@ -139,7 +170,11 @@ jobs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       max_parallel: ${{ steps.matrix.outputs.max_parallel }}
       candidate_count: ${{ steps.matrix.outputs.candidate_count }}
+      tuple_classes: ${{ steps.matrix.outputs.tuple_classes }}
+      representatives_per_tuple: ${{ steps.matrix.outputs.representatives_per_tuple }}
+      auto_tuple_representatives: ${{ steps.matrix.outputs.auto_tuple_representatives }}
       frontier_files: ${{ steps.matrix.outputs.frontier_files }}
+      split_modes: ${{ steps.matrix.outputs.split_modes }}
       target_modes: ${{ steps.matrix.outputs.target_modes }}
       init_modes: ${{ steps.matrix.outputs.init_modes }}
       restarts_per_cell: ${{ steps.matrix.outputs.restarts_per_cell }}
@@ -149,6 +184,8 @@ jobs:
       perturb_swaps: ${{ steps.matrix.outputs.perturb_swaps }}
       repair_budget: ${{ steps.matrix.outputs.repair_budget }}
       repair_swap_sample_count: ${{ steps.matrix.outputs.repair_swap_sample_count }}
+      source_repair_budget: ${{ steps.matrix.outputs.source_repair_budget }}
+      source_repair_swap_sample_count: ${{ steps.matrix.outputs.source_repair_swap_sample_count }}
       max_wall_time_ms_per_lift: ${{ steps.matrix.outputs.max_wall_time_ms_per_lift }}
       base_seed: ${{ steps.matrix.outputs.base_seed }}
       shard_count: ${{ steps.matrix.outputs.shard_count }}
@@ -160,7 +197,11 @@ jobs:
         env:
           PRESET: ${{ inputs.preset || 'remote-smoke' }}
           CANDIDATE_COUNT: ${{ inputs.candidate_count || '1' }}
+          TUPLE_CLASSES: ${{ inputs.tuple_classes || 'p167_c01,p167_c05' }}
+          REPRESENTATIVES_PER_TUPLE: ${{ inputs.representatives_per_tuple || '1' }}
+          AUTO_TUPLE_REPRESENTATIVES: ${{ inputs.auto_tuple_representatives || 'false' }}
           FRONTIER_FILES: ${{ inputs.frontier_files || 'configs/fixtures/p167_local_branching_wall_candidates.jsonl' }}
+          SPLIT_MODES: ${{ inputs.split_modes || 'fixed_01_23' }}
           TARGET_MODES: ${{ inputs.target_modes || 'midpoint' }}
           INIT_MODES: ${{ inputs.init_modes || 'random,seed' }}
           RESTARTS_PER_CELL: ${{ inputs.restarts_per_cell || '1' }}
@@ -170,6 +211,8 @@ jobs:
           PERTURB_SWAPS: ${{ inputs.perturb_swaps || '2' }}
           REPAIR_BUDGET: ${{ inputs.repair_budget || '1' }}
           REPAIR_SWAP_SAMPLE_COUNT: ${{ inputs.repair_swap_sample_count || '16' }}
+          SOURCE_REPAIR_BUDGET: ${{ inputs.source_repair_budget || '0' }}
+          SOURCE_REPAIR_SWAP_SAMPLE_COUNT: ${{ inputs.source_repair_swap_sample_count || '96' }}
           MAX_WALL_TIME_MS_PER_LIFT: ${{ inputs.max_wall_time_ms_per_lift || '5000' }}
           BASE_SEED: ${{ inputs.base_seed || '167512' }}
           SHARD_COUNT: ${{ inputs.shard_count || '1' }}
@@ -185,7 +228,11 @@ jobs:
               shard_count = 40
               max_parallel = 40
               candidate_count = "2"
+              tuple_classes = "p167_c01,p167_c05"
+              representatives_per_tuple = "1"
+              auto_tuple_representatives = "false"
               frontier_files = "configs/fixtures/p167_local_branching_wall_candidates.jsonl"
+              split_modes = "fixed_01_23"
               target_modes = "midpoint,seed_left,seed_right_complement,lambda_half,jitter_midpoint"
               init_modes = "random,seed,perturbed_seed"
               restarts_per_cell = "12"
@@ -195,13 +242,48 @@ jobs:
               perturb_swaps = "8"
               repair_budget = "6"
               repair_swap_sample_count = "96"
+              source_repair_budget = "0"
+              source_repair_swap_sample_count = "96"
               max_wall_time_ms_per_lift = "15000"
               base_seed = "167512"
+          elif preset == "p167-pair-profile-lift-tuplewide-40":
+              shard_count = 40
+              max_parallel = 40
+              candidate_count = "30"
+              tuple_classes = "all"
+              representatives_per_tuple = "3"
+              auto_tuple_representatives = "true"
+              frontier_files = ",".join([
+                  "configs/fixtures/p167_local_branching_wall_candidates.jsonl",
+                  "configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl",
+                  "configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl",
+                  "configs/fixtures/p167_frontier_repair_seed_candidates.jsonl",
+                  "configs/fixtures/p167_focused_nearhit_candidates.jsonl",
+                  "configs/fixtures/benchmark_traps/p167_score164_176.jsonl",
+              ])
+              split_modes = "fixed_01_23,fixed_02_13,fixed_03_12"
+              target_modes = "midpoint,seed_left,seed_right_complement,jitter_midpoint"
+              init_modes = "random,seed,perturbed_seed"
+              restarts_per_cell = "4"
+              lift_steps = "50"
+              swap_sample_count = "96"
+              temperature = "0.0"
+              perturb_swaps = "8"
+              repair_budget = "6"
+              repair_swap_sample_count = "96"
+              source_repair_budget = "3"
+              source_repair_swap_sample_count = "96"
+              max_wall_time_ms_per_lift = "12000"
+              base_seed = "167613"
           else:
               shard_count = int(os.environ.get("SHARD_COUNT") or "1")
               max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
               candidate_count = os.environ.get("CANDIDATE_COUNT") or "1"
+              tuple_classes = os.environ.get("TUPLE_CLASSES") or "p167_c01,p167_c05"
+              representatives_per_tuple = os.environ.get("REPRESENTATIVES_PER_TUPLE") or "1"
+              auto_tuple_representatives = os.environ.get("AUTO_TUPLE_REPRESENTATIVES") or "false"
               frontier_files = os.environ.get("FRONTIER_FILES") or "configs/fixtures/p167_local_branching_wall_candidates.jsonl"
+              split_modes = os.environ.get("SPLIT_MODES") or "fixed_01_23"
               target_modes = os.environ.get("TARGET_MODES") or "midpoint"
               init_modes = os.environ.get("INIT_MODES") or "random,seed"
               restarts_per_cell = os.environ.get("RESTARTS_PER_CELL") or "1"
@@ -211,6 +293,8 @@ jobs:
               perturb_swaps = os.environ.get("PERTURB_SWAPS") or "2"
               repair_budget = os.environ.get("REPAIR_BUDGET") or "1"
               repair_swap_sample_count = os.environ.get("REPAIR_SWAP_SAMPLE_COUNT") or "16"
+              source_repair_budget = os.environ.get("SOURCE_REPAIR_BUDGET") or "0"
+              source_repair_swap_sample_count = os.environ.get("SOURCE_REPAIR_SWAP_SAMPLE_COUNT") or "96"
               max_wall_time_ms_per_lift = os.environ.get("MAX_WALL_TIME_MS_PER_LIFT") or "5000"
               base_seed = os.environ.get("BASE_SEED") or "167512"
           output_root = "outputs/p167_pair_profile_lift_smoke"
@@ -219,7 +303,11 @@ jobs:
           print("matrix={}".format(json.dumps(matrix, separators=(",", ":"))))
           print("max_parallel={}".format(int(max_parallel)))
           print("candidate_count={}".format(candidate_count))
+          print("tuple_classes={}".format(tuple_classes))
+          print("representatives_per_tuple={}".format(representatives_per_tuple))
+          print("auto_tuple_representatives={}".format(auto_tuple_representatives))
           print("frontier_files={}".format(frontier_files))
+          print("split_modes={}".format(split_modes))
           print("target_modes={}".format(target_modes))
           print("init_modes={}".format(init_modes))
           print("restarts_per_cell={}".format(restarts_per_cell))
@@ -229,6 +317,8 @@ jobs:
           print("perturb_swaps={}".format(perturb_swaps))
           print("repair_budget={}".format(repair_budget))
           print("repair_swap_sample_count={}".format(repair_swap_sample_count))
+          print("source_repair_budget={}".format(source_repair_budget))
+          print("source_repair_swap_sample_count={}".format(source_repair_swap_sample_count))
           print("max_wall_time_ms_per_lift={}".format(max_wall_time_ms_per_lift))
           print("base_seed={}".format(base_seed))
           print("shard_count={}".format(int(shard_count)))
@@ -253,7 +343,11 @@ jobs:
         env:
           RUN_LABEL: ${{ inputs.run_label || 'p167-pair-profile-lift-smoke' }}
           CANDIDATE_COUNT: ${{ needs.define-shards.outputs.candidate_count }}
+          TUPLE_CLASSES: ${{ needs.define-shards.outputs.tuple_classes }}
+          REPRESENTATIVES_PER_TUPLE: ${{ needs.define-shards.outputs.representatives_per_tuple }}
+          AUTO_TUPLE_REPRESENTATIVES: ${{ needs.define-shards.outputs.auto_tuple_representatives }}
           FRONTIER_FILES: ${{ needs.define-shards.outputs.frontier_files }}
+          SPLIT_MODES: ${{ needs.define-shards.outputs.split_modes }}
           TARGET_MODES: ${{ needs.define-shards.outputs.target_modes }}
           INIT_MODES: ${{ needs.define-shards.outputs.init_modes }}
           RESTARTS_PER_CELL: ${{ needs.define-shards.outputs.restarts_per_cell }}
@@ -263,6 +357,8 @@ jobs:
           PERTURB_SWAPS: ${{ needs.define-shards.outputs.perturb_swaps }}
           REPAIR_BUDGET: ${{ needs.define-shards.outputs.repair_budget }}
           REPAIR_SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.repair_swap_sample_count }}
+          SOURCE_REPAIR_BUDGET: ${{ needs.define-shards.outputs.source_repair_budget }}
+          SOURCE_REPAIR_SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.source_repair_swap_sample_count }}
           MAX_WALL_TIME_MS_PER_LIFT: ${{ needs.define-shards.outputs.max_wall_time_ms_per_lift }}
           BASE_SEED: ${{ needs.define-shards.outputs.base_seed }}
           SHARD_COUNT: ${{ needs.define-shards.outputs.shard_count }}
@@ -274,6 +370,10 @@ jobs:
           set -euo pipefail
           safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
           out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-${SHARD_SUFFIX}"
+          auto_args=()
+          if [ "$AUTO_TUPLE_REPRESENTATIVES" = "true" ]; then
+            auto_args+=(--auto-tuple-representatives)
+          fi
           python3 analysis/p167_pair_profile_lift_smoke.py \
             --out-dir "$out_dir" \
             --output-root "$OUTPUT_ROOT" \
@@ -281,6 +381,9 @@ jobs:
             --run-id "${safe_label}-${GITHUB_RUN_ID}" \
             --frontier-files "$FRONTIER_FILES" \
             --candidate-count "$CANDIDATE_COUNT" \
+            --tuple-classes "$TUPLE_CLASSES" \
+            --representatives-per-tuple "$REPRESENTATIVES_PER_TUPLE" \
+            --split-modes "$SPLIT_MODES" \
             --target-modes "$TARGET_MODES" \
             --init-modes "$INIT_MODES" \
             --restarts-per-cell "$RESTARTS_PER_CELL" \
@@ -290,10 +393,13 @@ jobs:
             --perturb-swaps "$PERTURB_SWAPS" \
             --repair-budget "$REPAIR_BUDGET" \
             --repair-swap-sample-count "$REPAIR_SWAP_SAMPLE_COUNT" \
+            --source-repair-budget "$SOURCE_REPAIR_BUDGET" \
+            --source-repair-swap-sample-count "$SOURCE_REPAIR_SWAP_SAMPLE_COUNT" \
             --max-wall-time-ms-per-lift "$MAX_WALL_TIME_MS_PER_LIFT" \
             --base-seed "$BASE_SEED" \
             --shard-id "$SHARD_INDEX" \
-            --shard-count "$SHARD_COUNT"
+            --shard-count "$SHARD_COUNT" \
+            "${auto_args[@]}"
       - name: Upload shard artifact
         uses: actions/upload-artifact@v4
         with:
@@ -321,6 +427,10 @@ jobs:
         env:
           RUN_LABEL: ${{ inputs.run_label || 'p167-pair-profile-lift-smoke' }}
           CANDIDATE_COUNT: ${{ needs.define-shards.outputs.candidate_count }}
+          TUPLE_CLASSES: ${{ needs.define-shards.outputs.tuple_classes }}
+          REPRESENTATIVES_PER_TUPLE: ${{ needs.define-shards.outputs.representatives_per_tuple }}
+          AUTO_TUPLE_REPRESENTATIVES: ${{ needs.define-shards.outputs.auto_tuple_representatives }}
+          SPLIT_MODES: ${{ needs.define-shards.outputs.split_modes }}
           TARGET_MODES: ${{ needs.define-shards.outputs.target_modes }}
           INIT_MODES: ${{ needs.define-shards.outputs.init_modes }}
           RESTARTS_PER_CELL: ${{ needs.define-shards.outputs.restarts_per_cell }}
@@ -330,6 +440,8 @@ jobs:
           PERTURB_SWAPS: ${{ needs.define-shards.outputs.perturb_swaps }}
           REPAIR_BUDGET: ${{ needs.define-shards.outputs.repair_budget }}
           REPAIR_SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.repair_swap_sample_count }}
+          SOURCE_REPAIR_BUDGET: ${{ needs.define-shards.outputs.source_repair_budget }}
+          SOURCE_REPAIR_SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.source_repair_swap_sample_count }}
           MAX_WALL_TIME_MS_PER_LIFT: ${{ needs.define-shards.outputs.max_wall_time_ms_per_lift }}
           SHARD_COUNT: ${{ needs.define-shards.outputs.shard_count }}
           OUTPUT_ROOT: ${{ needs.define-shards.outputs.output_root }}
@@ -346,6 +458,9 @@ jobs:
             --experiment-name "$EXPERIMENT_NAME" \
             --run-id "${safe_label}-${GITHUB_RUN_ID}" \
             --candidate-count "$CANDIDATE_COUNT" \
+            --tuple-classes "$TUPLE_CLASSES" \
+            --representatives-per-tuple "$REPRESENTATIVES_PER_TUPLE" \
+            --split-modes "$SPLIT_MODES" \
             --target-modes "$TARGET_MODES" \
             --init-modes "$INIT_MODES" \
             --restarts-per-cell "$RESTARTS_PER_CELL" \
@@ -355,6 +470,8 @@ jobs:
             --perturb-swaps "$PERTURB_SWAPS" \
             --repair-budget "$REPAIR_BUDGET" \
             --repair-swap-sample-count "$REPAIR_SWAP_SAMPLE_COUNT" \
+            --source-repair-budget "$SOURCE_REPAIR_BUDGET" \
+            --source-repair-swap-sample-count "$SOURCE_REPAIR_SWAP_SAMPLE_COUNT" \
             --max-wall-time-ms-per-lift "$MAX_WALL_TIME_MS_PER_LIFT" \
             --shard-count "$SHARD_COUNT"
       - name: Validate score0 candidates if present
