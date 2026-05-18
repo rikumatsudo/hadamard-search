@@ -245,7 +245,254 @@ def search_local_branch(block_moves_by_block, base_score, radius, global_eval_ca
     return best, int(evaluations), bool(capped), bool(timed_out)
 
 
-def exact_local_branching_check(candidate, args, pool_mode, pool_size, radius, restart_id):
+def limit_solver_moves(block_moves_by_block, move_cap_per_block):
+    limited = []
+    truncated = False
+    for moves in block_moves_by_block:
+        zero = [move for move in moves if int(move.get("radius", 0)) == 0]
+        nonzero = [move for move in moves if int(move.get("radius", 0)) > 0]
+        nonzero.sort(key=lambda row: (int(row["effect"]), int(row["radius"]), row["block"], row["removes"], row["adds"]))
+        keep = max(0, int(move_cap_per_block) - len(zero))
+        if len(nonzero) > keep:
+            truncated = True
+        limited.append(zero + nonzero[:keep])
+    return limited, truncated
+
+
+def state_from_moves(base_score, moves, current_delta=None, current_effect=0):
+    delta = dict(current_delta or {})
+    effect = int(current_effect)
+    plan = []
+    used_radius = 0
+    for move in moves:
+        if int(move.get("radius", 0)) <= 0:
+            continue
+        effect += int(move["effect"]) + 2 * sparse_dot(delta, move["delta"])
+        sparse_add_inplace(delta, move["delta"])
+        plan.append(move)
+        used_radius += int(move["radius"])
+    return {
+        "score": int(base_score + effect),
+        "effect": int(effect),
+        "plan": [dict(move) for move in plan],
+        "radius": int(used_radius),
+        "delta": delta,
+    }
+
+
+def combine_pair_states(moves_a, moves_b, radius, state_cap_per_radius, started, max_wall_time_ms):
+    by_radius = {r: [] for r in range(int(radius) + 1)}
+    evaluations = 0
+    capped = False
+    timed_out = False
+    for a in moves_a:
+        ra = int(a["radius"])
+        if ra > int(radius):
+            continue
+        for b in moves_b:
+            if (time.time() - started) * 1000.0 >= float(max_wall_time_ms):
+                timed_out = True
+                break
+            rb = int(b["radius"])
+            total_radius = ra + rb
+            if total_radius > int(radius):
+                continue
+            evaluations += 1
+            effect = int(a["effect"]) + int(b["effect"]) + 2 * sparse_dot(a["delta"], b["delta"])
+            delta = dict(a["delta"])
+            sparse_add_inplace(delta, b["delta"])
+            state = {
+                "radius": int(total_radius),
+                "effect": int(effect),
+                "delta": delta,
+                "plan": [dict(move) for move in (a, b) if int(move.get("radius", 0)) > 0],
+            }
+            bucket = by_radius[total_radius]
+            bucket.append(state)
+            if len(bucket) > int(state_cap_per_radius):
+                capped = True
+                bucket.sort(key=lambda row: (int(row["effect"]), int(row["radius"])))
+                del bucket[int(state_cap_per_radius) :]
+        if timed_out:
+            break
+    for bucket in by_radius.values():
+        bucket.sort(key=lambda row: (int(row["effect"]), int(row["radius"])))
+    return by_radius, int(evaluations), bool(capped), bool(timed_out)
+
+
+def flatten_states(by_radius):
+    states = []
+    for radius in sorted(by_radius):
+        states.extend(by_radius[radius])
+    states.sort(key=lambda row: (int(row["effect"]), int(row["radius"])))
+    return states
+
+
+def search_local_branch_mitm(block_moves_by_block, base_score, radius, global_eval_cap, state_cap_per_radius, started, max_wall_time_ms):
+    if len(block_moves_by_block) != 4:
+        return search_local_branch(block_moves_by_block, base_score, radius, global_eval_cap, started, max_wall_time_ms)
+    left_by_radius, left_evals, left_capped, left_timeout = combine_pair_states(
+        block_moves_by_block[0],
+        block_moves_by_block[1],
+        radius,
+        state_cap_per_radius,
+        started,
+        max_wall_time_ms,
+    )
+    if left_timeout:
+        return {"score": int(base_score), "effect": 0, "plan": [], "radius": 0, "delta": {}}, left_evals, left_capped, True
+    right_by_radius, right_evals, right_capped, right_timeout = combine_pair_states(
+        block_moves_by_block[2],
+        block_moves_by_block[3],
+        radius,
+        state_cap_per_radius,
+        started,
+        max_wall_time_ms,
+    )
+    evaluations = int(left_evals + right_evals)
+    if right_timeout:
+        return {"score": int(base_score), "effect": 0, "plan": [], "radius": 0, "delta": {}}, evaluations, bool(left_capped or right_capped), True
+    left_states = flatten_states(left_by_radius)
+    right_states = flatten_states(right_by_radius)
+    best = {"score": int(base_score), "effect": 0, "plan": [], "radius": 0, "delta": {}}
+    capped = bool(left_capped or right_capped)
+    timed_out = False
+    for left in left_states:
+        if timed_out or capped and evaluations >= int(global_eval_cap):
+            break
+        for right in right_states:
+            if (time.time() - started) * 1000.0 >= float(max_wall_time_ms):
+                timed_out = True
+                break
+            if int(left["radius"]) + int(right["radius"]) > int(radius):
+                continue
+            evaluations += 1
+            effect = int(left["effect"]) + int(right["effect"]) + 2 * sparse_dot(left["delta"], right["delta"])
+            score = int(base_score + effect)
+            if score < int(best["score"]):
+                delta = dict(left["delta"])
+                sparse_add_inplace(delta, right["delta"])
+                best = {
+                    "score": int(score),
+                    "effect": int(effect),
+                    "plan": [dict(move) for move in left["plan"] + right["plan"]],
+                    "radius": int(left["radius"]) + int(right["radius"]),
+                    "delta": delta,
+                }
+            if evaluations >= int(global_eval_cap):
+                capped = True
+                break
+    return best, int(evaluations), bool(capped), bool(timed_out)
+
+
+def search_local_branch_cp_sat(block_moves_by_block, base_score, radius, args, started):
+    try:
+        from ortools.sat.python import cp_model
+    except Exception as exc:
+        return (
+            {"score": int(base_score), "effect": 0, "plan": [], "radius": 0, "delta": {}},
+            0,
+            True,
+            False,
+            "cp_sat_unavailable:{}".format(type(exc).__name__),
+        )
+
+    move_lists, truncated = limit_solver_moves(block_moves_by_block, int(args.cp_sat_move_cap_per_block))
+    model = cp_model.CpModel()
+    x = {}
+    for bidx, moves in enumerate(move_lists):
+        vars_for_block = []
+        for midx, _move in enumerate(moves):
+            var = model.NewBoolVar("x_{}_{}".format(bidx, midx))
+            x[(bidx, midx)] = var
+            vars_for_block.append(var)
+        model.Add(sum(vars_for_block) == 1)
+    model.Add(
+        sum(
+            int(move_lists[bidx][midx]["radius"]) * var
+            for (bidx, midx), var in x.items()
+        )
+        <= int(radius)
+    )
+    terms = []
+    for (bidx, midx), var in x.items():
+        effect = int(move_lists[bidx][midx]["effect"])
+        if effect:
+            terms.append(effect * var)
+    pair_var_count = 0
+    for b1 in range(len(move_lists)):
+        for b2 in range(b1 + 1, len(move_lists)):
+            for m1, move1 in enumerate(move_lists[b1]):
+                if int(move1["radius"]) == 0:
+                    continue
+                for m2, move2 in enumerate(move_lists[b2]):
+                    if int(move2["radius"]) == 0:
+                        continue
+                    coeff = 2 * sparse_dot(move1["delta"], move2["delta"])
+                    if coeff == 0:
+                        continue
+                    y = model.NewBoolVar("y_{}_{}_{}_{}".format(b1, m1, b2, m2))
+                    model.Add(y <= x[(b1, m1)])
+                    model.Add(y <= x[(b2, m2)])
+                    model.Add(y >= x[(b1, m1)] + x[(b2, m2)] - 1)
+                    terms.append(int(coeff) * y)
+                    pair_var_count += 1
+    model.Minimize(sum(terms) if terms else 0)
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = max(0.1, float(args.cp_sat_time_limit_seconds))
+    solver.parameters.num_search_workers = int(args.cp_sat_workers)
+    status = solver.Solve(model)
+    status_name = solver.StatusName(status)
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return (
+            {"score": int(base_score), "effect": 0, "plan": [], "radius": 0, "delta": {}},
+            int(pair_var_count),
+            bool(truncated or status != cp_model.OPTIMAL),
+            False,
+            "cp_sat_{}".format(status_name),
+        )
+    selected = []
+    for bidx, moves in enumerate(move_lists):
+        for midx, move in enumerate(moves):
+            if solver.BooleanValue(x[(bidx, midx)]):
+                selected.append(move)
+                break
+    best = state_from_moves(base_score, selected)
+    cp_complete = (status == cp_model.OPTIMAL) and not truncated
+    return best, int(pair_var_count), not cp_complete, False, "cp_sat_{}".format(status_name)
+
+
+def run_solver(block_moves, score_before, radius, args, started):
+    mode = str(args.current_solver_mode)
+    if mode == "dfs":
+        best, combo_evals, combo_capped, combo_timeout = search_local_branch(
+            block_moves,
+            score_before,
+            int(radius),
+            int(args.global_eval_cap),
+            started,
+            float(args.max_wall_time_ms),
+        )
+        return best, combo_evals, combo_capped, combo_timeout, "dfs"
+    if mode == "mitm":
+        solver_moves, truncated = limit_solver_moves(block_moves, int(args.solver_move_cap_per_block))
+        best, combo_evals, combo_capped, combo_timeout = search_local_branch_mitm(
+            solver_moves,
+            score_before,
+            int(radius),
+            int(args.global_eval_cap),
+            int(args.mitm_state_cap_per_radius),
+            started,
+            float(args.max_wall_time_ms),
+        )
+        status = "mitm"
+        return best, combo_evals, bool(combo_capped or truncated), combo_timeout, status
+    if mode == "cp_sat":
+        return search_local_branch_cp_sat(block_moves, score_before, radius, args, started)
+    raise ValueError("unknown solver mode {}".format(mode))
+
+
+def exact_local_branching_check(candidate, args, pool_mode, pool_size, radius, restart_id, solver_mode):
     p = int(args.p)
     blocks = [set(int(x) for x in block) for block in candidate["blocks"]]
     lam = int(candidate["lambda"])
@@ -256,10 +503,12 @@ def exact_local_branching_check(candidate, args, pool_mode, pool_size, radius, r
         + int(args.shard_id) * 10000000
         + stable_int(candidate["frontier_candidate_id"]) % 100000
         + stable_int(pool_mode) % 10000
+        + stable_int(solver_mode) % 1000
         + int(pool_size) * 100
         + int(radius) * 10
         + int(restart_id)
     )
+    args.current_solver_mode = solver_mode
     rng = random.Random(seed)
     started = time.time()
     pools = build_restricted_pools(p, blocks, rho, int(pool_size), rng, pool_mode)
@@ -290,19 +539,19 @@ def exact_local_branching_check(candidate, args, pool_mode, pool_size, radius, r
         timed_out = timed_out or bool(block_timeout)
         if timed_out:
             break
+    solver_status = solver_mode
     if timed_out:
         best = {"score": int(score_before), "effect": 0, "plan": [], "radius": 0, "delta": {}}
         combination_evals = 0
         combo_capped = False
         combo_timeout = True
     else:
-        best, combination_evals, combo_capped, combo_timeout = search_local_branch(
+        best, combination_evals, combo_capped, combo_timeout, solver_status = run_solver(
             block_moves,
             score_before,
             int(radius),
-            int(args.global_eval_cap),
+            args,
             started,
-            float(args.max_wall_time_ms),
         )
     elapsed_ms = int(round((time.time() - started) * 1000.0))
     timed_out = bool(timed_out or combo_timeout)
@@ -311,7 +560,12 @@ def exact_local_branching_check(candidate, args, pool_mode, pool_size, radius, r
     if block_capped:
         cap_reason.append("block_candidate_cap")
     if combo_capped:
-        cap_reason.append("global_eval_cap")
+        if int(combination_evals) >= int(args.global_eval_cap):
+            cap_reason.append("global_eval_cap")
+        elif "unavailable" in str(solver_status):
+            cap_reason.append("solver_unavailable")
+        else:
+            cap_reason.append("solver_partial")
     if timed_out:
         cap_reason.append("wall_time_cap")
     search_complete = not cap_reason
@@ -333,6 +587,12 @@ def exact_local_branching_check(candidate, args, pool_mode, pool_size, radius, r
         "ks": [len(block) for block in blocks],
         "initial_score": int(candidate["initial_score"]),
         "candidate_hash_before": candidate["canonical_hash_before"],
+        "solver_mode": solver_mode,
+        "solver_status": solver_status,
+        "solver_move_cap_per_block": int(args.solver_move_cap_per_block),
+        "mitm_state_cap_per_radius": int(args.mitm_state_cap_per_radius),
+        "cp_sat_move_cap_per_block": int(args.cp_sat_move_cap_per_block),
+        "cp_sat_time_limit_seconds": float(args.cp_sat_time_limit_seconds),
         "pool_mode": pool_mode,
         "pool_size": int(pool_size),
         "radius": int(radius),
@@ -372,20 +632,21 @@ def exact_local_branching_check(candidate, args, pool_mode, pool_size, radius, r
     return row
 
 
-def task_key(candidate, pool_mode, pool_size, radius, restart_id):
-    return "{}::{}::{}::{}::{}".format(candidate["frontier_candidate_id"], pool_mode, pool_size, radius, restart_id)
+def task_key(candidate, solver_mode, pool_mode, pool_size, radius, restart_id):
+    return "{}::{}::{}::{}::{}::{}".format(candidate["frontier_candidate_id"], solver_mode, pool_mode, pool_size, radius, restart_id)
 
 
-def shard_tasks(candidates, pool_modes, pool_sizes, radii, restarts, shard_id, shard_count):
+def shard_tasks(candidates, solver_modes, pool_modes, pool_sizes, radii, restarts, shard_id, shard_count):
     tasks = []
     for candidate in candidates:
-        for pool_mode in pool_modes:
-            for pool_size in pool_sizes:
-                for radius in radii:
-                    for restart_id in range(int(restarts)):
-                        key = task_key(candidate, pool_mode, pool_size, radius, restart_id)
-                        if stable_int(key) % int(shard_count) == int(shard_id):
-                            tasks.append((candidate, pool_mode, pool_size, radius, restart_id))
+        for solver_mode in solver_modes:
+            for pool_mode in pool_modes:
+                for pool_size in pool_sizes:
+                    for radius in radii:
+                        for restart_id in range(int(restarts)):
+                            key = task_key(candidate, solver_mode, pool_mode, pool_size, radius, restart_id)
+                            if stable_int(key) % int(shard_count) == int(shard_id):
+                                tasks.append((candidate, solver_mode, pool_mode, pool_size, radius, restart_id))
     return tasks
 
 
@@ -444,6 +705,7 @@ def write_readme(out_dir, config, rows, candidate_summary, parameter_summary):
         "- run_id: `{}`".format(config["run_id"]),
         "- candidate_count: `{}`".format(config["candidate_count"]),
         "- row_count: `{}`".format(len(rows)),
+        "- solver_modes: `{}`".format(config["solver_modes"]),
         "- pool_modes: `{}`".format(config["pool_modes"]),
         "- pool_size_list: `{}`".format(config["pool_size_list"]),
         "- radius_list: `{}`".format(config["radius_list"]),
@@ -463,7 +725,7 @@ def write_readme(out_dir, config, rows, candidate_summary, parameter_summary):
         "",
         base.markdown_table(
             best,
-            ["tuple_class", "candidate_id", "score_before", "best_score", "score_improvement", "pool_mode", "pool_size", "radius", "search_complete", "cap_reason", "combination_evaluations", "wall_time_ms"],
+            ["tuple_class", "candidate_id", "score_before", "best_score", "score_improvement", "solver_mode", "solver_status", "pool_mode", "pool_size", "radius", "search_complete", "cap_reason", "combination_evaluations", "wall_time_ms"],
             limit=10,
         ),
         "",
@@ -473,7 +735,7 @@ def write_readme(out_dir, config, rows, candidate_summary, parameter_summary):
         "",
         "## Parameter Summary",
         "",
-        base.markdown_table(parameter_summary, ["pool_mode", "pool_size", "radius", "row_count", "best_score", "median_best_score", "best_improvement", "improvement_rate", "search_complete_rate"], limit=40),
+        base.markdown_table(parameter_summary, ["solver_mode", "pool_mode", "pool_size", "radius", "row_count", "best_score", "median_best_score", "best_improvement", "improvement_rate", "search_complete_rate"], limit=60),
         "",
         "## Next Actions",
         "",
@@ -497,7 +759,7 @@ def write_next_actions(out_dir, rows):
         "",
         "Best observed rows:",
         "",
-        base.markdown_table(best, ["tuple_class", "candidate_id", "score_before", "best_score", "score_improvement", "pool_mode", "pool_size", "radius", "cap_reason"], limit=3),
+        base.markdown_table(best, ["tuple_class", "candidate_id", "score_before", "best_score", "score_improvement", "solver_mode", "solver_status", "pool_mode", "pool_size", "radius", "cap_reason"], limit=3),
         "",
     ]
     with open(os.path.join(out_dir, "next_actions.md"), "w") as f:
@@ -516,6 +778,12 @@ ROW_FIELDS = [
     "ks",
     "initial_score",
     "candidate_hash_before",
+    "solver_mode",
+    "solver_status",
+    "solver_move_cap_per_block",
+    "mitm_state_cap_per_radius",
+    "cp_sat_move_cap_per_block",
+    "cp_sat_time_limit_seconds",
     "pool_mode",
     "pool_size",
     "radius",
@@ -545,18 +813,23 @@ ROW_FIELDS = [
 def write_outputs(args, rows, candidates, out_dir):
     ensure_dir(out_dir)
     candidate_summary = summarize_group(rows, ["tuple_class", "candidate_id"])
-    parameter_summary = summarize_group(rows, ["pool_mode", "pool_size", "radius"])
+    parameter_summary = summarize_group(rows, ["solver_mode", "pool_mode", "pool_size", "radius"])
     config = {
         "experiment_name": args.experiment_name,
         "run_id": args.run_id,
         "candidate_count": len(candidates),
         "row_count": len(rows),
         "frontier_files": args.frontier_files,
+        "solver_modes": args.solver_modes,
         "pool_modes": args.pool_modes,
         "pool_size_list": args.pool_size_list,
         "radius_list": args.radius_list,
         "restarts_per_cell": int(args.restarts_per_cell),
         "block_candidate_cap_per_radius": int(args.block_candidate_cap_per_radius),
+        "solver_move_cap_per_block": int(args.solver_move_cap_per_block),
+        "mitm_state_cap_per_radius": int(args.mitm_state_cap_per_radius),
+        "cp_sat_move_cap_per_block": int(args.cp_sat_move_cap_per_block),
+        "cp_sat_time_limit_seconds": float(args.cp_sat_time_limit_seconds),
         "global_eval_cap": int(args.global_eval_cap),
         "max_wall_time_ms": int(args.max_wall_time_ms),
         "shard_id": int(args.shard_id),
@@ -580,27 +853,29 @@ def write_outputs(args, rows, candidates, out_dir):
 
 def run_mode(args):
     candidates = base.load_frontier_candidates(args)
+    solver_modes = parse_csv(args.solver_modes)
     pool_modes = parse_csv(args.pool_modes)
     pool_sizes = parse_csv(args.pool_size_list, int)
     radii = parse_csv(args.radius_list, int)
-    tasks = shard_tasks(candidates, pool_modes, pool_sizes, radii, int(args.restarts_per_cell), int(args.shard_id), int(args.shard_count))
+    tasks = shard_tasks(candidates, solver_modes, pool_modes, pool_sizes, radii, int(args.restarts_per_cell), int(args.shard_id), int(args.shard_count))
     if args.smoke:
         tasks = tasks[: max(1, int(args.smoke_task_limit))]
     print(
-        "local-branching-start shard={}/{} candidates={} tasks={} pool_modes={} pool_sizes={} radii={}".format(
-            args.shard_id, args.shard_count, len(candidates), len(tasks), pool_modes, pool_sizes, radii
+        "local-branching-start shard={}/{} candidates={} tasks={} solver_modes={} pool_modes={} pool_sizes={} radii={}".format(
+            args.shard_id, args.shard_count, len(candidates), len(tasks), solver_modes, pool_modes, pool_sizes, radii
         ),
         flush=True,
     )
     rows = []
-    for idx, (candidate, pool_mode, pool_size, radius, restart_id) in enumerate(tasks, start=1):
+    for idx, (candidate, solver_mode, pool_mode, pool_size, radius, restart_id) in enumerate(tasks, start=1):
         print(
-            "task {}/{} candidate={} tuple={} score={} pool_mode={} pool_size={} radius={} restart={}".format(
+            "task {}/{} candidate={} tuple={} score={} solver={} pool_mode={} pool_size={} radius={} restart={}".format(
                 idx,
                 len(tasks),
                 candidate["frontier_candidate_id"],
                 candidate["tuple_class"],
                 candidate["initial_score"],
+                solver_mode,
                 pool_mode,
                 pool_size,
                 radius,
@@ -608,7 +883,7 @@ def run_mode(args):
             ),
             flush=True,
         )
-        rows.append(exact_local_branching_check(candidate, args, pool_mode, pool_size, radius, restart_id))
+        rows.append(exact_local_branching_check(candidate, args, pool_mode, pool_size, radius, restart_id, solver_mode))
     write_outputs(args, rows, candidates, args.out_dir)
     print("wrote {} local branch rows to {}".format(len(rows), args.out_dir), flush=True)
 
@@ -633,11 +908,17 @@ def parse_args():
     parser.add_argument("--tuple-registry", default=base.TUPLE_REGISTRY_DEFAULT)
     parser.add_argument("--tuple-classes", default=TUPLE_CLASSES_DEFAULT)
     parser.add_argument("--frontier-count", "--candidate-count", dest="frontier_count", type=int, default=2)
+    parser.add_argument("--solver-modes", default="dfs")
     parser.add_argument("--pool-modes", default="defect,hybrid")
     parser.add_argument("--pool-size-list", default="6,8,10")
     parser.add_argument("--radius-list", default="2,3,4")
     parser.add_argument("--restarts-per-cell", type=int, default=4)
     parser.add_argument("--block-candidate-cap-per-radius", type=int, default=50000)
+    parser.add_argument("--solver-move-cap-per-block", type=int, default=5000)
+    parser.add_argument("--mitm-state-cap-per-radius", type=int, default=50000)
+    parser.add_argument("--cp-sat-move-cap-per-block", type=int, default=64)
+    parser.add_argument("--cp-sat-time-limit-seconds", type=float, default=30.0)
+    parser.add_argument("--cp-sat-workers", type=int, default=1)
     parser.add_argument("--global-eval-cap", type=int, default=4000000)
     parser.add_argument("--max-wall-time-ms", type=int, default=120000)
     parser.add_argument("--out-dir", default="")
