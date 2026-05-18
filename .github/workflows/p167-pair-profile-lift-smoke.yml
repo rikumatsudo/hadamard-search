@@ -1,0 +1,398 @@
+name: p167-pair-profile-lift-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Short label for artifacts and Slack messages"
+        required: false
+        default: "p167-pair-profile-lift-smoke-remote-smoke"
+        type: string
+      preset:
+        description: "Preset input bundle"
+        required: false
+        default: "remote-smoke"
+        type: choice
+        options:
+          - "remote-smoke"
+          - "p167-pair-profile-lift-smoke-40"
+          - "custom"
+      candidate_count:
+        description: "Candidate count"
+        required: false
+        default: "1"
+        type: string
+      frontier_files:
+        description: "Comma-separated candidate fixture files"
+        required: false
+        default: "configs/fixtures/p167_local_branching_wall_candidates.jsonl"
+        type: string
+      target_modes:
+        description: "Comma-separated pair target modes"
+        required: false
+        default: "midpoint"
+        type: string
+      init_modes:
+        description: "Comma-separated lift initialization modes"
+        required: false
+        default: "random,seed"
+        type: string
+      restarts_per_cell:
+        description: "Restarts per candidate/target/init cell"
+        required: false
+        default: "1"
+        type: string
+      lift_steps:
+        description: "Local lift steps per pair"
+        required: false
+        default: "4"
+        type: string
+      swap_sample_count:
+        description: "Sampled swaps per lift step"
+        required: false
+        default: "16"
+        type: string
+      temperature:
+        description: "Nonnegative uphill acceptance temperature"
+        required: false
+        default: "0.0"
+        type: string
+      perturb_swaps:
+        description: "Initial perturbation swaps for perturbed_seed"
+        required: false
+        default: "2"
+        type: string
+      repair_budget:
+        description: "Shared post-lift score-only repair budget"
+        required: false
+        default: "1"
+        type: string
+      repair_swap_sample_count:
+        description: "Sampled swaps per repair step"
+        required: false
+        default: "16"
+        type: string
+      max_wall_time_ms_per_lift:
+        description: "Wall time cap per pair lift"
+        required: false
+        default: "5000"
+        type: string
+      base_seed:
+        description: "Base random seed"
+        required: false
+        default: "167512"
+        type: string
+      shard_count:
+        description: "Shard count for fan-out"
+        required: false
+        default: "1"
+        type: string
+      max_parallel:
+        description: "Maximum parallel shard jobs"
+        required: false
+        default: "1"
+        type: string
+  pull_request:
+    paths:
+      - "analysis/p167_pair_profile_lift_smoke.py"
+      - ".github/workflows/p167-pair-profile-lift-smoke.yml"
+      - "configs/experiments/p167_pair_profile_lift_smoke.yaml"
+      - "configs/fixtures/p167_local_branching_wall_candidates.jsonl"
+      - "scripts/dispatch_p167_pair_profile_lift_smoke.py"
+      - "configs/fixtures/p167_tuple_classes.json"
+      - "sage/06_known_sds_regression.sage"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: p167-pair-profile-lift-smoke-${{ github.ref }}-${{ inputs.run_label || github.event_name }}
+  cancel-in-progress: false
+
+env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  known-regression:
+    name: Known SDS regression
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run known SDS regression
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            sage sage/06_known_sds_regression.sage
+
+  define-shards:
+    name: Define shard matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      candidate_count: ${{ steps.matrix.outputs.candidate_count }}
+      frontier_files: ${{ steps.matrix.outputs.frontier_files }}
+      target_modes: ${{ steps.matrix.outputs.target_modes }}
+      init_modes: ${{ steps.matrix.outputs.init_modes }}
+      restarts_per_cell: ${{ steps.matrix.outputs.restarts_per_cell }}
+      lift_steps: ${{ steps.matrix.outputs.lift_steps }}
+      swap_sample_count: ${{ steps.matrix.outputs.swap_sample_count }}
+      temperature: ${{ steps.matrix.outputs.temperature }}
+      perturb_swaps: ${{ steps.matrix.outputs.perturb_swaps }}
+      repair_budget: ${{ steps.matrix.outputs.repair_budget }}
+      repair_swap_sample_count: ${{ steps.matrix.outputs.repair_swap_sample_count }}
+      max_wall_time_ms_per_lift: ${{ steps.matrix.outputs.max_wall_time_ms_per_lift }}
+      base_seed: ${{ steps.matrix.outputs.base_seed }}
+      shard_count: ${{ steps.matrix.outputs.shard_count }}
+      output_root: ${{ steps.matrix.outputs.output_root }}
+      experiment_name: ${{ steps.matrix.outputs.experiment_name }}
+    steps:
+      - name: Build matrix
+        id: matrix
+        env:
+          PRESET: ${{ inputs.preset || 'remote-smoke' }}
+          CANDIDATE_COUNT: ${{ inputs.candidate_count || '1' }}
+          FRONTIER_FILES: ${{ inputs.frontier_files || 'configs/fixtures/p167_local_branching_wall_candidates.jsonl' }}
+          TARGET_MODES: ${{ inputs.target_modes || 'midpoint' }}
+          INIT_MODES: ${{ inputs.init_modes || 'random,seed' }}
+          RESTARTS_PER_CELL: ${{ inputs.restarts_per_cell || '1' }}
+          LIFT_STEPS: ${{ inputs.lift_steps || '4' }}
+          SWAP_SAMPLE_COUNT: ${{ inputs.swap_sample_count || '16' }}
+          TEMPERATURE: ${{ inputs.temperature || '0.0' }}
+          PERTURB_SWAPS: ${{ inputs.perturb_swaps || '2' }}
+          REPAIR_BUDGET: ${{ inputs.repair_budget || '1' }}
+          REPAIR_SWAP_SAMPLE_COUNT: ${{ inputs.repair_swap_sample_count || '16' }}
+          MAX_WALL_TIME_MS_PER_LIFT: ${{ inputs.max_wall_time_ms_per_lift || '5000' }}
+          BASE_SEED: ${{ inputs.base_seed || '167512' }}
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          preset = os.environ.get("PRESET") or "remote-smoke"
+          if preset == "p167-pair-profile-lift-smoke-40":
+              shard_count = 40
+              max_parallel = 40
+              candidate_count = "2"
+              frontier_files = "configs/fixtures/p167_local_branching_wall_candidates.jsonl"
+              target_modes = "midpoint,seed_left,seed_right_complement,lambda_half,jitter_midpoint"
+              init_modes = "random,seed,perturbed_seed"
+              restarts_per_cell = "12"
+              lift_steps = "60"
+              swap_sample_count = "128"
+              temperature = "0.0"
+              perturb_swaps = "8"
+              repair_budget = "6"
+              repair_swap_sample_count = "96"
+              max_wall_time_ms_per_lift = "15000"
+              base_seed = "167512"
+          else:
+              shard_count = int(os.environ.get("SHARD_COUNT") or "1")
+              max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
+              candidate_count = os.environ.get("CANDIDATE_COUNT") or "1"
+              frontier_files = os.environ.get("FRONTIER_FILES") or "configs/fixtures/p167_local_branching_wall_candidates.jsonl"
+              target_modes = os.environ.get("TARGET_MODES") or "midpoint"
+              init_modes = os.environ.get("INIT_MODES") or "random,seed"
+              restarts_per_cell = os.environ.get("RESTARTS_PER_CELL") or "1"
+              lift_steps = os.environ.get("LIFT_STEPS") or "4"
+              swap_sample_count = os.environ.get("SWAP_SAMPLE_COUNT") or "16"
+              temperature = os.environ.get("TEMPERATURE") or "0.0"
+              perturb_swaps = os.environ.get("PERTURB_SWAPS") or "2"
+              repair_budget = os.environ.get("REPAIR_BUDGET") or "1"
+              repair_swap_sample_count = os.environ.get("REPAIR_SWAP_SAMPLE_COUNT") or "16"
+              max_wall_time_ms_per_lift = os.environ.get("MAX_WALL_TIME_MS_PER_LIFT") or "5000"
+              base_seed = os.environ.get("BASE_SEED") or "167512"
+          output_root = "outputs/p167_pair_profile_lift_smoke"
+          experiment_name = "p167_pair_profile_lift_smoke"
+          matrix = {"include": [{"shard": i, "suffix": "s{:02d}".format(i)} for i in range(int(shard_count))]}
+          print("matrix={}".format(json.dumps(matrix, separators=(",", ":"))))
+          print("max_parallel={}".format(int(max_parallel)))
+          print("candidate_count={}".format(candidate_count))
+          print("frontier_files={}".format(frontier_files))
+          print("target_modes={}".format(target_modes))
+          print("init_modes={}".format(init_modes))
+          print("restarts_per_cell={}".format(restarts_per_cell))
+          print("lift_steps={}".format(lift_steps))
+          print("swap_sample_count={}".format(swap_sample_count))
+          print("temperature={}".format(temperature))
+          print("perturb_swaps={}".format(perturb_swaps))
+          print("repair_budget={}".format(repair_budget))
+          print("repair_swap_sample_count={}".format(repair_swap_sample_count))
+          print("max_wall_time_ms_per_lift={}".format(max_wall_time_ms_per_lift))
+          print("base_seed={}".format(base_seed))
+          print("shard_count={}".format(int(shard_count)))
+          print("output_root={}".format(output_root))
+          print("experiment_name={}".format(experiment_name))
+          PY
+
+  shard:
+    name: Pair profile lift shard ${{ matrix.suffix }}
+    runs-on: ubuntu-24.04
+    needs:
+      - known-regression
+      - define-shards
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJson(needs.define-shards.outputs.max_parallel) }}
+      matrix: ${{ fromJson(needs.define-shards.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run p167 pair profile lift shard
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-pair-profile-lift-smoke' }}
+          CANDIDATE_COUNT: ${{ needs.define-shards.outputs.candidate_count }}
+          FRONTIER_FILES: ${{ needs.define-shards.outputs.frontier_files }}
+          TARGET_MODES: ${{ needs.define-shards.outputs.target_modes }}
+          INIT_MODES: ${{ needs.define-shards.outputs.init_modes }}
+          RESTARTS_PER_CELL: ${{ needs.define-shards.outputs.restarts_per_cell }}
+          LIFT_STEPS: ${{ needs.define-shards.outputs.lift_steps }}
+          SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.swap_sample_count }}
+          TEMPERATURE: ${{ needs.define-shards.outputs.temperature }}
+          PERTURB_SWAPS: ${{ needs.define-shards.outputs.perturb_swaps }}
+          REPAIR_BUDGET: ${{ needs.define-shards.outputs.repair_budget }}
+          REPAIR_SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.repair_swap_sample_count }}
+          MAX_WALL_TIME_MS_PER_LIFT: ${{ needs.define-shards.outputs.max_wall_time_ms_per_lift }}
+          BASE_SEED: ${{ needs.define-shards.outputs.base_seed }}
+          SHARD_COUNT: ${{ needs.define-shards.outputs.shard_count }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.experiment_name }}
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_SUFFIX: ${{ matrix.suffix }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-${SHARD_SUFFIX}"
+          python3 analysis/p167_pair_profile_lift_smoke.py \
+            --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
+            --run-id "${safe_label}-${GITHUB_RUN_ID}" \
+            --frontier-files "$FRONTIER_FILES" \
+            --candidate-count "$CANDIDATE_COUNT" \
+            --target-modes "$TARGET_MODES" \
+            --init-modes "$INIT_MODES" \
+            --restarts-per-cell "$RESTARTS_PER_CELL" \
+            --lift-steps "$LIFT_STEPS" \
+            --swap-sample-count "$SWAP_SAMPLE_COUNT" \
+            --temperature "$TEMPERATURE" \
+            --perturb-swaps "$PERTURB_SWAPS" \
+            --repair-budget "$REPAIR_BUDGET" \
+            --repair-swap-sample-count "$REPAIR_SWAP_SAMPLE_COUNT" \
+            --max-wall-time-ms-per-lift "$MAX_WALL_TIME_MS_PER_LIFT" \
+            --base-seed "$BASE_SEED" \
+            --shard-id "$SHARD_INDEX" \
+            --shard-count "$SHARD_COUNT"
+      - name: Upload shard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p167_pair_profile_lift_smoke-${{ matrix.suffix }}-${{ github.run_id }}
+          path: outputs/p167_pair_profile_lift_smoke/**/*
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    name: Aggregate p167 pair profile lift smoke
+    runs-on: ubuntu-24.04
+    needs:
+      - define-shards
+      - shard
+    if: always() && needs.shard.result == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Download shard artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: p167_pair_profile_lift_smoke-*-${{ github.run_id }}
+          path: shard-artifacts
+      - name: Aggregate shard outputs
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-pair-profile-lift-smoke' }}
+          CANDIDATE_COUNT: ${{ needs.define-shards.outputs.candidate_count }}
+          TARGET_MODES: ${{ needs.define-shards.outputs.target_modes }}
+          INIT_MODES: ${{ needs.define-shards.outputs.init_modes }}
+          RESTARTS_PER_CELL: ${{ needs.define-shards.outputs.restarts_per_cell }}
+          LIFT_STEPS: ${{ needs.define-shards.outputs.lift_steps }}
+          SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.swap_sample_count }}
+          TEMPERATURE: ${{ needs.define-shards.outputs.temperature }}
+          PERTURB_SWAPS: ${{ needs.define-shards.outputs.perturb_swaps }}
+          REPAIR_BUDGET: ${{ needs.define-shards.outputs.repair_budget }}
+          REPAIR_SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.repair_swap_sample_count }}
+          MAX_WALL_TIME_MS_PER_LIFT: ${{ needs.define-shards.outputs.max_wall_time_ms_per_lift }}
+          SHARD_COUNT: ${{ needs.define-shards.outputs.shard_count }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.experiment_name }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-aggregate"
+          python3 analysis/p167_pair_profile_lift_smoke.py \
+            --aggregate \
+            --aggregate-input-dir shard-artifacts \
+            --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
+            --run-id "${safe_label}-${GITHUB_RUN_ID}" \
+            --candidate-count "$CANDIDATE_COUNT" \
+            --target-modes "$TARGET_MODES" \
+            --init-modes "$INIT_MODES" \
+            --restarts-per-cell "$RESTARTS_PER_CELL" \
+            --lift-steps "$LIFT_STEPS" \
+            --swap-sample-count "$SWAP_SAMPLE_COUNT" \
+            --temperature "$TEMPERATURE" \
+            --perturb-swaps "$PERTURB_SWAPS" \
+            --repair-budget "$REPAIR_BUDGET" \
+            --repair-swap-sample-count "$REPAIR_SWAP_SAMPLE_COUNT" \
+            --max-wall-time-ms-per-lift "$MAX_WALL_TIME_MS_PER_LIFT" \
+            --shard-count "$SHARD_COUNT"
+      - name: Validate score0 candidates if present
+        run: |
+          set -euo pipefail
+          mapfile -t score0_jsons < <(find outputs/p167_pair_profile_lift_smoke -path '*aggregate/score0_candidate_jsons/*.json' -type f | sort)
+          if [ "${#score0_jsons[@]}" -eq 0 ]; then
+            echo "No score0 candidates to validate."
+            exit 0
+          fi
+          printf '%s\n' "${score0_jsons[@]}" > tmp_score0_paths.txt
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            bash -lc 'set -euo pipefail; while read -r path; do sage sage/08_analyze_sds_candidate.sage "$path"; sage sage/05_validate_candidate_json.sage "$path"; sage sage/04_build_gs_from_sds.sage "$path"; done < tmp_score0_paths.txt'
+      - name: Upload aggregate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p167_pair_profile_lift_smoke_${{ github.run_id }}
+          path: outputs/p167_pair_profile_lift_smoke/**/*aggregate/**/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Slack notify
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          webhook = os.environ.get("SLACK_WEBHOOK_URL")
+          text = os.environ.get("SLACK_TEXT", "p167 pair profile lift smoke completed")
+          if webhook:
+              req = urllib.request.Request(webhook, data=json.dumps({"text": text}).encode("utf-8"), headers={"Content-Type": "application/json"})
+              urllib.request.urlopen(req, timeout=10).read()
+          PY
+        env:
+          SLACK_TEXT: p167 pair profile lift smoke ${{ job.status }} run ${{ github.run_id }}
