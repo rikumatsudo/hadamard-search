@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import collections
 import csv
 import json
 import math
@@ -194,11 +195,43 @@ def repair_candidate_with_softwall_operator(p, blocks, lam, operator, seed, args
     selected_split = base.choose_pair_split(seed)
     radii, pool_size, objective_mode = softwall_config(operator, args)
     seen_hashes = {base.canonical_hash(current)}
+    progress(
+        args,
+        "softwall-start operator={} initial_score={} radii={} pool_size={} objective={} seed={}".format(
+            operator,
+            int(current_score),
+            ",".join(str(r) for r in radii),
+            int(pool_size),
+            objective_mode,
+            int(seed),
+        ),
+    )
     while steps < int(args.max_repair_steps) and best_score > 0:
         if stall >= int(args.escape_stall_steps):
+            progress(
+                args,
+                "softwall-stop operator={} reason=stall steps={} current={} best={} stall={} elapsed_ms={}".format(
+                    operator,
+                    int(steps),
+                    int(current_score),
+                    int(best_score),
+                    int(stall),
+                    int(round((time.time() - started) * 1000.0)),
+                ),
+            )
             break
         if (time.time() - started) * 1000.0 >= float(args.max_wall_time_ms):
             timeout = True
+            progress(
+                args,
+                "softwall-stop operator={} reason=wall_time steps={} current={} best={} elapsed_ms={}".format(
+                    operator,
+                    int(steps),
+                    int(current_score),
+                    int(best_score),
+                    int(round((time.time() - started) * 1000.0)),
+                ),
+            )
             break
         rho = base.rho_vector(p, current, lam)
         choices, evaluated, exact_evals, step_timeout = softwall_candidate_moves(
@@ -219,8 +252,32 @@ def repair_candidate_with_softwall_operator(p, blocks, lam, operator, seed, args
         total_evaluated += evaluated
         total_exact += exact_evals
         timeout = timeout or step_timeout
+        progress(
+            args,
+            "softwall-step-scan operator={} step={} current={} best={} choices={} evaluated={} exact_total={} elapsed_ms={}".format(
+                operator,
+                int(steps + 1),
+                int(current_score),
+                int(best_score),
+                int(len(choices)),
+                int(evaluated),
+                int(total_exact),
+                int(round((time.time() - started) * 1000.0)),
+            ),
+        )
         move = choose_softwall_move(choices, current_score, rng, float(args.escape_temperature), seen_hashes)
         if move is None:
+            progress(
+                args,
+                "softwall-stop operator={} reason=no_move steps={} current={} best={} timeout={} elapsed_ms={}".format(
+                    operator,
+                    int(steps),
+                    int(current_score),
+                    int(best_score),
+                    bool(timeout),
+                    int(round((time.time() - started) * 1000.0)),
+                ),
+            )
             break
         current = move["trial_blocks"]
         current_score = int(move["score"])
@@ -235,6 +292,20 @@ def repair_candidate_with_softwall_operator(p, blocks, lam, operator, seed, args
             stall = 0
         else:
             stall += 1
+        progress(
+            args,
+            "softwall-step-accept operator={} step={} kind={} radius={} new_score={} best={} stall={} accepted_uphill={} elapsed_ms={}".format(
+                operator,
+                int(steps),
+                move["kind"],
+                int(move["radius"]),
+                int(current_score),
+                int(best_score),
+                int(stall),
+                int(accepted_uphill),
+                int(round((time.time() - started) * 1000.0)),
+            ),
+        )
     elapsed_ms = int(round((time.time() - started) * 1000.0))
     return {
         "blocks_after": best_blocks,
@@ -262,6 +333,20 @@ def now_stamp():
 
 def parse_csv(text):
     return [part.strip() for part in str(text).split(",") if part.strip()]
+
+
+def progress(args, message):
+    if bool(getattr(args, "progress_logging", True)):
+        print("[progress] {}".format(message), flush=True)
+
+
+def task_label(frontier, operator):
+    return "{} {} {} initial={}".format(
+        frontier.get("frontier_candidate_id"),
+        frontier.get("tuple_class"),
+        operator,
+        frontier.get("initial_score"),
+    )
 
 
 def build_repair_row(frontier, operator, args):
@@ -357,7 +442,59 @@ def run_mode(args):
     tasks = shard_tasks(frontier, operators, int(args.shard_id), int(args.shard_count))
     if args.smoke:
         tasks = tasks[: max(1, int(args.smoke_task_limit))]
-    rows = [build_repair_row(cand, operator, args) for cand, operator in tasks]
+    operator_counts = collections.Counter(operator for _cand, operator in tasks)
+    tuple_counts = collections.Counter(cand.get("tuple_class") for cand, _operator in tasks)
+    progress(
+        args,
+        "shard-start shard={}/{} frontier_count={} operator_count={} task_count={} out_dir={}".format(
+            int(args.shard_id),
+            int(args.shard_count),
+            len(frontier),
+            len(operators),
+            len(tasks),
+            args.out_dir,
+        ),
+    )
+    progress(args, "shard-operator-counts {}".format(dict(sorted(operator_counts.items()))))
+    progress(args, "shard-tuple-counts {}".format(dict(sorted(tuple_counts.items()))))
+    rows = []
+    run_started = time.time()
+    best_so_far = None
+    for idx, (cand, operator) in enumerate(tasks, 1):
+        pct_start = 100.0 * float(idx - 1) / float(max(1, len(tasks)))
+        progress(args, "task-start {}/{} {:.1f}% {}".format(idx, len(tasks), pct_start, task_label(cand, operator)))
+        row = build_repair_row(cand, operator, args)
+        rows.append(row)
+        score_after = int(row["score_after"])
+        if best_so_far is None or score_after < int(best_so_far):
+            best_so_far = score_after
+        pct_done = 100.0 * float(idx) / float(max(1, len(tasks)))
+        progress(
+            args,
+            "task-done {}/{} {:.1f}% {} score {}->{} steps={} wall_ms={} timeout={} best_so_far={} elapsed_s={:.1f}".format(
+                idx,
+                len(tasks),
+                pct_done,
+                task_label(cand, operator),
+                int(row["score_before"]),
+                score_after,
+                int(row["steps_used"]),
+                int(row["wall_time_ms"]),
+                bool(row["timeout_flag"]),
+                int(best_so_far),
+                time.time() - run_started,
+            ),
+        )
+    progress(
+        args,
+        "shard-finished shard={}/{} rows={} best_score_after={} elapsed_s={:.1f}".format(
+            int(args.shard_id),
+            int(args.shard_count),
+            len(rows),
+            best_so_far if best_so_far is not None else "none",
+            time.time() - run_started,
+        ),
+    )
     write_outputs(args, rows, frontier, args.out_dir)
     print("wrote {} targeted deep repair rows to {}".format(len(rows), args.out_dir))
 
@@ -518,6 +655,7 @@ def write_outputs(args, rows, frontier, out_dir):
         "pair_loss_weight": float(args.pair_loss_weight),
         "shell_gap_weight": float(args.shell_gap_weight),
         "max_abs_weight": float(args.max_abs_weight),
+        "progress_logging": bool(getattr(args, "progress_logging", True)),
         "shard_id": int(args.shard_id),
         "shard_count": int(args.shard_count),
     }
@@ -570,6 +708,8 @@ def parse_args():
     parser.add_argument("--out-dir", default="")
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--smoke-task-limit", type=int, default=2)
+    parser.add_argument("--progress-logging", dest="progress_logging", action="store_true", default=True)
+    parser.add_argument("--no-progress-logging", dest="progress_logging", action="store_false")
     parser.add_argument("--aggregate", action="store_true")
     parser.add_argument("--aggregate-input-dir", default="")
     return parser.parse_args()
