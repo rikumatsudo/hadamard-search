@@ -1,0 +1,460 @@
+name: p167-quotient-profile-lift-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Short label for artifacts and Slack messages"
+        required: false
+        default: "p167-quotient-profile-lift-probe-remote-smoke"
+        type: string
+      preset:
+        description: "Preset input bundle"
+        required: false
+        default: "remote-smoke"
+        type: choice
+        options:
+          - "remote-smoke"
+          - "p167-quotient-profile-lift-light-40"
+          - "custom"
+      candidate_count:
+        required: false
+        default: "1"
+        type: string
+      tuple_classes:
+        required: false
+        default: "p167_c01"
+        type: string
+      representatives_per_tuple:
+        required: false
+        default: "1"
+        type: string
+      frontier_files:
+        required: false
+        default: "configs/fixtures/p167_local_branching_wall_candidates.jsonl"
+        type: string
+      modes:
+        required: false
+        default: "atom_random_balanced,atom_profile_lift_from_source"
+        type: string
+      split_modes:
+        required: false
+        default: "fixed_01_23"
+        type: string
+      target_modes:
+        required: false
+        default: "midpoint"
+        type: string
+      restarts_per_cell:
+        required: false
+        default: "1"
+        type: string
+      atom_steps:
+        required: false
+        default: "2"
+        type: string
+      atom_sample_count:
+        required: false
+        default: "8"
+        type: string
+      temperature:
+        required: false
+        default: "0.05"
+        type: string
+      alpha_pair:
+        required: false
+        default: "0.05"
+        type: string
+      alpha_size:
+        required: false
+        default: "1000.0"
+        type: string
+      perturb_atom_moves:
+        required: false
+        default: "2"
+        type: string
+      repair_budget:
+        required: false
+        default: "1"
+        type: string
+      repair_swap_sample_count:
+        required: false
+        default: "16"
+        type: string
+      max_wall_time_ms_per_candidate:
+        required: false
+        default: "5000"
+        type: string
+      base_seed:
+        required: false
+        default: "167914"
+        type: string
+      shard_count:
+        required: false
+        default: "1"
+        type: string
+      max_parallel:
+        required: false
+        default: "1"
+        type: string
+  pull_request:
+    paths:
+      - "analysis/p167_quotient_profile_lift_probe.py"
+      - ".github/workflows/p167-quotient-profile-lift-probe.yml"
+      - "configs/experiments/p167_quotient_profile_lift_probe.yaml"
+      - "scripts/dispatch_p167_quotient_profile_lift_probe.py"
+      - "configs/fixtures/p167_tuple_classes.json"
+      - "sage/06_known_sds_regression.sage"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: p167-quotient-profile-lift-probe-${{ github.ref }}-${{ inputs.run_label || github.event_name }}
+  cancel-in-progress: false
+
+env:
+  SAGE_DOCKER_IMAGE: sagemath/sagemath:10.8
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  known-regression:
+    name: Known SDS regression
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run known SDS regression
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            sage sage/06_known_sds_regression.sage
+
+  define-shards:
+    name: Define shard matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      candidate_count: ${{ steps.matrix.outputs.candidate_count }}
+      tuple_classes: ${{ steps.matrix.outputs.tuple_classes }}
+      representatives_per_tuple: ${{ steps.matrix.outputs.representatives_per_tuple }}
+      frontier_files: ${{ steps.matrix.outputs.frontier_files }}
+      modes: ${{ steps.matrix.outputs.modes }}
+      split_modes: ${{ steps.matrix.outputs.split_modes }}
+      target_modes: ${{ steps.matrix.outputs.target_modes }}
+      restarts_per_cell: ${{ steps.matrix.outputs.restarts_per_cell }}
+      atom_steps: ${{ steps.matrix.outputs.atom_steps }}
+      atom_sample_count: ${{ steps.matrix.outputs.atom_sample_count }}
+      temperature: ${{ steps.matrix.outputs.temperature }}
+      alpha_pair: ${{ steps.matrix.outputs.alpha_pair }}
+      alpha_size: ${{ steps.matrix.outputs.alpha_size }}
+      perturb_atom_moves: ${{ steps.matrix.outputs.perturb_atom_moves }}
+      repair_budget: ${{ steps.matrix.outputs.repair_budget }}
+      repair_swap_sample_count: ${{ steps.matrix.outputs.repair_swap_sample_count }}
+      max_wall_time_ms_per_candidate: ${{ steps.matrix.outputs.max_wall_time_ms_per_candidate }}
+      base_seed: ${{ steps.matrix.outputs.base_seed }}
+      shard_count: ${{ steps.matrix.outputs.shard_count }}
+      output_root: ${{ steps.matrix.outputs.output_root }}
+      experiment_name: ${{ steps.matrix.outputs.experiment_name }}
+    steps:
+      - name: Build matrix
+        id: matrix
+        env:
+          PRESET: ${{ inputs.preset || 'remote-smoke' }}
+          CANDIDATE_COUNT: ${{ inputs.candidate_count || '1' }}
+          TUPLE_CLASSES: ${{ inputs.tuple_classes || 'p167_c01' }}
+          REPRESENTATIVES_PER_TUPLE: ${{ inputs.representatives_per_tuple || '1' }}
+          FRONTIER_FILES: ${{ inputs.frontier_files || 'configs/fixtures/p167_local_branching_wall_candidates.jsonl' }}
+          MODES: ${{ inputs.modes || 'atom_random_balanced,atom_profile_lift_from_source' }}
+          SPLIT_MODES: ${{ inputs.split_modes || 'fixed_01_23' }}
+          TARGET_MODES: ${{ inputs.target_modes || 'midpoint' }}
+          RESTARTS_PER_CELL: ${{ inputs.restarts_per_cell || '1' }}
+          ATOM_STEPS: ${{ inputs.atom_steps || '2' }}
+          ATOM_SAMPLE_COUNT: ${{ inputs.atom_sample_count || '8' }}
+          TEMPERATURE: ${{ inputs.temperature || '0.05' }}
+          ALPHA_PAIR: ${{ inputs.alpha_pair || '0.05' }}
+          ALPHA_SIZE: ${{ inputs.alpha_size || '1000.0' }}
+          PERTURB_ATOM_MOVES: ${{ inputs.perturb_atom_moves || '2' }}
+          REPAIR_BUDGET: ${{ inputs.repair_budget || '1' }}
+          REPAIR_SWAP_SAMPLE_COUNT: ${{ inputs.repair_swap_sample_count || '16' }}
+          MAX_WALL_TIME_MS_PER_CANDIDATE: ${{ inputs.max_wall_time_ms_per_candidate || '5000' }}
+          BASE_SEED: ${{ inputs.base_seed || '167914' }}
+          SHARD_COUNT: ${{ inputs.shard_count || '1' }}
+          MAX_PARALLEL: ${{ inputs.max_parallel || '1' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          frontier_files_default = ",".join([
+              "configs/fixtures/p167_local_branching_wall_candidates.jsonl",
+              "configs/fixtures/p167_softwall_escape_frontier_candidates.jsonl",
+              "configs/fixtures/p167_targeted_deep_frontier_repair_candidates.jsonl",
+              "configs/fixtures/p167_frontier_repair_seed_candidates.jsonl",
+              "configs/fixtures/p167_focused_nearhit_candidates.jsonl",
+              "configs/fixtures/benchmark_traps/p167_score164_176.jsonl",
+          ])
+          preset = os.environ.get("PRESET") or "remote-smoke"
+          if preset == "p167-quotient-profile-lift-light-40":
+              shard_count = 40
+              max_parallel = 40
+              candidate_count = "9"
+              tuple_classes = "p167_c01,p167_c05,p167_c09"
+              representatives_per_tuple = "3"
+              frontier_files = frontier_files_default
+              modes = "atom_random_balanced,atom_pair_profile_guided,atom_profile_lift_from_source"
+              split_modes = "fixed_01_23,fixed_02_13,fixed_03_12"
+              target_modes = "midpoint,seed_left,seed_right_complement,jitter_midpoint"
+              restarts_per_cell = "4"
+              atom_steps = "80"
+              atom_sample_count = "64"
+              temperature = "0.05"
+              alpha_pair = "0.05"
+              alpha_size = "1000.0"
+              perturb_atom_moves = "8"
+              repair_budget = "6"
+              repair_swap_sample_count = "96"
+              max_wall_time_ms_per_candidate = "12000"
+              base_seed = "167914"
+          else:
+              shard_count = int(os.environ.get("SHARD_COUNT") or "1")
+              max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
+              candidate_count = os.environ.get("CANDIDATE_COUNT") or "1"
+              tuple_classes = os.environ.get("TUPLE_CLASSES") or "p167_c01"
+              representatives_per_tuple = os.environ.get("REPRESENTATIVES_PER_TUPLE") or "1"
+              frontier_files = os.environ.get("FRONTIER_FILES") or frontier_files_default
+              modes = os.environ.get("MODES") or "atom_random_balanced,atom_profile_lift_from_source"
+              split_modes = os.environ.get("SPLIT_MODES") or "fixed_01_23"
+              target_modes = os.environ.get("TARGET_MODES") or "midpoint"
+              restarts_per_cell = os.environ.get("RESTARTS_PER_CELL") or "1"
+              atom_steps = os.environ.get("ATOM_STEPS") or "2"
+              atom_sample_count = os.environ.get("ATOM_SAMPLE_COUNT") or "8"
+              temperature = os.environ.get("TEMPERATURE") or "0.05"
+              alpha_pair = os.environ.get("ALPHA_PAIR") or "0.05"
+              alpha_size = os.environ.get("ALPHA_SIZE") or "1000.0"
+              perturb_atom_moves = os.environ.get("PERTURB_ATOM_MOVES") or "2"
+              repair_budget = os.environ.get("REPAIR_BUDGET") or "1"
+              repair_swap_sample_count = os.environ.get("REPAIR_SWAP_SAMPLE_COUNT") or "16"
+              max_wall_time_ms_per_candidate = os.environ.get("MAX_WALL_TIME_MS_PER_CANDIDATE") or "5000"
+              base_seed = os.environ.get("BASE_SEED") or "167914"
+          output_root = "outputs/p167_quotient_profile_lift_probe"
+          experiment_name = "p167_quotient_profile_lift_probe"
+          matrix = {"include": [{"shard": i, "suffix": "s{:02d}".format(i)} for i in range(int(shard_count))]}
+          for key, value in [
+              ("matrix", json.dumps(matrix, separators=(",", ":"))),
+              ("max_parallel", int(max_parallel)),
+              ("candidate_count", candidate_count),
+              ("tuple_classes", tuple_classes),
+              ("representatives_per_tuple", representatives_per_tuple),
+              ("frontier_files", frontier_files),
+              ("modes", modes),
+              ("split_modes", split_modes),
+              ("target_modes", target_modes),
+              ("restarts_per_cell", restarts_per_cell),
+              ("atom_steps", atom_steps),
+              ("atom_sample_count", atom_sample_count),
+              ("temperature", temperature),
+              ("alpha_pair", alpha_pair),
+              ("alpha_size", alpha_size),
+              ("perturb_atom_moves", perturb_atom_moves),
+              ("repair_budget", repair_budget),
+              ("repair_swap_sample_count", repair_swap_sample_count),
+              ("max_wall_time_ms_per_candidate", max_wall_time_ms_per_candidate),
+              ("base_seed", base_seed),
+              ("shard_count", int(shard_count)),
+              ("output_root", output_root),
+              ("experiment_name", experiment_name),
+          ]:
+              print("{}={}".format(key, value))
+          PY
+
+  shard:
+    name: Quotient/profile lift shard ${{ matrix.suffix }}
+    runs-on: ubuntu-24.04
+    needs:
+      - known-regression
+      - define-shards
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJson(needs.define-shards.outputs.max_parallel) }}
+      matrix: ${{ fromJson(needs.define-shards.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run p167 quotient/profile lift shard
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-quotient-profile-lift-probe' }}
+          CANDIDATE_COUNT: ${{ needs.define-shards.outputs.candidate_count }}
+          TUPLE_CLASSES: ${{ needs.define-shards.outputs.tuple_classes }}
+          REPRESENTATIVES_PER_TUPLE: ${{ needs.define-shards.outputs.representatives_per_tuple }}
+          FRONTIER_FILES: ${{ needs.define-shards.outputs.frontier_files }}
+          MODES: ${{ needs.define-shards.outputs.modes }}
+          SPLIT_MODES: ${{ needs.define-shards.outputs.split_modes }}
+          TARGET_MODES: ${{ needs.define-shards.outputs.target_modes }}
+          RESTARTS_PER_CELL: ${{ needs.define-shards.outputs.restarts_per_cell }}
+          ATOM_STEPS: ${{ needs.define-shards.outputs.atom_steps }}
+          ATOM_SAMPLE_COUNT: ${{ needs.define-shards.outputs.atom_sample_count }}
+          TEMPERATURE: ${{ needs.define-shards.outputs.temperature }}
+          ALPHA_PAIR: ${{ needs.define-shards.outputs.alpha_pair }}
+          ALPHA_SIZE: ${{ needs.define-shards.outputs.alpha_size }}
+          PERTURB_ATOM_MOVES: ${{ needs.define-shards.outputs.perturb_atom_moves }}
+          REPAIR_BUDGET: ${{ needs.define-shards.outputs.repair_budget }}
+          REPAIR_SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.repair_swap_sample_count }}
+          MAX_WALL_TIME_MS_PER_CANDIDATE: ${{ needs.define-shards.outputs.max_wall_time_ms_per_candidate }}
+          BASE_SEED: ${{ needs.define-shards.outputs.base_seed }}
+          SHARD_COUNT: ${{ needs.define-shards.outputs.shard_count }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.experiment_name }}
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_SUFFIX: ${{ matrix.suffix }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-${SHARD_SUFFIX}"
+          python3 analysis/p167_quotient_profile_lift_probe.py \
+            --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
+            --run-id "${safe_label}-${GITHUB_RUN_ID}" \
+            --frontier-files "$FRONTIER_FILES" \
+            --candidate-count "$CANDIDATE_COUNT" \
+            --tuple-classes "$TUPLE_CLASSES" \
+            --representatives-per-tuple "$REPRESENTATIVES_PER_TUPLE" \
+            --modes "$MODES" \
+            --split-modes "$SPLIT_MODES" \
+            --target-modes "$TARGET_MODES" \
+            --restarts-per-cell "$RESTARTS_PER_CELL" \
+            --atom-steps "$ATOM_STEPS" \
+            --atom-sample-count "$ATOM_SAMPLE_COUNT" \
+            --temperature "$TEMPERATURE" \
+            --alpha-pair "$ALPHA_PAIR" \
+            --alpha-size "$ALPHA_SIZE" \
+            --perturb-atom-moves "$PERTURB_ATOM_MOVES" \
+            --repair-budget "$REPAIR_BUDGET" \
+            --repair-swap-sample-count "$REPAIR_SWAP_SAMPLE_COUNT" \
+            --max-wall-time-ms-per-candidate "$MAX_WALL_TIME_MS_PER_CANDIDATE" \
+            --base-seed "$BASE_SEED" \
+            --shard-id "$SHARD_INDEX" \
+            --shard-count "$SHARD_COUNT"
+      - name: Upload shard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p167_quotient_profile_lift_probe-${{ matrix.suffix }}-${{ github.run_id }}
+          path: outputs/p167_quotient_profile_lift_probe/**/*
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    name: Aggregate p167 quotient/profile lift probe
+    runs-on: ubuntu-24.04
+    needs:
+      - define-shards
+      - shard
+    if: always() && needs.shard.result == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Download shard artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: p167_quotient_profile_lift_probe-*-${{ github.run_id }}
+          path: shard-artifacts
+      - name: Aggregate shard outputs
+        env:
+          RUN_LABEL: ${{ inputs.run_label || 'p167-quotient-profile-lift-probe' }}
+          CANDIDATE_COUNT: ${{ needs.define-shards.outputs.candidate_count }}
+          TUPLE_CLASSES: ${{ needs.define-shards.outputs.tuple_classes }}
+          REPRESENTATIVES_PER_TUPLE: ${{ needs.define-shards.outputs.representatives_per_tuple }}
+          FRONTIER_FILES: ${{ needs.define-shards.outputs.frontier_files }}
+          MODES: ${{ needs.define-shards.outputs.modes }}
+          SPLIT_MODES: ${{ needs.define-shards.outputs.split_modes }}
+          TARGET_MODES: ${{ needs.define-shards.outputs.target_modes }}
+          RESTARTS_PER_CELL: ${{ needs.define-shards.outputs.restarts_per_cell }}
+          ATOM_STEPS: ${{ needs.define-shards.outputs.atom_steps }}
+          ATOM_SAMPLE_COUNT: ${{ needs.define-shards.outputs.atom_sample_count }}
+          TEMPERATURE: ${{ needs.define-shards.outputs.temperature }}
+          ALPHA_PAIR: ${{ needs.define-shards.outputs.alpha_pair }}
+          ALPHA_SIZE: ${{ needs.define-shards.outputs.alpha_size }}
+          PERTURB_ATOM_MOVES: ${{ needs.define-shards.outputs.perturb_atom_moves }}
+          REPAIR_BUDGET: ${{ needs.define-shards.outputs.repair_budget }}
+          REPAIR_SWAP_SAMPLE_COUNT: ${{ needs.define-shards.outputs.repair_swap_sample_count }}
+          MAX_WALL_TIME_MS_PER_CANDIDATE: ${{ needs.define-shards.outputs.max_wall_time_ms_per_candidate }}
+          SHARD_COUNT: ${{ needs.define-shards.outputs.shard_count }}
+          OUTPUT_ROOT: ${{ needs.define-shards.outputs.output_root }}
+          EXPERIMENT_NAME: ${{ needs.define-shards.outputs.experiment_name }}
+        run: |
+          set -euo pipefail
+          safe_label="$(printf '%s' "$RUN_LABEL" | tr -c 'A-Za-z0-9_.-' '-')"
+          out_dir="${OUTPUT_ROOT}/${safe_label}-${GITHUB_RUN_ID}-aggregate"
+          python3 analysis/p167_quotient_profile_lift_probe.py \
+            --aggregate \
+            --aggregate-input-dir shard-artifacts \
+            --out-dir "$out_dir" \
+            --output-root "$OUTPUT_ROOT" \
+            --experiment-name "$EXPERIMENT_NAME" \
+            --run-id "${safe_label}-${GITHUB_RUN_ID}" \
+            --frontier-files "$FRONTIER_FILES" \
+            --candidate-count "$CANDIDATE_COUNT" \
+            --tuple-classes "$TUPLE_CLASSES" \
+            --representatives-per-tuple "$REPRESENTATIVES_PER_TUPLE" \
+            --modes "$MODES" \
+            --split-modes "$SPLIT_MODES" \
+            --target-modes "$TARGET_MODES" \
+            --restarts-per-cell "$RESTARTS_PER_CELL" \
+            --atom-steps "$ATOM_STEPS" \
+            --atom-sample-count "$ATOM_SAMPLE_COUNT" \
+            --temperature "$TEMPERATURE" \
+            --alpha-pair "$ALPHA_PAIR" \
+            --alpha-size "$ALPHA_SIZE" \
+            --perturb-atom-moves "$PERTURB_ATOM_MOVES" \
+            --repair-budget "$REPAIR_BUDGET" \
+            --repair-swap-sample-count "$REPAIR_SWAP_SAMPLE_COUNT" \
+            --max-wall-time-ms-per-candidate "$MAX_WALL_TIME_MS_PER_CANDIDATE" \
+            --shard-count "$SHARD_COUNT"
+      - name: Validate score0 candidates if present
+        run: |
+          set -euo pipefail
+          mapfile -t score0_jsons < <(find outputs/p167_quotient_profile_lift_probe -path '*aggregate/score0_candidate_jsons/*.json' -type f | sort)
+          if [ "${#score0_jsons[@]}" -eq 0 ]; then
+            echo "No score0 candidates to validate."
+            exit 0
+          fi
+          printf '%s\n' "${score0_jsons[@]}" > tmp_score0_paths.txt
+          docker run --rm \
+            --user root \
+            -v "$PWD":/work \
+            -w /work \
+            -e DOT_SAGE=/tmp/sage-dot \
+            "$SAGE_DOCKER_IMAGE" \
+            bash -lc 'set -euo pipefail; while read -r path; do sage sage/08_analyze_sds_candidate.sage "$path"; sage sage/05_validate_candidate_json.sage "$path"; sage sage/04_build_gs_from_sds.sage "$path"; done < tmp_score0_paths.txt'
+      - name: Upload aggregate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p167_quotient_profile_lift_probe_${{ github.run_id }}
+          path: outputs/p167_quotient_profile_lift_probe/**/*aggregate/**/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Slack notify
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          webhook = os.environ.get("SLACK_WEBHOOK_URL")
+          text = os.environ.get("SLACK_TEXT", "p167 quotient/profile lift probe completed")
+          if webhook:
+              req = urllib.request.Request(webhook, data=json.dumps({"text": text}).encode("utf-8"), headers={"Content-Type": "application/json"})
+              urllib.request.urlopen(req, timeout=10).read()
+          PY
+        env:
+          SLACK_TEXT: p167 quotient/profile lift probe ${{ job.status }} run ${{ github.run_id }}
