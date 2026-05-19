@@ -1,0 +1,61 @@
+experiment: p167_quotient_profile_lift_probe
+description: >
+  p167 representation probe that generates candidates over antipodal atoms
+  {x,-x}, then evaluates all generated candidates with the same short repair.
+
+parameters:
+  p: 167
+  tuple_classes:
+    - p167_c01
+    - p167_c05
+    - p167_c09
+  atom_basis: antipodal_pm
+  modes:
+    - atom_random_balanced
+    - atom_pair_profile_guided
+    - atom_profile_lift_from_source
+  split_modes:
+    - fixed_01_23
+    - fixed_02_13
+    - fixed_03_12
+  target_modes:
+    - midpoint
+    - seed_left
+    - seed_right_complement
+    - jitter_midpoint
+  solver_mode: heuristic_atom_lift
+  constraint_family: pair_profile_score
+
+artifact_policy:
+  root: outputs/p167_quotient_profile_lift_probe
+  required_files:
+    - candidate_rows.csv
+    - candidate_rows.jsonl
+    - atom_basis_summary.json
+    - tuple_mode_summary.csv
+    - tuple_mode_summary.json
+    - split_mode_summary.csv
+    - split_mode_summary.json
+    - target_mode_summary.csv
+    - target_mode_summary.json
+    - best_candidates.jsonl
+    - score_under_1000_candidates.jsonl
+    - score_under_500_candidates.jsonl
+    - score_under_300_candidates.jsonl
+    - score_under_240_candidates.jsonl
+    - score_under_200_candidates.jsonl
+    - score_under_180_candidates.jsonl
+    - score_under_160_candidates.jsonl
+    - score_under_120_candidates.jsonl
+    - score_under_100_candidates.jsonl
+    - score0_candidates.jsonl
+    - validation_report.json
+    - run_config.json
+    - actual_effective_config.json
+    - README.md
+    - next_actions.md
+
+notes:
+  - This is not a filter, classifier, reranker, or Hadamard 668 success claim.
+  - Score0 is only a candidate until Sage validates SDS and HH^T = 668I over ZZ.
+  - v1 uses antipodal atoms only; multiplier orbit, Fourier, and CP-SAT hooks are reserved for later modes.
