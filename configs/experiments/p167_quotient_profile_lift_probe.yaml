@@ -24,7 +24,14 @@ parameters:
     - seed_right_complement
     - jitter_midpoint
   solver_mode: heuristic_atom_lift
-  constraint_family: pair_profile_score
+  constraint_family: pair_profile_selected_defect_per_block_fourier
+  selected_constraints:
+    selected_defect_count: 12
+    selected_dynamic_defect_count: 4
+    selected_fourier_count: 8
+    alpha_selected_defect: 0.25
+    alpha_block_defect: 0.05
+    alpha_fourier: 0.001
 
 artifact_policy:
   root: outputs/p167_quotient_profile_lift_probe
@@ -58,4 +65,5 @@ artifact_policy:
 notes:
   - This is not a filter, classifier, reranker, or Hadamard 668 success claim.
   - Score0 is only a candidate until Sage validates SDS and HH^T = 668I over ZZ.
-  - v1 uses antipodal atoms only; multiplier orbit, Fourier, and CP-SAT hooks are reserved for later modes.
+  - v2 still uses antipodal atoms only, but adds generation-time selected rho, per-block defect contribution, and selected Fourier magnitude losses.
+  - Multiplier orbit and CP-SAT hooks are still reserved for later modes.

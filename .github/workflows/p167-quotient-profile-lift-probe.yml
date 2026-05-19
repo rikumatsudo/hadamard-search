@@ -16,6 +16,7 @@ on:
         options:
           - "remote-smoke"
           - "p167-quotient-profile-lift-light-40"
+          - "p167-quotient-profile-lift-constrained-40"
           - "custom"
       candidate_count:
         required: false
@@ -154,6 +155,12 @@ jobs:
       atom_sample_count: ${{ steps.matrix.outputs.atom_sample_count }}
       temperature: ${{ steps.matrix.outputs.temperature }}
       alpha_pair: ${{ steps.matrix.outputs.alpha_pair }}
+      alpha_selected_defect: ${{ steps.matrix.outputs.alpha_selected_defect }}
+      alpha_block_defect: ${{ steps.matrix.outputs.alpha_block_defect }}
+      alpha_fourier: ${{ steps.matrix.outputs.alpha_fourier }}
+      selected_defect_count: ${{ steps.matrix.outputs.selected_defect_count }}
+      selected_dynamic_defect_count: ${{ steps.matrix.outputs.selected_dynamic_defect_count }}
+      selected_fourier_count: ${{ steps.matrix.outputs.selected_fourier_count }}
       alpha_size: ${{ steps.matrix.outputs.alpha_size }}
       perturb_atom_moves: ${{ steps.matrix.outputs.perturb_atom_moves }}
       repair_budget: ${{ steps.matrix.outputs.repair_budget }}
@@ -180,6 +187,12 @@ jobs:
           ATOM_SAMPLE_COUNT: ${{ inputs.atom_sample_count || '8' }}
           TEMPERATURE: ${{ inputs.temperature || '0.05' }}
           ALPHA_PAIR: ${{ inputs.alpha_pair || '0.05' }}
+          ALPHA_SELECTED_DEFECT: "0.25"
+          ALPHA_BLOCK_DEFECT: "0.05"
+          ALPHA_FOURIER: "0.001"
+          SELECTED_DEFECT_COUNT: "12"
+          SELECTED_DYNAMIC_DEFECT_COUNT: "4"
+          SELECTED_FOURIER_COUNT: "8"
           ALPHA_SIZE: ${{ inputs.alpha_size || '1000.0' }}
           PERTURB_ATOM_MOVES: ${{ inputs.perturb_atom_moves || '2' }}
           REPAIR_BUDGET: ${{ inputs.repair_budget || '1' }}
@@ -218,12 +231,45 @@ jobs:
               atom_sample_count = "64"
               temperature = "0.05"
               alpha_pair = "0.05"
+              alpha_selected_defect = "0.0"
+              alpha_block_defect = "0.0"
+              alpha_fourier = "0.0"
+              selected_defect_count = "12"
+              selected_dynamic_defect_count = "0"
+              selected_fourier_count = "8"
               alpha_size = "1000.0"
               perturb_atom_moves = "8"
               repair_budget = "6"
               repair_swap_sample_count = "96"
               max_wall_time_ms_per_candidate = "12000"
               base_seed = "167914"
+          elif preset == "p167-quotient-profile-lift-constrained-40":
+              shard_count = 40
+              max_parallel = 40
+              candidate_count = "9"
+              tuple_classes = "p167_c01,p167_c05,p167_c09"
+              representatives_per_tuple = "3"
+              frontier_files = frontier_files_default
+              modes = "atom_random_balanced,atom_pair_profile_guided,atom_profile_lift_from_source"
+              split_modes = "fixed_01_23,fixed_02_13,fixed_03_12"
+              target_modes = "midpoint,seed_left,seed_right_complement,jitter_midpoint"
+              restarts_per_cell = "4"
+              atom_steps = "80"
+              atom_sample_count = "64"
+              temperature = "0.05"
+              alpha_pair = "0.05"
+              alpha_selected_defect = "0.25"
+              alpha_block_defect = "0.05"
+              alpha_fourier = "0.001"
+              selected_defect_count = "12"
+              selected_dynamic_defect_count = "4"
+              selected_fourier_count = "8"
+              alpha_size = "1000.0"
+              perturb_atom_moves = "8"
+              repair_budget = "6"
+              repair_swap_sample_count = "96"
+              max_wall_time_ms_per_candidate = "12000"
+              base_seed = "167925"
           else:
               shard_count = int(os.environ.get("SHARD_COUNT") or "1")
               max_parallel = int(os.environ.get("MAX_PARALLEL") or "1")
@@ -239,6 +285,12 @@ jobs:
               atom_sample_count = os.environ.get("ATOM_SAMPLE_COUNT") or "8"
               temperature = os.environ.get("TEMPERATURE") or "0.05"
               alpha_pair = os.environ.get("ALPHA_PAIR") or "0.05"
+              alpha_selected_defect = os.environ.get("ALPHA_SELECTED_DEFECT") or "0.25"
+              alpha_block_defect = os.environ.get("ALPHA_BLOCK_DEFECT") or "0.05"
+              alpha_fourier = os.environ.get("ALPHA_FOURIER") or "0.001"
+              selected_defect_count = os.environ.get("SELECTED_DEFECT_COUNT") or "12"
+              selected_dynamic_defect_count = os.environ.get("SELECTED_DYNAMIC_DEFECT_COUNT") or "4"
+              selected_fourier_count = os.environ.get("SELECTED_FOURIER_COUNT") or "8"
               alpha_size = os.environ.get("ALPHA_SIZE") or "1000.0"
               perturb_atom_moves = os.environ.get("PERTURB_ATOM_MOVES") or "2"
               repair_budget = os.environ.get("REPAIR_BUDGET") or "1"
@@ -263,6 +315,12 @@ jobs:
               ("atom_sample_count", atom_sample_count),
               ("temperature", temperature),
               ("alpha_pair", alpha_pair),
+              ("alpha_selected_defect", alpha_selected_defect),
+              ("alpha_block_defect", alpha_block_defect),
+              ("alpha_fourier", alpha_fourier),
+              ("selected_defect_count", selected_defect_count),
+              ("selected_dynamic_defect_count", selected_dynamic_defect_count),
+              ("selected_fourier_count", selected_fourier_count),
               ("alpha_size", alpha_size),
               ("perturb_atom_moves", perturb_atom_moves),
               ("repair_budget", repair_budget),
@@ -304,6 +362,12 @@ jobs:
           ATOM_SAMPLE_COUNT: ${{ needs.define-shards.outputs.atom_sample_count }}
           TEMPERATURE: ${{ needs.define-shards.outputs.temperature }}
           ALPHA_PAIR: ${{ needs.define-shards.outputs.alpha_pair }}
+          ALPHA_SELECTED_DEFECT: ${{ needs.define-shards.outputs.alpha_selected_defect }}
+          ALPHA_BLOCK_DEFECT: ${{ needs.define-shards.outputs.alpha_block_defect }}
+          ALPHA_FOURIER: ${{ needs.define-shards.outputs.alpha_fourier }}
+          SELECTED_DEFECT_COUNT: ${{ needs.define-shards.outputs.selected_defect_count }}
+          SELECTED_DYNAMIC_DEFECT_COUNT: ${{ needs.define-shards.outputs.selected_dynamic_defect_count }}
+          SELECTED_FOURIER_COUNT: ${{ needs.define-shards.outputs.selected_fourier_count }}
           ALPHA_SIZE: ${{ needs.define-shards.outputs.alpha_size }}
           PERTURB_ATOM_MOVES: ${{ needs.define-shards.outputs.perturb_atom_moves }}
           REPAIR_BUDGET: ${{ needs.define-shards.outputs.repair_budget }}
@@ -336,6 +400,12 @@ jobs:
             --atom-sample-count "$ATOM_SAMPLE_COUNT" \
             --temperature "$TEMPERATURE" \
             --alpha-pair "$ALPHA_PAIR" \
+            --alpha-selected-defect "$ALPHA_SELECTED_DEFECT" \
+            --alpha-block-defect "$ALPHA_BLOCK_DEFECT" \
+            --alpha-fourier "$ALPHA_FOURIER" \
+            --selected-defect-count "$SELECTED_DEFECT_COUNT" \
+            --selected-dynamic-defect-count "$SELECTED_DYNAMIC_DEFECT_COUNT" \
+            --selected-fourier-count "$SELECTED_FOURIER_COUNT" \
             --alpha-size "$ALPHA_SIZE" \
             --perturb-atom-moves "$PERTURB_ATOM_MOVES" \
             --repair-budget "$REPAIR_BUDGET" \
@@ -382,6 +452,12 @@ jobs:
           ATOM_SAMPLE_COUNT: ${{ needs.define-shards.outputs.atom_sample_count }}
           TEMPERATURE: ${{ needs.define-shards.outputs.temperature }}
           ALPHA_PAIR: ${{ needs.define-shards.outputs.alpha_pair }}
+          ALPHA_SELECTED_DEFECT: ${{ needs.define-shards.outputs.alpha_selected_defect }}
+          ALPHA_BLOCK_DEFECT: ${{ needs.define-shards.outputs.alpha_block_defect }}
+          ALPHA_FOURIER: ${{ needs.define-shards.outputs.alpha_fourier }}
+          SELECTED_DEFECT_COUNT: ${{ needs.define-shards.outputs.selected_defect_count }}
+          SELECTED_DYNAMIC_DEFECT_COUNT: ${{ needs.define-shards.outputs.selected_dynamic_defect_count }}
+          SELECTED_FOURIER_COUNT: ${{ needs.define-shards.outputs.selected_fourier_count }}
           ALPHA_SIZE: ${{ needs.define-shards.outputs.alpha_size }}
           PERTURB_ATOM_MOVES: ${{ needs.define-shards.outputs.perturb_atom_moves }}
           REPAIR_BUDGET: ${{ needs.define-shards.outputs.repair_budget }}
@@ -413,6 +489,12 @@ jobs:
             --atom-sample-count "$ATOM_SAMPLE_COUNT" \
             --temperature "$TEMPERATURE" \
             --alpha-pair "$ALPHA_PAIR" \
+            --alpha-selected-defect "$ALPHA_SELECTED_DEFECT" \
+            --alpha-block-defect "$ALPHA_BLOCK_DEFECT" \
+            --alpha-fourier "$ALPHA_FOURIER" \
+            --selected-defect-count "$SELECTED_DEFECT_COUNT" \
+            --selected-dynamic-defect-count "$SELECTED_DYNAMIC_DEFECT_COUNT" \
+            --selected-fourier-count "$SELECTED_FOURIER_COUNT" \
             --alpha-size "$ALPHA_SIZE" \
             --perturb-atom-moves "$PERTURB_ATOM_MOVES" \
             --repair-budget "$REPAIR_BUDGET" \
