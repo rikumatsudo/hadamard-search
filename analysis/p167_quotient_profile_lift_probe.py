@@ -30,9 +30,10 @@ TUPLE_CLASSES_DEFAULT = "p167_c01,p167_c05,p167_c09"
 MODES_DEFAULT = "atom_random_balanced,atom_pair_profile_guided,atom_profile_lift_from_source"
 ATOM_BASIS_DEFAULT = "antipodal_pm"
 SOLVER_MODE_DEFAULT = "heuristic_atom_lift"
-CONSTRAINT_FAMILY_DEFAULT = "pair_profile_score"
+CONSTRAINT_FAMILY_DEFAULT = "pair_profile_selected_defect_per_block_fourier"
 SPLITS = pair_lift.SPLITS
 THRESHOLDS = (1000, 500, 300, 240, 200, 180, 160, 120, 100)
+TRIG_TABLE_CACHE = {}
 
 
 def ensure_dir(path):
@@ -206,6 +207,88 @@ def score_blocks(p, blocks, lam):
     return int(base.P37.score_blocks(int(p), [set(block) for block in blocks], int(lam)))
 
 
+def rho_vector(p, blocks, lam):
+    return base.rho_vector(int(p), [set(block) for block in blocks], int(lam))
+
+
+def diff_counts_by_block(p, blocks):
+    return base.P37.all_diff_counts(int(p), [set(block) for block in blocks], include_zero=False)
+
+
+def top_rho_coords(rho, count):
+    if int(count) <= 0:
+        return []
+    coords = sorted(range(1, len(rho)), key=lambda d: (-abs(int(rho[d])), d))
+    return [int(d) for d in coords[: int(count)]]
+
+
+def selected_difference_loss(rho, coords, dynamic_count):
+    selected = set(int(d) for d in coords)
+    selected.update(top_rho_coords(rho, int(dynamic_count)))
+    return int(sum(int(rho[d]) * int(rho[d]) for d in selected if d != 0)), sorted(selected)
+
+
+def per_block_defect_loss(p, blocks, source_counts, coords):
+    if not coords:
+        return 0
+    counts = diff_counts_by_block(p, blocks)
+    loss = 0
+    for bidx in range(4):
+        for d in coords:
+            delta = int(counts[bidx][d]) - int(source_counts[bidx][d])
+            loss += delta * delta
+    return int(loss)
+
+
+def trig_tables(p, freqs):
+    key = (int(p), tuple(int(u) for u in freqs))
+    if key in TRIG_TABLE_CACHE:
+        return TRIG_TABLE_CACHE[key]
+    tables = {}
+    for u in key[1]:
+        cos_row = [math.cos(2.0 * math.pi * float(u * x) / float(p)) for x in range(p)]
+        sin_row = [math.sin(2.0 * math.pi * float(u * x) / float(p)) for x in range(p)]
+        tables[int(u)] = (cos_row, sin_row)
+    TRIG_TABLE_CACHE[key] = tables
+    return tables
+
+
+def fourier_power_residuals(p, blocks, freqs, tables=None):
+    if not freqs:
+        return {}
+    if tables is None:
+        tables = trig_tables(p, freqs)
+    residuals = {}
+    for u in freqs:
+        cos_row, sin_row = tables[int(u)]
+        total_power = 0.0
+        for block in blocks:
+            re = 0.0
+            im = 0.0
+            for x in block:
+                # Fourier convention: hat f(u)=sum_x f(x) exp(-2*pi*i*u*x/p).
+                re += cos_row[int(x) % int(p)]
+                im -= sin_row[int(x) % int(p)]
+            total_power += re * re + im * im
+        residuals[int(u)] = total_power - float(p)
+    return residuals
+
+
+def select_fourier_freqs(p, source_blocks, count):
+    if int(count) <= 0:
+        return []
+    freqs = list(range(1, (int(p) // 2) + 1))
+    residuals = fourier_power_residuals(p, source_blocks, freqs)
+    return sorted(freqs, key=lambda u: (-abs(float(residuals[u])), u))[: int(count)]
+
+
+def fourier_selected_loss(p, blocks, freqs, tables=None):
+    if not freqs:
+        return 0.0
+    residuals = fourier_power_residuals(p, blocks, freqs, tables=tables)
+    return float(sum(float(v) * float(v) for v in residuals.values()))
+
+
 def profile_loss_for_targets(p, blocks, split_mode, left_target, right_target):
     if split_mode == "none" or not left_target or not right_target:
         return 0
@@ -221,10 +304,56 @@ def split_pair_residual(p, blocks, lam, split_mode):
     return int(pair_lift.split_pair_residual_loss(p, blocks, lam, split_mode))
 
 
-def objective(p, blocks, lam, split_mode, left_target, right_target, alpha_pair):
+def make_constraint_context(args, p, source_blocks, lam):
+    source_rho = rho_vector(p, source_blocks, lam)
+    selected_coords = top_rho_coords(source_rho, int(args.selected_defect_count))
+    fourier_freqs = select_fourier_freqs(p, source_blocks, int(args.selected_fourier_count))
+    return {
+        "source_rho": source_rho,
+        "source_counts": diff_counts_by_block(p, source_blocks),
+        "selected_defect_coords": selected_coords,
+        "selected_fourier_freqs": fourier_freqs,
+        "fourier_tables": trig_tables(p, fourier_freqs),
+    }
+
+
+def objective_components(p, blocks, lam, split_mode, left_target, right_target, context, args):
     score = score_blocks(p, blocks, lam)
     target_loss = profile_loss_for_targets(p, blocks, split_mode, left_target, right_target)
-    return float(score) + float(alpha_pair) * float(target_loss), score, target_loss
+    rho = rho_vector(p, blocks, lam)
+    selected_loss, selected_coords_used = selected_difference_loss(
+        rho,
+        context.get("selected_defect_coords", []),
+        int(args.selected_dynamic_defect_count),
+    )
+    per_block_loss = per_block_defect_loss(
+        p,
+        blocks,
+        context.get("source_counts", []),
+        context.get("selected_defect_coords", []),
+    )
+    fourier_loss = fourier_selected_loss(
+        p,
+        blocks,
+        context.get("selected_fourier_freqs", []),
+        tables=context.get("fourier_tables"),
+    )
+    obj = (
+        float(score)
+        + float(args.alpha_pair) * float(target_loss)
+        + float(args.alpha_selected_defect) * float(selected_loss)
+        + float(args.alpha_block_defect) * float(per_block_loss)
+        + float(args.alpha_fourier) * float(fourier_loss)
+    )
+    return {
+        "objective": float(obj),
+        "score": int(score),
+        "target_loss": int(target_loss),
+        "selected_defect_loss": int(selected_loss),
+        "per_block_defect_loss": int(per_block_loss),
+        "fourier_selected_loss": float(fourier_loss),
+        "selected_defect_coords_used": selected_coords_used,
+    }
 
 
 def perturb_atom_blocks(blocks, basis, moves, rng):
@@ -256,11 +385,12 @@ def atom_lift(args, mode, p, lam, ks, source_blocks, split_mode, target_mode, se
     rng = random.Random(int(seed))
     basis = AtomBasis(p, args.atom_basis)
     left_target, right_target = make_targets(args, p, source_blocks, lam, split_mode, target_mode, rng)
+    constraint_context = make_constraint_context(args, p, source_blocks, lam)
     blocks = initial_blocks_for_mode(args, mode, p, ks, source_blocks, basis, rng)
-    start_obj, start_score, start_loss = objective(p, blocks, lam, split_mode, left_target, right_target, float(args.alpha_pair))
+    start_components = objective_components(p, blocks, lam, split_mode, left_target, right_target, constraint_context, args)
     best_blocks = [set(block) for block in blocks]
-    best_obj, best_score, best_loss = start_obj, start_score, start_loss
-    current_obj = start_obj
+    best_components = dict(start_components)
+    current_obj = float(start_components["objective"])
     accepted = 0
     uphill = 0
     started = time.time()
@@ -273,15 +403,13 @@ def atom_lift(args, mode, p, lam, ks, source_blocks, split_mode, target_mode, se
             if move is None:
                 continue
             candidate_blocks = apply_move(blocks, move)
-            obj, score, loss = objective(p, candidate_blocks, lam, split_mode, left_target, right_target, float(args.alpha_pair))
-            delta = float(obj) - float(current_obj)
+            components = objective_components(p, candidate_blocks, lam, split_mode, left_target, right_target, constraint_context, args)
+            delta = float(components["objective"]) - float(current_obj)
             if best_move is None or delta < best_move["delta_obj"]:
                 best_move = {
                     "move": move,
                     "blocks": candidate_blocks,
-                    "obj": obj,
-                    "score": score,
-                    "loss": loss,
+                    "components": components,
                     "delta_obj": delta,
                 }
         if best_move is None:
@@ -295,26 +423,39 @@ def atom_lift(args, mode, p, lam, ks, source_blocks, split_mode, target_mode, se
         if not accept:
             break
         blocks = [set(block) for block in best_move["blocks"]]
-        current_obj = float(best_move["obj"])
+        current_obj = float(best_move["components"]["objective"])
         accepted += 1
         if best_move["delta_obj"] > 0:
             uphill += 1
-        if (int(best_move["score"]), float(best_move["obj"])) < (int(best_score), float(best_obj)):
+        if (
+            int(best_move["components"]["score"]),
+            float(best_move["components"]["objective"]),
+        ) < (
+            int(best_components["score"]),
+            float(best_components["objective"]),
+        ):
             best_blocks = [set(block) for block in blocks]
-            best_obj = float(best_move["obj"])
-            best_score = int(best_move["score"])
-            best_loss = int(best_move["loss"])
+            best_components = dict(best_move["components"])
     return {
         "blocks": best_blocks,
-        "start_obj": start_obj,
-        "best_obj": best_obj,
-        "target_loss_before": int(start_loss),
-        "target_loss_after": int(best_loss),
-        "score_before_lift": int(start_score),
-        "score_after_lift": int(best_score),
+        "objective_before_lift": float(start_components["objective"]),
+        "objective_after_lift": float(best_components["objective"]),
+        "target_loss_before": int(start_components["target_loss"]),
+        "target_loss_after": int(best_components["target_loss"]),
+        "selected_defect_loss_before": int(start_components["selected_defect_loss"]),
+        "selected_defect_loss_after": int(best_components["selected_defect_loss"]),
+        "per_block_defect_loss_before": int(start_components["per_block_defect_loss"]),
+        "per_block_defect_loss_after": int(best_components["per_block_defect_loss"]),
+        "fourier_selected_loss_before": float(start_components["fourier_selected_loss"]),
+        "fourier_selected_loss_after": float(best_components["fourier_selected_loss"]),
+        "score_before_lift": int(start_components["score"]),
+        "score_after_lift": int(best_components["score"]),
         "accepted_atom_steps": int(accepted),
         "uphill_atom_steps": int(uphill),
         "atom_state_counts": basis.state_counts_for_blocks(best_blocks),
+        "selected_defect_coords": constraint_context.get("selected_defect_coords", []),
+        "selected_defect_coords_used": best_components.get("selected_defect_coords_used", []),
+        "selected_fourier_freqs": constraint_context.get("selected_fourier_freqs", []),
     }
 
 
@@ -400,8 +541,19 @@ def run_one(candidate, mode, split_mode, target_mode, restart_id, args):
         "score_after_repair": int(score_after),
         "score_improvement_from_generated": int(score_generated) - int(score_after),
         "score_improvement_from_source": int(source_score) - int(score_after),
+        "objective_before_lift": float(lift["objective_before_lift"]),
+        "objective_after_lift": float(lift["objective_after_lift"]),
         "target_loss_before": int(lift["target_loss_before"]),
         "target_loss_after": int(lift["target_loss_after"]),
+        "selected_defect_loss_before": int(lift["selected_defect_loss_before"]),
+        "selected_defect_loss_after": int(lift["selected_defect_loss_after"]),
+        "per_block_defect_loss_before": int(lift["per_block_defect_loss_before"]),
+        "per_block_defect_loss_after": int(lift["per_block_defect_loss_after"]),
+        "fourier_selected_loss_before": float(lift["fourier_selected_loss_before"]),
+        "fourier_selected_loss_after": float(lift["fourier_selected_loss_after"]),
+        "selected_defect_coords": lift["selected_defect_coords"],
+        "selected_defect_coords_used": lift["selected_defect_coords_used"],
+        "selected_fourier_freqs": lift["selected_fourier_freqs"],
         "pair_residual_generated": split_pair_residual(p, generated, lam, split_mode),
         "accepted_atom_steps": int(lift["accepted_atom_steps"]),
         "uphill_atom_steps": int(lift["uphill_atom_steps"]),
@@ -442,6 +594,9 @@ def summarize_group(rows, keys):
         summary["median_score_after_repair"] = median(row["score_after_repair"] for row in group)
         summary["best_target_loss_after"] = min(int(row["target_loss_after"]) for row in group) if group else None
         summary["median_target_loss_after"] = median(row["target_loss_after"] for row in group)
+        summary["median_selected_defect_loss_after"] = median(row.get("selected_defect_loss_after") for row in group)
+        summary["median_per_block_defect_loss_after"] = median(row.get("per_block_defect_loss_after") for row in group)
+        summary["median_fourier_selected_loss_after"] = median(row.get("fourier_selected_loss_after") for row in group)
         summary["repair_improvement_rate"] = rate(group, lambda row: bool(row.get("repair_improved")))
         summary["source_reproduction_after_count"] = sum(1 for row in group if row.get("source_reproduction_after"))
         summary["diversity_hash_count"] = len({row["canonical_hash_after"] for row in group})
@@ -487,8 +642,19 @@ ROW_FIELDS = [
     "score_after_repair",
     "score_improvement_from_generated",
     "score_improvement_from_source",
+    "objective_before_lift",
+    "objective_after_lift",
     "target_loss_before",
     "target_loss_after",
+    "selected_defect_loss_before",
+    "selected_defect_loss_after",
+    "per_block_defect_loss_before",
+    "per_block_defect_loss_after",
+    "fourier_selected_loss_before",
+    "fourier_selected_loss_after",
+    "selected_defect_coords",
+    "selected_defect_coords_used",
+    "selected_fourier_freqs",
     "pair_residual_generated",
     "accepted_atom_steps",
     "uphill_atom_steps",
@@ -528,6 +694,17 @@ def write_readme(out_dir, config, rows, tuple_mode_summary, split_mode_summary, 
         "- target_modes: `{}`".format(config["target_modes"]),
         "- atom_steps: `{}`".format(config["atom_steps"]),
         "- atom_sample_count: `{}`".format(config["atom_sample_count"]),
+        "- constraint_family: `{}`".format(config["constraint_family"]),
+        "- alpha_selected_defect / alpha_block_defect / alpha_fourier: `{}` / `{}` / `{}`".format(
+            config["alpha_selected_defect"],
+            config["alpha_block_defect"],
+            config["alpha_fourier"],
+        ),
+        "- selected_defect_count / selected_dynamic_defect_count / selected_fourier_count: `{}` / `{}` / `{}`".format(
+            config["selected_defect_count"],
+            config["selected_dynamic_defect_count"],
+            config["selected_fourier_count"],
+        ),
         "- repair_budget: `{}`".format(config["repair_budget"]),
         "",
         "## Direct Answers",
@@ -540,7 +717,7 @@ def write_readme(out_dir, config, rows, tuple_mode_summary, split_mode_summary, 
         "6. Best split/target pair is summarized in `split_mode_summary.csv` and `target_mode_summary.csv`.",
         "7. Source reproduction after repair count: `{}`".format(sum(1 for row in rows if row.get("source_reproduction_after"))),
         "8. Did short repair help: `{}`".format(any(bool(row.get("repair_improved")) for row in rows)),
-        "9. Expansion verdict: if target loss improves but score remains high, add Fourier/per-block-defect/selected-difference constraints before scaling restarts.",
+        "9. Constraint verdict: selected-difference, per-block defect, and selected Fourier losses are generation-time guidance terms; compare their loss columns against score in the CSV summaries.",
         "10. Score0 appeared: `{}`".format(any(int(row["score_generated"]) == 0 or int(row["score_after_repair"]) == 0 for row in rows)),
         "",
         "## Best Rows",
@@ -553,7 +730,7 @@ def write_readme(out_dir, config, rows, tuple_mode_summary, split_mode_summary, 
         "",
         "## Tuple Mode Summary",
         "",
-        base.markdown_table(tuple_mode_summary, ["tuple_class", "mode", "row_count", "best_score_generated", "best_score_after_repair", "median_score_after_repair", "source_reproduction_after_count", "diversity_hash_count"], limit=30),
+        base.markdown_table(tuple_mode_summary, ["tuple_class", "mode", "row_count", "best_score_generated", "best_score_after_repair", "median_score_after_repair", "median_selected_defect_loss_after", "median_per_block_defect_loss_after", "median_fourier_selected_loss_after", "source_reproduction_after_count", "diversity_hash_count"], limit=30),
         "",
         "## Split Summary",
         "",
@@ -612,6 +789,12 @@ def write_outputs(args, rows, candidates, out_dir):
         "atom_sample_count": int(args.atom_sample_count),
         "temperature": float(args.temperature),
         "alpha_pair": float(args.alpha_pair),
+        "alpha_selected_defect": float(args.alpha_selected_defect),
+        "alpha_block_defect": float(args.alpha_block_defect),
+        "alpha_fourier": float(args.alpha_fourier),
+        "selected_defect_count": int(args.selected_defect_count),
+        "selected_dynamic_defect_count": int(args.selected_dynamic_defect_count),
+        "selected_fourier_count": int(args.selected_fourier_count),
         "alpha_size": float(args.alpha_size),
         "perturb_atom_moves": int(args.perturb_atom_moves),
         "repair_budget": int(args.repair_budget),
@@ -729,6 +912,12 @@ def parse_args():
     parser.add_argument("--atom-sample-count", type=int, default=64)
     parser.add_argument("--temperature", type=float, default=0.05)
     parser.add_argument("--alpha-pair", type=float, default=0.05)
+    parser.add_argument("--alpha-selected-defect", type=float, default=0.25)
+    parser.add_argument("--alpha-block-defect", type=float, default=0.05)
+    parser.add_argument("--alpha-fourier", type=float, default=0.001)
+    parser.add_argument("--selected-defect-count", type=int, default=12)
+    parser.add_argument("--selected-dynamic-defect-count", type=int, default=4)
+    parser.add_argument("--selected-fourier-count", type=int, default=8)
     parser.add_argument("--alpha-size", type=float, default=1000.0)
     parser.add_argument("--perturb-atom-moves", type=int, default=8)
     parser.add_argument("--repair-budget", type=int, default=6)
